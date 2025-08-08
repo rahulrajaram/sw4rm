@@ -19,6 +19,14 @@ dependencies = [
 dev = [
   "grpcio-tools>=1.56,<2",
 ]
+docs = [
+  "mkdocs>=1.5.0",
+  "mkdocs-material>=9.4.0",
+  "mkdocs-gen-files>=0.5.0",
+  "mkdocs-literate-nav>=0.6.0",
+  "mkdocs-section-index>=0.3.0",
+  "mkdocstrings[python]>=0.24.0",
+]
 
 [project.urls]
 Homepage = "https://example.com/sigagent"

@@ -53,6 +53,17 @@ venv:
 dev-deps: venv
 	$(PYTHON) -m pip install -e ".[dev]"
 
+# Documentation targets
+.PHONY: docs-serve docs-build docs-deps
+docs-deps: venv
+	$(PIP) install -e ".[docs]"
+
+docs-build: docs-deps protos
+	$(PYTHON) -m mkdocs build
+
+docs-serve: docs-deps protos
+	$(PYTHON) -m mkdocs serve
+
 # Add dev-deps as an implicit prerequisite for common tasks
 protos: dev-deps
 smoke: dev-deps

@@ -33,3 +33,6 @@ htmlcov/
 
 # Generated protobuf stubs
 py_sdk/sigagent/protos/*.py
+
+# Documentation build output
+site/
