@@ -62,6 +62,20 @@ This file captures the current state, decisions, and next steps for building a P
 3. Validate proto compatibility by compiling stubs and smoke-testing imports.
 4. Optionally add tests for envelope helpers and client wrappers.
 
+## Build & Publish
+- Local install (runtime only):
+  - `python -m pip install .`
+- Local dev install (includes codegen tool):
+  - `python -m pip install -e ".[dev]"`
+  - `make protos` to generate Python stubs into `py_sdk/agentos/protos`.
+- Build distributables (wheel + sdist):
+  - `python -m pip install build twine`
+  - `python -m build`
+- Publish to PyPI (requires credentials):
+  - `python -m twine upload dist/*`
+- Versioning:
+  - Bump `version` in `pyproject.toml`, rebuild, and tag the commit as needed.
+
 ## Open Questions
 - Do we want a strict dependency on generated protobufs at import time, or allow a lazy/optional mode with friendly errors (current clients do the latter)?
 - What default endpoint map should we ship (current defaults are localhost ports)?
