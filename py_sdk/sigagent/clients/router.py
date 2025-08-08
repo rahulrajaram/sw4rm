@@ -7,7 +7,7 @@ class RouterClient:
     def __init__(self, channel: Any) -> None:
         self._channel = channel
         try:
-            from agentos.protos import router_pb2, router_pb2_grpc  # type: ignore
+            from sigagent.protos import router_pb2, router_pb2_grpc  # type: ignore
             self._pb2 = router_pb2
             self._stub = router_pb2_grpc.RouterServiceStub(channel)
         except Exception:
@@ -25,3 +25,4 @@ class RouterClient:
             raise RuntimeError("Protobuf stubs not generated. Run `make protos`." )
         req = self._pb2.StreamRequest(agent_id=agent_id)
         return self._stub.StreamIncoming(req)
+

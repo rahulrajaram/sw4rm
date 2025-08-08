@@ -8,7 +8,7 @@ class RegistryClient:
     def __init__(self, channel: Any) -> None:
         self._channel = channel
         try:
-            from agentos.protos import registry_pb2, registry_pb2_grpc  # type: ignore
+            from sigagent.protos import registry_pb2, registry_pb2_grpc  # type: ignore
             self._pb2 = registry_pb2
             self._stub = registry_pb2_grpc.RegistryServiceStub(channel)
         except Exception:

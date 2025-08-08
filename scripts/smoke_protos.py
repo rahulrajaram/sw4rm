@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PY_OUT = REPO_ROOT / "py_sdk" / "agentos" / "protos"
+PY_OUT = REPO_ROOT / "py_sdk" / "sigagent" / "protos"
 PROTOS = [
     "common.proto",
     "registry.proto",
@@ -68,7 +68,7 @@ def import_generated_and_clients() -> None:
 
     try:
         # Generated modules
-        from agentos.protos import (
+        from sigagent.protos import (
             common_pb2,  # noqa: F401
             registry_pb2,  # noqa: F401
             registry_pb2_grpc,  # noqa: F401
@@ -81,16 +81,16 @@ def import_generated_and_clients() -> None:
 
     try:
         # SDK clients
-        from agentos.clients.registry import RegistryClient  # noqa: F401
-        from agentos.clients.router import RouterClient  # noqa: F401
-        from agentos.clients.scheduler import SchedulerClient  # noqa: F401
-        from agentos.clients.hitl import HitlClient  # noqa: F401
-        from agentos.clients.worktree import WorktreeClient  # noqa: F401
-        from agentos.clients.negotiation import NegotiationClient  # noqa: F401
-        from agentos.clients.reasoning import ReasoningClient  # noqa: F401
-        from agentos.clients.logging import LoggingClient  # noqa: F401
-        from agentos.clients.tool import ToolClient  # noqa: F401
-        from agentos.clients.connector import ConnectorClient  # noqa: F401
+        from sigagent.clients.registry import RegistryClient  # noqa: F401
+        from sigagent.clients.router import RouterClient  # noqa: F401
+        from sigagent.clients.scheduler import SchedulerClient  # noqa: F401
+        from sigagent.clients.hitl import HitlClient  # noqa: F401
+        from sigagent.clients.worktree import WorktreeClient  # noqa: F401
+        from sigagent.clients.negotiation import NegotiationClient  # noqa: F401
+        from sigagent.clients.reasoning import ReasoningClient  # noqa: F401
+        from sigagent.clients.logging import LoggingClient  # noqa: F401
+        from sigagent.clients.tool import ToolClient  # noqa: F401
+        from sigagent.clients.connector import ConnectorClient  # noqa: F401
     except Exception as e:
         print(f"[smoke] Failed to import SDK clients: {e}", file=sys.stderr)
         sys.exit(4)
@@ -98,8 +98,8 @@ def import_generated_and_clients() -> None:
     # Light touch: instantiate a couple of stubs with a dummy channel
     try:
         dummy_channel = object()
-        from agentos.clients.registry import RegistryClient
-        from agentos.clients.router import RouterClient
+        from sigagent.clients.registry import RegistryClient
+        from sigagent.clients.router import RouterClient
 
         RegistryClient(dummy_channel)
         RouterClient(dummy_channel)

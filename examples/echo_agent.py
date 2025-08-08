@@ -22,9 +22,9 @@ from typing import Optional
 
 import grpc
 
-from agentos.clients.registry import RegistryClient
-from agentos.clients.router import RouterClient
-from agentos.envelope import build_envelope
+from sigagent.clients.registry import RegistryClient
+from sigagent.clients.router import RouterClient
+from sigagent.envelope import build_envelope
 
 
 def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
@@ -107,4 +107,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

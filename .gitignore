@@ -33,4 +33,4 @@ htmlcov/
 
 # Generated protobuf stubs
 py_sdk/agentos/protos/*.py
-
+py_sdk/sigagent/protos/*.py

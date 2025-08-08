@@ -7,7 +7,7 @@ class NegotiationClient:
     def __init__(self, channel: Any) -> None:
         self._channel = channel
         try:
-            from agentos.protos import negotiation_pb2, negotiation_pb2_grpc  # type: ignore
+            from sigagent.protos import negotiation_pb2, negotiation_pb2_grpc  # type: ignore
             self._pb2 = negotiation_pb2
             self._stub = negotiation_pb2_grpc.NegotiationServiceStub(channel)
         except Exception:
@@ -114,3 +114,4 @@ class NegotiationClient:
         # Updated to match proto rename: AbortRequest
         req = self._pb2.AbortRequest(negotiation_id=negotiation_id, reason=reason)
         return self._stub.Abort(req)
+

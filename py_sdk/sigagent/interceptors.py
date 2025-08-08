@@ -20,7 +20,7 @@ class CorrelationIdClientInterceptor:  # type: ignore[misc]
         if grpc is None:
             _grpc_required()
         self._correlation_id = correlation_id
-        self._user_agent = user_agent or "agentos-sdk/0.1"
+        self._user_agent = user_agent or "sigagent-sdk/0.1"
 
     def _append_metadata(self, client_call_details: Any) -> Any:
         metadata = [] if client_call_details.metadata is None else list(client_call_details.metadata)

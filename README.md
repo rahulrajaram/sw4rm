@@ -1,4 +1,4 @@
-# AgentOS Python SDK (experimental)
+# SigAgent Python SDK (experimental)
 
 Lightweight runtime, clients, and helpers to build message-driven agents that speak the AgentOS gRPC protocol defined by the local `.proto` files.
 
@@ -18,8 +18,8 @@ Lightweight runtime, clients, and helpers to build message-driven agents that sp
 ## Quickstart
 ```python
 import grpc
-from agentos.clients.registry import RegistryClient
-from agentos.clients.router import RouterClient
+from sigagent.clients.registry import RegistryClient
+from sigagent.clients.router import RouterClient
 
 channel = grpc.insecure_channel("localhost:50051")
 registry = RegistryClient(channel)
@@ -38,7 +38,7 @@ send_resp = router.send_message({
     "message_id": "123",
     "producer_id": "echo-1",
     # Prefer named enums if stubs are generated:
-    #   from agentos.protos import common_pb2 as common
+    #   from sigagent.protos import common_pb2 as common
     #   "message_type": common.DATA,
     # Otherwise, numeric value works as well:
     "message_type": 2,  # DATA
