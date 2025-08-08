@@ -1,9 +1,4 @@
 syntax = "proto3";
-package agentos.common;
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/duration.proto";
-// Enums and messages...
-syntax = "proto3";
 
 package agentos.common;
 

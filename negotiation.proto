@@ -42,7 +42,7 @@ message Decision {
   bytes result = 4;
 }
 
-message Abort {
+message AbortRequest {
   string negotiation_id = 1;
   string reason = 2;
 }
@@ -53,5 +53,5 @@ service NegotiationService {
   rpc Counter(CounterProposal) returns (agentos.common.Empty);
   rpc Evaluate(Evaluation) returns (agentos.common.Empty);
   rpc Decide(Decision) returns (agentos.common.Empty);
-  rpc Abort(Abort) returns (agentos.common.Empty);
+  rpc Abort(AbortRequest) returns (agentos.common.Empty);
 }

@@ -824,7 +824,7 @@ service ToolService {
 ## `connector.proto`
 
 ```proto
-syntax = "proto3";
+`syntax = "proto3";
 
 package agentos.connector;
 

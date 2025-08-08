@@ -45,8 +45,8 @@ This file captures the current state, decisions, and next steps for building a P
   - ACK lifecycle integration with router responses in higher-level flows.
   - Metrics export and richer interceptors (timing, retry policies).
 - Examples and docs:
-  - `examples/echo_agent.py` demonstrating registration, streaming, ACKs, preemption.
-  - README/usage docs for running an agent.
+  - Echo example exists at `examples/echo_agent.py` (registration + streaming). Still needed: ACK lifecycle demonstration and preemption hooks.
+  - README/usage docs can expand around enums and multi-endpoint setups.
 - CI and packaging:
   - Optional: package metadata, versioning, and publishing workflows.
 

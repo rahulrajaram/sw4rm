@@ -9,6 +9,12 @@ Lightweight runtime, clients, and helpers to build message-driven agents that sp
   - `python -m pip install -e ".[dev]"`
   - Generate stubs: `make protos` (requires `grpcio-tools`).
 
+## Before You Start
+- For local development, install dev deps and generate protobuf stubs:
+  - `python -m pip install -e ".[dev]"`
+  - `make protos`
+  - Stubs are generated under `py_sdk/agentos/protos`.
+
 ## Quickstart
 ```python
 import grpc
@@ -31,6 +37,10 @@ print("registered:", reg_resp)
 send_resp = router.send_message({
     "message_id": "123",
     "producer_id": "echo-1",
+    # Prefer named enums if stubs are generated:
+    #   from agentos.protos import common_pb2 as common
+    #   "message_type": common.DATA,
+    # Otherwise, numeric value works as well:
     "message_type": 2,  # DATA
     "content_type": "text/plain",
     "content_length": 5,
@@ -52,3 +62,9 @@ print("sent:", send_resp)
 - Well-known types (Timestamp/Duration) are handled via generated modules inside clients.
 - This SDK is early-stage; APIs may evolve.
 
+## Examples
+- Minimal echo agent demonstrating registration and streaming: `examples/echo_agent.py`
+- Run it (router and registry may be the same host:port or separate):
+  - `python examples/echo_agent.py --agent-id echo-1 --name EchoAgent \\
+    --router localhost:50051 --registry localhost:50052`
+  - Note: In simple deployments, Registry and Router may share the same address; pass the same value to both flags if so.

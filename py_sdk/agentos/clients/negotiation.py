@@ -111,6 +111,6 @@ class NegotiationClient:
     def abort(self, negotiation_id: str, reason: str = "") -> Any:
         if not self._stub:
             raise RuntimeError("Protobuf stubs not generated. Run `make protos`.")
-        req = self._pb2.Abort(negotiation_id=negotiation_id, reason=reason)
+        # Updated to match proto rename: AbortRequest
+        req = self._pb2.AbortRequest(negotiation_id=negotiation_id, reason=reason)
         return self._stub.Abort(req)
-
