@@ -10,21 +10,19 @@ $(PY_OUT):
 	mkdir -p $(PY_OUT)
 
 protos: $(PY_OUT)
-	inc=$$($(PYTHON) - <<'PY'
-import sys
-try:
-    import pkg_resources
-    import grpc_tools  # noqa: F401
-    print(pkg_resources.resource_filename('grpc_tools', '_proto'))
-except Exception:
-    sys.exit(0)
-PY
-); \
+	@inc=$$($(PYTHON) -c "import sys; \
+	try: \
+	    import pkg_resources, grpc_tools; \
+	    print(pkg_resources.resource_filename('grpc_tools', '_proto')); \
+	except: \
+	    pass"); \
 	if [ -n "$$inc" ]; then \
-	  $(PYTHON) -m grpc_tools.protoc -I. -I"$$inc" --python_out=$(PY_OUT) --grpc_python_out=$(PY_OUT) $(PROTOS); \
+	  $(PYTHON) -m grpc_tools.protoc -I. -I"$$inc" --python_out=$(PY_OUT) --grpc_python_out=$(PY_OUT) --pyi_out=$(PY_OUT) $(PROTOS); \
 	else \
-	  $(PYTHON) -m grpc_tools.protoc -I. --python_out=$(PY_OUT) --grpc_python_out=$(PY_OUT) $(PROTOS); \
+	  $(PYTHON) -m grpc_tools.protoc -I. --python_out=$(PY_OUT) --grpc_python_out=$(PY_OUT) --pyi_out=$(PY_OUT) $(PROTOS); \
 	fi
+	@echo "Fixing relative imports..."
+	@cd $(PY_OUT) && sed -i 's/^import \(.*_pb2\)/from . import \1/' *_pb2.py *_pb2_grpc.py
 
 .PHONY: smoke
 smoke:
