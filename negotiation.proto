@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package agentos.negotiation;
+package sigagent.negotiation;
 
 import "common.proto";
 import "google/protobuf/duration.proto";
@@ -10,7 +10,7 @@ message NegotiationOpen {
   string correlation_id = 2;
   string topic = 3;
   repeated string participants = 4;
-  agentos.common.DebateIntensity intensity = 5;
+  sigagent.common.DebateIntensity intensity = 5;
   google.protobuf.Duration debate_timeout = 6;
 }
 
@@ -48,10 +48,10 @@ message AbortRequest {
 }
 
 service NegotiationService {
-  rpc Open(NegotiationOpen) returns (agentos.common.Empty);
-  rpc Propose(Proposal) returns (agentos.common.Empty);
-  rpc Counter(CounterProposal) returns (agentos.common.Empty);
-  rpc Evaluate(Evaluation) returns (agentos.common.Empty);
-  rpc Decide(Decision) returns (agentos.common.Empty);
-  rpc Abort(AbortRequest) returns (agentos.common.Empty);
+  rpc Open(NegotiationOpen) returns (sigagent.common.Empty);
+  rpc Propose(Proposal) returns (sigagent.common.Empty);
+  rpc Counter(CounterProposal) returns (sigagent.common.Empty);
+  rpc Evaluate(Evaluation) returns (sigagent.common.Empty);
+  rpc Decide(Decision) returns (sigagent.common.Empty);
+  rpc Abort(AbortRequest) returns (sigagent.common.Empty);
 }

@@ -1,14 +1,14 @@
 syntax = "proto3";
 
-package agentos.router;
+package sigagent.router;
 
 import "common.proto";
 
-message SendMessageRequest { agentos.common.Envelope msg = 1; }
+message SendMessageRequest { sigagent.common.Envelope msg = 1; }
 message SendMessageResponse { bool accepted = 1; string reason = 2; }
 
 message StreamRequest { string agent_id = 1; }
-message StreamItem { agentos.common.Envelope msg = 1; }
+message StreamItem { sigagent.common.Envelope msg = 1; }
 
 service RouterService {
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);

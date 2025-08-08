@@ -20,7 +20,7 @@ This file captures the current state, decisions, and next steps for building a P
   - `reasoning.proto`: CheckParallelism/EvaluateDebate
   - `logging.proto`: LogEvent, Ingest.
 - Build helper:
-  - `Makefile`: `make protos` generates Python stubs into `py_sdk/agentos/protos` and ensures the output directory exists.
+  - `Makefile`: `make protos` generates Python stubs into `py_sdk/sigagent/protos` and ensures the output directory exists.
 - SDK scaffold (initial skeletons):
   - `py_sdk/sigagent/__init__.py`: version and exports.
   - `py_sdk/sigagent/config.py`: `Endpoints` and `AgentConfig` dataclasses.
@@ -54,7 +54,7 @@ This file captures the current state, decisions, and next steps for building a P
 - Prerequisites (local dev): `pip install grpcio grpcio-tools googleapis-common-protos`
 - Generate:
   - `make protos`
-- Output: `py_sdk/agentos/protos/*_pb2.py` and `*_pb2_grpc.py`
+- Output: `py_sdk/sigagent/protos/*_pb2.py` and `*_pb2_grpc.py`
 
 ## Suggested Next Steps
 1. Flesh out runtime helpers: activity buffer, worktree binding, ACK lifecycle utilities.
@@ -67,7 +67,7 @@ This file captures the current state, decisions, and next steps for building a P
   - `python -m pip install .`
 - Local dev install (includes codegen tool):
   - `python -m pip install -e ".[dev]"`
-  - `make protos` to generate Python stubs into `py_sdk/agentos/protos`.
+  - `make protos` to generate Python stubs into `py_sdk/sigagent/protos`.
 - Build distributables (wheel + sdist):
   - `python -m pip install build twine`
   - `python -m build`

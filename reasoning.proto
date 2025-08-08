@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package agentos.reasoning;
+package sigagent.reasoning;
 
 message ParallelismCheckRequest { string scope_a = 1; string scope_b = 2; }
 message ParallelismCheckResponse { double confidence_score = 1; string notes = 2; }

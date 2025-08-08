@@ -13,7 +13,7 @@ Lightweight runtime, clients, and helpers to build message-driven agents that sp
 - For local development, install dev deps and generate protobuf stubs:
   - `python -m pip install -e ".[dev]"`
   - `make protos`
-  - Stubs are generated under `py_sdk/agentos/protos`.
+  - Stubs are generated under `py_sdk/sigagent/protos`.
 
 ## Quickstart
 ```python
@@ -51,7 +51,7 @@ print("sent:", send_resp)
 
 ## Codegen
 - Prereqs: `python -m pip install -e ".[dev]"`
-- Generate Python stubs into `py_sdk/agentos/protos`: `make protos`
+- Generate Python stubs into `py_sdk/sigagent/protos`: `make protos`
 
 ## Packaging
 - Build: `python -m pip install build twine && python -m build`

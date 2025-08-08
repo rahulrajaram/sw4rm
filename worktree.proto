@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package agentos.worktree;
+package sigagent.worktree;
 
 message BindRequest { string agent_id = 1; string repo_id = 2; string worktree_id = 3; }
 message BindResponse { bool ok = 1; string reason = 2; }

@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package agentos.tool;
+package sigagent.tool;
 
 import "google/protobuf/duration.proto";
 

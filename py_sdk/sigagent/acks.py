@@ -16,7 +16,7 @@ def build_ack(
 ) -> Dict[str, Any]:
     """Return a plain dict representing an Ack message payload.
 
-    This structure matches fields in agentos.common.Ack and is intended to be
+    This structure matches fields in sigagent.common.Ack and is intended to be
     serialized (e.g., JSON) and placed into an Envelope payload for transport.
     """
     return {

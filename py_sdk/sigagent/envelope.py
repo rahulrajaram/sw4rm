@@ -39,7 +39,7 @@ def build_envelope(
     worktree_id: Optional[str] = None,
     ttl_ms: Optional[int] = None,
 ) -> dict:
-    # Returns a plain dict compatible with agentos.common.Envelope fields.
+    # Returns a plain dict compatible with sigagent.common.Envelope fields.
     # Callers can adapt this to the generated protobuf class if available.
     env = {
         "message_id": new_uuid(),

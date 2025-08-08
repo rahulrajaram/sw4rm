@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package agentos.scheduler;
+package sigagent.scheduler;
 
 import "google/protobuf/duration.proto";
 import "common.proto";

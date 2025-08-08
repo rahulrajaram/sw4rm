@@ -22,7 +22,7 @@ This report summarizes progress on the AgentOS Python SDK and positions it again
 - Expand examples to include ACKs and cooperative preemption; add smoke tests for clients and helpers.
 
 ## Notes
-- Protobuf code generation: run `python -m pip install -e ".[dev]" && make protos` to generate Python stubs under `py_sdk/agentos/protos`.
+- Protobuf code generation: run `python -m pip install -e ".[dev]" && make protos` to generate Python stubs under `py_sdk/sigagent/protos`.
 - Network access may be restricted in some environments; local stub generation is supported via the Makefile.
 
 ## Next Steps

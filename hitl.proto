@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package agentos.hitl;
+package sigagent.hitl;
 
 import "common.proto";
 
 message HitlInvocation {
-  agentos.common.HitlReasonType reason_type = 1;
+  sigagent.common.HitlReasonType reason_type = 1;
   bytes context = 2;             // JSON or protobuf, see content_type in envelope
   repeated string proposed_actions = 3;
   int32 priority = 4;
