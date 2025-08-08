@@ -40,10 +40,10 @@ This file captures the current state, decisions, and next steps for building a P
 
 ## Not Yet Implemented
 - Runtime features:
-  - Activity buffer store/reconciliation.
-  - Worktree binding state manager and policy hooks.
-  - Message ACK lifecycle helpers and error mapping utilities.
-  - gRPC interceptors for correlation IDs and metrics.
+  - Policy hooks for worktree binding; persist binding state (currently in-memory).
+  - Activity buffer persistence beyond process lifetime and richer reconciliation.
+  - ACK lifecycle integration with router responses in higher-level flows.
+  - Metrics export and richer interceptors (timing, retry policies).
 - Examples and docs:
   - `examples/echo_agent.py` demonstrating registration, streaming, ACKs, preemption.
   - README/usage docs for running an agent.
