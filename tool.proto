@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package agentos.tool;
+
+import "google/protobuf/duration.proto";
+
+message ExecutionPolicy {
+  google.protobuf.Duration timeout = 1;
+  uint32 max_retries = 2;
+  string backoff = 3; // "exponential", etc.
+  bool worktree_required = 4;
+  string network_policy = 5;     // e.g., "egress_restricted"
+  string privilege_level = 6;    // e.g., "default"
+  uint64 budget_cpu_ms = 7;
+  uint64 budget_wall_ms = 8;
+}
+
+message ToolCall {
+  string call_id = 1;
+  string tool_name = 2;
+  string provider_id = 3;
+  string content_type = 4;
+  bytes args = 5;
+  ExecutionPolicy policy = 6;
+  bool stream = 7;
+}
+
+message ToolFrame {
+  string call_id = 1;
+  uint64 frame_no = 2;
+  bool final = 3;
+  string content_type = 4;
+  bytes data = 5;
+  bytes summary = 6; // optional final summary
+}
+
+message ToolError {
+  string call_id = 1;
+  string error_code = 2;
+  string message = 3;
+}
+
+service ToolService {
+  rpc Call(ToolCall) returns (ToolFrame);                 // unary completion
+  rpc CallStream(ToolCall) returns (stream ToolFrame);    // streaming frames
+  rpc Cancel(ToolCall) returns (ToolError);               // best effort
+}

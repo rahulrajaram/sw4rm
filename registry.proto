@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package agentos.registry;
+
+import "google/protobuf/timestamp.proto";
+import "common.proto";
+
+message AgentDescriptor {
+  string agent_id = 1;
+  string name = 2;
+  string description = 3; // ≤200 words
+  repeated string capabilities = 4;
+  agentos.common.CommunicationClass communication_class = 5;
+  repeated string modalities_supported = 6; // MIME types
+  repeated string reasoning_connectors = 7; // URIs
+  bytes public_key = 8; // optional
+}
+
+message RegisterAgentRequest { AgentDescriptor agent = 1; }
+message RegisterAgentResponse { bool accepted = 1; string reason = 2; }
+
+message HeartbeatRequest {
+  string agent_id = 1;
+  agentos.common.AgentState state = 2;
+  map<string,string> health = 3;
+}
+message HeartbeatResponse { bool ok = 1; }
+
+message DeregisterAgentRequest { string agent_id = 1; string reason = 2; }
+message DeregisterAgentResponse { bool ok = 1; }
+
+service RegistryService {
+  rpc RegisterAgent(RegisterAgentRequest) returns (RegisterAgentResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc DeregisterAgent(DeregisterAgentRequest) returns (DeregisterAgentResponse);
+}
