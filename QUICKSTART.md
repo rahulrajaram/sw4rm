@@ -1,14 +1,14 @@
-# SigAgent SDK Quickstart Guide
+# SW4RM SDK Quickstart Guide
 
-Get up and running with the SigAgent SDK in 5 minutes. This guide walks you through creating your first production-ready agent with persistent state.
+Get up and running with the SW4RM SDK in 5 minutes. This guide walks you through creating your first production-ready agent with persistent state.
 
 ## Step 1: Installation
 
 Install the SDK in development mode to get all tools and dependencies:
 
 ```bash
-# Clone or navigate to the SigAgent SDK directory
-cd /path/to/sigagent
+# Clone or navigate to the SW4RM SDK directory
+cd /path/to/sw4rm-sdk
 
 # Install with development dependencies
 python -m pip install -e ".[dev]"
@@ -19,7 +19,7 @@ make protos
 
 Verify installation:
 ```bash
-python -c "import sigagent; print('SDK installed successfully')"
+python -c "import sw4rm; print('SDK installed successfully')"
 ```
 
 ## Step 2: Basic Agent Setup
@@ -29,7 +29,7 @@ Create your first agent (`my_first_agent.py`):
 ```python
 #!/usr/bin/env python3
 """
-My first SigAgent - demonstrates core SDK features.
+My first SW4RM - demonstrates core SDK features.
 """
 import grpc
 import json
@@ -37,11 +37,11 @@ import signal
 import sys
 from pathlib import Path
 
-from sigagent.clients.registry import RegistryClient
-from sigagent.clients.router import RouterClient
-from sigagent.activity_buffer import PersistentActivityBuffer
-from sigagent.ack_integration import ACKLifecycleManager, MessageProcessor
-from sigagent import constants as C
+from sw4rm.clients.registry import RegistryClient
+from sw4rm.clients.router import RouterClient
+from sw4rm.activity_buffer import PersistentActivityBuffer
+from sw4rm.ack_integration import ACKLifecycleManager, MessageProcessor
+from sw4rm import constants as C
 
 class MyFirstAgent:
     def __init__(self, agent_id: str):
@@ -52,7 +52,7 @@ class MyFirstAgent:
         self.buffer = PersistentActivityBuffer(max_items=500)
         
     def connect(self, router_addr: str, registry_addr: str):
-        """Connect to SigAgent services."""
+        """Connect to SW4RM services."""
         print(f"Connecting to router: {router_addr}, registry: {registry_addr}")
         
         # Create gRPC connections
@@ -92,7 +92,7 @@ class MyFirstAgent:
         }
         
         # Send response using ACK manager
-        from sigagent.envelope import build_envelope
+        from sw4rm.envelope import build_envelope
         response_env = build_envelope(
             producer_id=self.agent_id,
             message_type=C.DATA,
@@ -116,7 +116,7 @@ class MyFirstAgent:
         descriptor = {
             "agent_id": self.agent_id,
             "name": "MyFirstAgent",
-            "description": "Learning the SigAgent SDK",
+            "description": "Learning the SW4RM SDK",
             "capabilities": ["echo", "processing"],
             "communication_class": C.STANDARD,
             "modalities_supported": ["application/json"],
@@ -221,9 +221,9 @@ Create a simple test script (`test_my_agent.py`):
 """Test script for my first agent."""
 import grpc
 import json
-from sigagent.clients.router import RouterClient
-from sigagent.envelope import build_envelope
-from sigagent import constants as C
+from sw4rm.clients.router import RouterClient
+from sw4rm.envelope import build_envelope
+from sw4rm import constants as C
 
 def test_agent():
     # Connect to router
@@ -285,7 +285,7 @@ Update `my_first_agent.py` to add worktree management:
 
 ```python
 # Add this import at the top
-from sigagent.worktree_state import PersistentWorktreeState
+from sw4rm.worktree_state import PersistentWorktreeState
 
 # In __init__, add:
 def __init__(self, agent_id: str, data_dir: str = "./agent_data"):
@@ -295,7 +295,7 @@ def __init__(self, agent_id: str, data_dir: str = "./agent_data"):
     self.data_dir.mkdir(exist_ok=True)
     
     # Initialize persistent components
-    from sigagent.persistence import JSONFilePersistence
+    from sw4rm.persistence import JSONFilePersistence
     activity_persistence = JSONFilePersistence(str(self.data_dir / "activity.json"))
     self.buffer = PersistentActivityBuffer(
         max_items=500,
@@ -303,7 +303,7 @@ def __init__(self, agent_id: str, data_dir: str = "./agent_data"):
     )
     
     # Add worktree management
-    from sigagent.worktree_policies import WorktreePersistence
+    from sw4rm.worktree_policies import WorktreePersistence
     worktree_persistence = WorktreePersistence(str(self.data_dir / "worktree.json"))
     self.worktree = PersistentWorktreeState(persistence=worktree_persistence)
 
@@ -353,9 +353,9 @@ Create an enhanced test script (`test_persistence.py`):
 import grpc
 import json
 import time
-from sigagent.clients.router import RouterClient
-from sigagent.envelope import build_envelope
-from sigagent import constants as C
+from sw4rm.clients.router import RouterClient
+from sw4rm.envelope import build_envelope
+from sw4rm import constants as C
 
 def send_control_command(router, command_data):
     """Send a CONTROL message."""
@@ -468,7 +468,7 @@ make protos
 ```
 
 **"Connection refused"**
-- Ensure SigAgent services are running on the expected ports
+- Ensure SW4RM services are running on the expected ports
 - Or modify the connection addresses in your code
 
 **"Permission denied on agent_data/"**

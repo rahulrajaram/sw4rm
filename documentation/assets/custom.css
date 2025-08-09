@@ -1,0 +1,45 @@
+/* Header logo: keep proportions, avoid layout shifts */
+.md-header__button.md-logo {
+  margin: 0;
+  padding: 0.25rem 0.5rem;
+}
+
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 1.8rem;
+  width: auto;
+}
+
+/* Preserve default tabs spacing (remove negative margins) */
+.md-tabs {
+  margin: 0;
+}
+
+/* Responsive tweaks for smaller viewports */
+@media screen and (max-width: 76.1875em) {
+  .md-header__button.md-logo {
+    padding: 0.25rem 0.4rem;
+  }
+  .md-header__button.md-logo img,
+  .md-header__button.md-logo svg {
+    height: 1.6rem;
+  }
+}
+
+/* Make wide tables scroll instead of overflowing */
+.md-typeset table:not([class]) {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Ensure images scale within content width */
+.md-typeset img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Slightly tighten paragraphs for readability */
+.md-typeset p {
+  line-height: 1.55;
+}

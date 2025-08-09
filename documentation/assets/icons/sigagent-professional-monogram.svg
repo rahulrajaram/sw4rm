@@ -1,0 +1,19 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Professional S -->
+  <path d="M35 30 Q60 12 75 32 Q82 42 72 48 Q60 54 48 48 Q36 42 48 36 Q60 30 72 36 Q90 46 72 62 Q47 80 32 62 Q25 52 35 46" 
+        stroke="#2d3748" stroke-width="5" fill="none" stroke-linecap="round"/>
+  
+  <!-- Tech elements -->
+  <circle cx="75" cy="32" r="2.5" fill="#4a5568"/>
+  <circle cx="32" cy="62" r="2.5" fill="#4a5568"/>
+  
+  <!-- Subtle network -->
+  <circle cx="90" cy="25" r="1.5" fill="#4a5568" opacity="0.5"/>
+  <circle cx="95" cy="38" r="1.5" fill="#4a5568" opacity="0.5"/>
+  <circle cx="15" cy="75" r="1.5" fill="#4a5568" opacity="0.5"/>
+  <circle cx="25" cy="90" r="1.5" fill="#4a5568" opacity="0.5"/>
+  
+  <!-- Connection lines -->
+  <line x1="77" y1="32" x2="88" y2="26" stroke="#4a5568" stroke-width="1" opacity="0.4"/>
+  <line x1="34" y1="62" x2="18" y2="73" stroke="#4a5568" stroke-width="1" opacity="0.4"/>
+</svg>

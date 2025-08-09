@@ -1,6 +1,6 @@
-# SigAgent Python SDK
+# SW4RM Python SDK
 
-Production-ready SDK for building message-driven agents with persistent state, ACK lifecycle management, and worktree binding policies. Provides comprehensive clients and utilities for the SigAgent protocol.
+Production-ready SDK for building message-driven agents with persistent state, ACK lifecycle management, and worktree binding policies. Provides comprehensive clients and utilities for the SW4RM protocol.
 
 ## Install
 - Runtime only:
@@ -13,7 +13,7 @@ Production-ready SDK for building message-driven agents with persistent state, A
 - For local development, install dev deps and generate protobuf stubs:
   - `python -m pip install -e ".[dev]"`
   - `make protos`
-  - Stubs are generated under `py_sdk/sigagent/protos`.
+  - Stubs are generated under `py_sdk/sw4rm/protos`.
 
 ## Core Features
 
@@ -29,9 +29,9 @@ Production-ready SDK for building message-driven agents with persistent state, A
 ### Basic Agent
 ```python
 import grpc
-from sigagent.clients.registry import RegistryClient
-from sigagent.clients.router import RouterClient
-from sigagent.protos import common_pb2 as common
+from sw4rm.clients.registry import RegistryClient
+from sw4rm.clients.router import RouterClient
+from sw4rm.protos import common_pb2 as common
 
 # Connect to services
 channel = grpc.insecure_channel("localhost:50051")
@@ -50,9 +50,9 @@ response = registry.register({
 
 ### Advanced Agent with Persistence
 ```python
-from sigagent.activity_buffer import PersistentActivityBuffer
-from sigagent.worktree_state import PersistentWorktreeState
-from sigagent.ack_integration import ACKLifecycleManager, MessageProcessor
+from sw4rm.activity_buffer import PersistentActivityBuffer
+from sw4rm.worktree_state import PersistentWorktreeState
+from sw4rm.ack_integration import ACKLifecycleManager, MessageProcessor
 
 # Initialize persistent components
 buffer = PersistentActivityBuffer(max_items=1000)
@@ -81,8 +81,8 @@ for item in router.stream_incoming("my-agent"):
 Tracks messages with persistent storage across restarts.
 
 ```python
-from sigagent.activity_buffer import PersistentActivityBuffer
-from sigagent.persistence import JSONFilePersistence
+from sw4rm.activity_buffer import PersistentActivityBuffer
+from sw4rm.persistence import JSONFilePersistence
 
 # Initialize with custom persistence
 buffer = PersistentActivityBuffer(
@@ -104,7 +104,7 @@ needs_retry = buffer.reconcile()
 Manages worktree bindings with policy validation.
 
 ```python
-from sigagent.worktree_state import PersistentWorktreeState, DefaultWorktreePolicy
+from sw4rm.worktree_state import PersistentWorktreeState, DefaultWorktreePolicy
 
 # Custom policy
 class MyPolicy(DefaultWorktreePolicy):
@@ -126,7 +126,7 @@ status = worktree.status()
 Automatic acknowledgment handling with router integration.
 
 ```python
-from sigagent.ack_integration import ACKLifecycleManager
+from sw4rm.ack_integration import ACKLifecycleManager
 
 manager = ACKLifecycleManager(
     router_client=router,
@@ -149,7 +149,7 @@ stale_messages = manager.reconcile_acks()
 Handler-based message processing with automatic ACKs.
 
 ```python
-from sigagent.ack_integration import MessageProcessor
+from sw4rm.ack_integration import MessageProcessor
 
 processor = MessageProcessor(ack_manager)
 
@@ -175,7 +175,7 @@ result = processor.process_message(envelope)
 
 #### RegistryClient
 ```python
-from sigagent.clients.registry import RegistryClient
+from sw4rm.clients.registry import RegistryClient
 
 registry = RegistryClient(grpc_channel)
 
@@ -196,7 +196,7 @@ registry.deregister("my-agent", reason="shutdown")
 
 #### RouterClient
 ```python
-from sigagent.clients.router import RouterClient
+from sw4rm.clients.router import RouterClient
 
 router = RouterClient(grpc_channel)
 
@@ -213,7 +213,7 @@ for item in router.stream_incoming("my-agent"):
 
 #### Envelope Building
 ```python
-from sigagent.envelope import build_envelope
+from sw4rm.envelope import build_envelope
 
 envelope = build_envelope(
     producer_id="my-agent",
@@ -226,7 +226,7 @@ envelope = build_envelope(
 
 #### ACK Building
 ```python
-from sigagent.acks import build_ack_envelope
+from sw4rm.acks import build_ack_envelope
 
 ack = build_ack_envelope(
     producer_id="my-agent",
@@ -238,7 +238,7 @@ ack = build_ack_envelope(
 
 ### Constants
 ```python
-from sigagent import constants as C
+from sw4rm import constants as C
 
 # Message types
 C.DATA                    # Data message
@@ -306,11 +306,11 @@ python examples/test_client.py --router mock:50051
 
 The SDK is organized into layers:
 
-1. **Protocol Layer**: Generated protobuf stubs (`sigagent.protos`)
-2. **Client Layer**: Service clients (`sigagent.clients`) 
-3. **Runtime Layer**: Core functionality (`sigagent.activity_buffer`, `sigagent.worktree_state`)
-4. **Integration Layer**: High-level APIs (`sigagent.ack_integration`)
-5. **Utility Layer**: Helpers (`sigagent.envelope`, `sigagent.acks`)
+1. **Protocol Layer**: Generated protobuf stubs (`sw4rm.protos`)
+2. **Client Layer**: Service clients (`sw4rm.clients`) 
+3. **Runtime Layer**: Core functionality (`sw4rm.activity_buffer`, `sw4rm.worktree_state`)
+4. **Integration Layer**: High-level APIs (`sw4rm.ack_integration`)
+5. **Utility Layer**: Helpers (`sw4rm.envelope`, `sw4rm.acks`)
 
 ## Production Considerations
 

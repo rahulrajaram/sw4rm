@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package sigagent.negotiation;
+package sw4rm.negotiation;
 
 import "common.proto";
 import "google/protobuf/duration.proto";
@@ -10,7 +10,7 @@ message NegotiationOpen {
   string correlation_id = 2;
   string topic = 3;
   repeated string participants = 4;
-  sigagent.common.DebateIntensity intensity = 5;
+  sw4rm.common.DebateIntensity intensity = 5;
   google.protobuf.Duration debate_timeout = 6;
 }
 
@@ -48,10 +48,10 @@ message AbortRequest {
 }
 
 service NegotiationService {
-  rpc Open(NegotiationOpen) returns (sigagent.common.Empty);
-  rpc Propose(Proposal) returns (sigagent.common.Empty);
-  rpc Counter(CounterProposal) returns (sigagent.common.Empty);
-  rpc Evaluate(Evaluation) returns (sigagent.common.Empty);
-  rpc Decide(Decision) returns (sigagent.common.Empty);
-  rpc Abort(AbortRequest) returns (sigagent.common.Empty);
+  rpc Open(NegotiationOpen) returns (sw4rm.common.Empty);
+  rpc Propose(Proposal) returns (sw4rm.common.Empty);
+  rpc Counter(CounterProposal) returns (sw4rm.common.Empty);
+  rpc Evaluate(Evaluation) returns (sw4rm.common.Empty);
+  rpc Decide(Decision) returns (sw4rm.common.Empty);
+  rpc Abort(AbortRequest) returns (sw4rm.common.Empty);
 }

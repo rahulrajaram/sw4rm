@@ -1,7 +1,7 @@
 VENV=venv
 PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
-PY_OUT=py_sdk/sigagent/protos
+PY_OUT=py_sdk/sw4rm/protos
 PROTOS=common.proto registry.proto router.proto scheduler.proto hitl.proto \
   worktree.proto tool.proto connector.proto negotiation.proto reasoning.proto logging.proto
 

@@ -1,6 +1,6 @@
-# SigAgent SDK Documentation
+# SW4RM SDK Documentation
 
-This directory contains the documentation source for the SigAgent SDK website built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/).
+This directory contains the documentation source for the SW4RM SDK website built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/).
 
 ## Setup
 
@@ -109,12 +109,12 @@ The site supports:
 
 === "Python"
     ```python
-    from sigagent import SDK
+    from sw4rm import SDK
     ```
 
 === "Installation"  
     ```bash
-    pip install sigagent-sdk
+    pip install sw4rm-sdk
     ```
 ```
 

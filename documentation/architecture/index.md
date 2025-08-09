@@ -1,10 +1,10 @@
 # Architecture
 
-Deep dive into the SigAgent SDK architecture, design patterns, and extensibility.
+Deep dive into the SW4RM SDK architecture, design patterns, and extensibility.
 
 ## Overview
 
-The SigAgent SDK is built with a layered architecture that provides flexibility while maintaining simplicity:
+The SW4RM SDK is built with a layered architecture that provides flexibility while maintaining simplicity:
 
 ```mermaid
 graph TB

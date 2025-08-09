@@ -1,0 +1,31 @@
+<svg width="64" height="64" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Browser Window -->
+  <rect x="20" y="30" width="90" height="70" rx="12" fill="white" stroke="#000000" stroke-width="8"/>
+  <!-- Browser Title Bar -->
+  <rect x="20" y="30" width="90" height="20" rx="12" fill="#000000"/>
+  <circle cx="30" cy="40" r="3" fill="white"/>
+  <circle cx="40" cy="40" r="3" fill="white"/>
+  
+  <!-- Code Brackets (simplified) -->
+  <path d="M40 55 L35 65 L40 75" stroke="#000000" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M50 55 L55 65 L50 75" stroke="#000000" stroke-width="5" fill="none" stroke-linecap="round"/>
+  
+  <!-- Robot (simplified) -->
+  <g transform="translate(70, 85)">
+    <rect x="0" y="0" width="35" height="25" rx="12" fill="white" stroke="#000000" stroke-width="6"/>
+    <circle cx="12" cy="12" r="3" fill="#000000"/>
+    <circle cx="23" cy="12" r="3" fill="#000000"/>
+    <rect x="5" y="25" width="25" height="30" rx="8" fill="white" stroke="#000000" stroke-width="6"/>
+    <rect x="-5" y="30" width="8" height="18" rx="4" fill="white" stroke="#000000" stroke-width="6"/>
+    <rect x="32" y="30" width="8" height="18" rx="4" fill="white" stroke="#000000" stroke-width="6"/>
+  </g>
+  
+  <!-- Network (simplified) -->
+  <g transform="translate(120, 50)">
+    <circle cx="15" cy="15" r="8" fill="white" stroke="#000000" stroke-width="6"/>
+    <circle cx="45" cy="25" r="8" fill="white" stroke="#000000" stroke-width="6"/>
+    <circle cx="35" cy="50" r="8" fill="white" stroke="#000000" stroke-width="6"/>
+    <line x1="20" y1="20" x2="40" y2="30" stroke="#000000" stroke-width="4"/>
+    <line x1="40" y1="30" x2="35" y2="42" stroke="#000000" stroke-width="4"/>
+  </g>
+</svg>

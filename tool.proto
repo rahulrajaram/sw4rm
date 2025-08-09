@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package sigagent.tool;
+package sw4rm.tool;
 
 import "google/protobuf/duration.proto";
 

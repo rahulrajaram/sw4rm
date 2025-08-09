@@ -1,0 +1,20 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Main S shape -->
+  <path d="M35 30 Q60 15 75 35 Q80 45 70 50 Q60 55 50 50 Q40 45 50 40 Q60 35 70 40 Q85 50 70 65 Q45 80 30 60 Q25 50 35 45" 
+        stroke="#3b82f6" stroke-width="6" fill="none" stroke-linecap="round"/>
+  
+  <!-- Small tech elements -->
+  <circle cx="75" cy="35" r="3" fill="#10b981"/>
+  <circle cx="30" cy="60" r="3" fill="#10b981"/>
+  
+  <!-- Subtle network dots -->
+  <circle cx="90" cy="25" r="2" fill="#8b5cf6" opacity="0.6"/>
+  <circle cx="95" cy="40" r="2" fill="#8b5cf6" opacity="0.6"/>
+  <circle cx="15" cy="80" r="2" fill="#8b5cf6" opacity="0.6"/>
+  <circle cx="25" cy="95" r="2" fill="#8b5cf6" opacity="0.6"/>
+  
+  <!-- Connecting lines -->
+  <line x1="78" y1="35" x2="87" y2="27" stroke="#7c3aed" stroke-width="1" opacity="0.4"/>
+  <line x1="33" y1="60" x2="18" y2="78" stroke="#7c3aed" stroke-width="1" opacity="0.4"/>
+  <line x1="88" y1="27" x2="93" y2="38" stroke="#7c3aed" stroke-width="1" opacity="0.4"/>
+</svg>

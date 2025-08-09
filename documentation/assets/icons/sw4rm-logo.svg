@@ -1,0 +1,60 @@
+<svg viewBox="14 24 172 121" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Browser Window -->
+  <rect x="20" y="30" width="90" height="70" rx="12" fill="white" stroke="#000000" stroke-width="6"/>
+  <!-- Browser Title Bar -->
+  <rect x="20" y="30" width="90" height="20" rx="12" fill="#000000"/>
+  <rect x="20" y="42" width="90" height="8" fill="white"/>
+  <!-- Window Controls -->
+  <circle cx="30" cy="40" r="2.5" fill="white"/>
+  <circle cx="38" cy="40" r="2.5" fill="white"/>
+  <circle cx="46" cy="40" r="2.5" fill="white"/>
+  
+  <!-- Code Brackets -->
+  <g transform="translate(35, 60)">
+    <path d="M5 5 L0 12 L5 19" stroke="#000000" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M15 5 L20 12 L15 19" stroke="#000000" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="10" y1="3" x2="10" y2="21" stroke="#000000" stroke-width="3" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Robot -->
+  <g transform="translate(70, 85)">
+    <!-- Robot Head -->
+    <rect x="0" y="0" width="35" height="25" rx="12" fill="white" stroke="#000000" stroke-width="4"/>
+    <!-- Eyes -->
+    <circle cx="10" cy="12" r="3" fill="#000000"/>
+    <circle cx="25" cy="12" r="3" fill="#000000"/>
+    <!-- Antenna -->
+    <line x1="17.5" y1="0" x2="17.5" y2="-8" stroke="#000000" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="17.5" cy="-8" r="3" fill="#000000"/>
+    
+    <!-- Robot Body -->
+    <rect x="5" y="25" width="25" height="30" rx="8" fill="white" stroke="#000000" stroke-width="4"/>
+    <!-- Chest Panel -->
+    <rect x="12" y="35" width="11" height="6" rx="2" fill="white" stroke="#000000" stroke-width="2"/>
+    <!-- Small indicator -->
+    <rect x="15" y="30" width="5" height="2" rx="1" fill="#000000"/>
+    
+    <!-- Arms -->
+    <rect x="-5" y="30" width="8" height="18" rx="4" fill="white" stroke="#000000" stroke-width="4"/>
+    <rect x="32" y="30" width="8" height="18" rx="4" fill="white" stroke="#000000" stroke-width="4"/>
+  </g>
+  
+  <!-- Network Diagram -->
+  <g transform="translate(120, 50)">
+    <!-- Network Nodes -->
+    <circle cx="15" cy="5" r="6" fill="white" stroke="#000000" stroke-width="4"/>
+    <circle cx="35" cy="20" r="6" fill="white" stroke="#000000" stroke-width="4"/>
+    <circle cx="55" cy="5" r="6" fill="white" stroke="#000000" stroke-width="4"/>
+    <circle cx="25" cy="40" r="8" fill="white" stroke="#000000" stroke-width="4"/>
+    <circle cx="50" cy="35" r="6" fill="white" stroke="#000000" stroke-width="4"/>
+    <circle cx="45" cy="55" r="6" fill="white" stroke="#000000" stroke-width="4"/>
+    
+    <!-- Connection Lines -->
+    <line x1="19" y1="9" x2="31" y2="16" stroke="#000000" stroke-width="3"/>
+    <line x1="39" y1="24" x2="51" y2="9" stroke="#000000" stroke-width="3"/>
+    <line x1="29" y1="34" x2="35" y2="24" stroke="#000000" stroke-width="3"/>
+    <line x1="33" y1="40" x2="44" y2="35" stroke="#000000" stroke-width="3"/>
+    <line x1="46" y1="41" x2="45" y2="49" stroke="#000000" stroke-width="3"/>
+    <line x1="19" y1="9" x2="29" y2="34" stroke="#000000" stroke-width="3"/>
+  </g>
+</svg>

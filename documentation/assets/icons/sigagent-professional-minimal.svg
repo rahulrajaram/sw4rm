@@ -1,0 +1,24 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Browser outline -->
+  <rect x="20" y="30" width="80" height="50" rx="6" fill="white" stroke="#2d3748" stroke-width="2.5"/>
+  <rect x="20" y="30" width="80" height="12" rx="6" fill="#2d3748"/>
+  
+  <!-- Code indicator -->
+  <rect x="28" y="48" width="20" height="2" rx="1" fill="#4a5568"/>
+  <rect x="28" y="54" width="30" height="2" rx="1" fill="#4a5568"/>
+  <rect x="28" y="60" width="15" height="2" rx="1" fill="#4a5568"/>
+  
+  <!-- Robot (simplified) -->
+  <rect x="65" y="40" width="16" height="20" rx="4" fill="#2d3748"/>
+  <circle cx="69" cy="47" r="1.5" fill="white"/>
+  <circle cx="77" cy="47" r="1.5" fill="white"/>
+  
+  <!-- Network dots -->
+  <circle cx="88" cy="35" r="3" fill="#2d3748"/>
+  <circle cx="95" cy="50" r="3" fill="#2d3748"/>
+  <circle cx="88" cy="65" r="3" fill="#2d3748"/>
+  
+  <!-- Connections -->
+  <line x1="88" y1="38" x2="92" y2="47" stroke="#4a5568" stroke-width="1.5"/>
+  <line x1="92" y1="53" x2="88" y2="62" stroke="#4a5568" stroke-width="1.5"/>
+</svg>

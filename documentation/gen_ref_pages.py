@@ -6,7 +6,7 @@ import mkdocs_gen_files
 nav = mkdocs_gen_files.Nav()
 
 # Path to the Python package
-package_path = Path("py_sdk/sigagent")
+package_path = Path("py_sdk/sw4rm")
 
 # Core modules to document (skip potentially problematic ones for now)
 core_modules = [

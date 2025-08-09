@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package sigagent.connector;
+package sw4rm.connector;
 
 message ToolDescriptor {
   string tool_name = 1;

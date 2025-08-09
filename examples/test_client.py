@@ -23,9 +23,9 @@ from typing import Dict, Any
 
 import grpc
 
-from sigagent.clients.router import RouterClient
-from sigagent.envelope import build_envelope
-from sigagent import constants as C
+from sw4rm.clients.router import RouterClient
+from sw4rm.envelope import build_envelope
+from sw4rm import constants as C
 
 
 class TestClient:
@@ -192,7 +192,7 @@ class TestClient:
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="Test client for SigAgent examples")
+    parser = argparse.ArgumentParser(description="Test client for SW4RM examples")
     parser.add_argument("--router", default="localhost:50051", help="Router address")
     parser.add_argument("--target-agent", default="advanced-1", help="Target agent ID")
     parser.add_argument("--client-id", help="Client ID (auto-generated if not provided)")

@@ -6,7 +6,7 @@ Build a complete agent that handles messages, manages state, and demonstrates co
 
 We'll create an agent that:
 
-- Connects to SigAgent services (Router and Registry)
+- Connects to SW4RM services (Router and Registry)
 - Registers itself with service discovery
 - Processes incoming DATA messages with automatic ACK handling
 - Maintains persistent message history
@@ -18,7 +18,7 @@ Create `my_first_agent.py`:
 
 ```python
 #!/usr/bin/env python3
-"""My first SigAgent - demonstrates core SDK features."""
+"""My first SW4RM - demonstrates core SDK features."""
 
 import grpc
 import json
@@ -26,11 +26,11 @@ import signal
 import sys
 from pathlib import Path
 
-from sigagent.clients.registry import RegistryClient
-from sigagent.clients.router import RouterClient
-from sigagent.activity_buffer import PersistentActivityBuffer
-from sigagent.ack_integration import ACKLifecycleManager, MessageProcessor
-from sigagent import constants as C
+from sw4rm.clients.registry import RegistryClient
+from sw4rm.clients.router import RouterClient
+from sw4rm.activity_buffer import PersistentActivityBuffer
+from sw4rm.ack_integration import ACKLifecycleManager, MessageProcessor
+from sw4rm import constants as C
 
 class MyFirstAgent:
     def __init__(self, agent_id: str):
@@ -41,7 +41,7 @@ class MyFirstAgent:
         self.buffer = PersistentActivityBuffer(max_items=500)
         
     def connect(self, router_addr: str, registry_addr: str):
-        """Connect to SigAgent services."""
+        """Connect to SW4RM services."""
         print(f"🔌 Connecting to router: {router_addr}, registry: {registry_addr}")
         
         # Create gRPC connections
@@ -88,7 +88,7 @@ Add message processing logic:
         }
         
         # Send response using ACK manager
-        from sigagent.envelope import build_envelope
+        from sw4rm.envelope import build_envelope
         response_env = build_envelope(
             producer_id=self.agent_id,
             message_type=C.DATA,
@@ -118,7 +118,7 @@ Add service registration and message processing:
         descriptor = {
             "agent_id": self.agent_id,
             "name": "MyFirstAgent",
-            "description": "Learning the SigAgent SDK",
+            "description": "Learning the SW4RM SDK",
             "capabilities": ["echo", "processing"],
             "communication_class": C.STANDARD,
             "modalities_supported": ["application/json"],
@@ -233,9 +233,9 @@ Create a test client (`test_my_agent.py`):
 import grpc
 import json
 import time
-from sigagent.clients.router import RouterClient
-from sigagent.envelope import build_envelope
-from sigagent import constants as C
+from sw4rm.clients.router import RouterClient
+from sw4rm.envelope import build_envelope
+from sw4rm import constants as C
 
 def test_agent():
     # Connect to router
@@ -342,7 +342,7 @@ The `PersistentActivityBuffer` tracks:
 - All incoming and outgoing messages
 - ACK progression for each message
 - Messages that need reconciliation
-- State persisted to `sigagent_activity.json`
+- State persisted to `sw4rm_activity.json`
 
 ### Message Handlers
 

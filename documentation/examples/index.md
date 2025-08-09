@@ -1,6 +1,6 @@
 # Examples
 
-Comprehensive examples showing SigAgent SDK usage from basic to advanced patterns.
+Comprehensive examples showing SW4RM SDK usage from basic to advanced patterns.
 
 ## Available Examples
 

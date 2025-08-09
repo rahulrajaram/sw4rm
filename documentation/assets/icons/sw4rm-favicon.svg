@@ -1,0 +1,22 @@
+<svg width="32" height="32" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Browser Window (simplified for favicon) -->
+  <rect x="25" y="40" width="80" height="60" rx="10" fill="white" stroke="#000000" stroke-width="10"/>
+  <rect x="25" y="40" width="80" height="15" rx="10" fill="#000000"/>
+  
+  <!-- Code indicator -->
+  <path d="M40 65 L35 75 L40 85" stroke="#000000" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <path d="M50 65 L55 75 L50 85" stroke="#000000" stroke-width="6" fill="none" stroke-linecap="round"/>
+  
+  <!-- Robot (very simplified) -->
+  <rect x="70" y="110" width="30" height="35" rx="8" fill="white" stroke="#000000" stroke-width="8"/>
+  <rect x="73" y="95" width="24" height="20" rx="8" fill="white" stroke="#000000" stroke-width="8"/>
+  <circle cx="82" cy="105" r="3" fill="#000000"/>
+  <circle cx="88" cy="105" r="3" fill="#000000"/>
+  
+  <!-- Network (minimal) -->
+  <circle cx="130" cy="70" r="8" fill="white" stroke="#000000" stroke-width="6"/>
+  <circle cx="150" cy="90" r="8" fill="white" stroke="#000000" stroke-width="6"/>
+  <circle cx="140" cy="110" r="8" fill="white" stroke="#000000" stroke-width="6"/>
+  <line x1="135" y1="75" x2="145" y2="85" stroke="#000000" stroke-width="4"/>
+  <line x1="145" y1="95" x2="140" y2="102" stroke="#000000" stroke-width="4"/>
+</svg>

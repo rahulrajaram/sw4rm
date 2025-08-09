@@ -3,12 +3,12 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sigagent-sdk"
+name = "sw4rm-sdk"
 version = "0.1.0"
-description = "AgentOS Python SDK (experimental)"
+description = "SW4RM Python SDK (experimental)"
 readme = "CONTEXT.md"
 requires-python = ">=3.9"
-authors = [{ name = "AgentOS Devs" }]
+authors = [{ name = "SW4RM Devs" }]
 dependencies = [
   "protobuf>=4.23,<5",
   "grpcio>=1.56,<2",
@@ -29,12 +29,12 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://example.com/sigagent"
-Source = "https://example.com/sigagent/repo"
+Homepage = "https://sw4rm.ai"
+Source = "https://sw4rm.ai/repo"
 
 [tool.setuptools]
 package-dir = {"" = "py_sdk"}
 
 [tool.setuptools.packages.find]
 where = ["py_sdk"]
-include = ["sigagent*"]
+include = ["sw4rm*"]

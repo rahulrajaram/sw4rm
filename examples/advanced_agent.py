@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Advanced agent example demonstrating all SigAgent SDK features.
+Advanced agent example demonstrating all SW4RM SDK features.
 
 This example shows:
 - Persistent activity buffer with cross-restart reconciliation
@@ -31,14 +31,14 @@ from typing import Optional, Dict, Any
 
 import grpc
 
-from sigagent.clients.registry import RegistryClient
-from sigagent.clients.router import RouterClient
-from sigagent.activity_buffer import PersistentActivityBuffer
-from sigagent.persistence import JSONFilePersistence
-from sigagent.worktree_state import PersistentWorktreeState, DefaultWorktreePolicy, WorktreePersistence
-from sigagent.ack_integration import ACKLifecycleManager, MessageProcessor
-from sigagent.envelope import build_envelope
-from sigagent import constants as C
+from sw4rm.clients.registry import RegistryClient
+from sw4rm.clients.router import RouterClient
+from sw4rm.activity_buffer import PersistentActivityBuffer
+from sw4rm.persistence import JSONFilePersistence
+from sw4rm.worktree_state import PersistentWorktreeState, DefaultWorktreePolicy, WorktreePersistence
+from sw4rm.ack_integration import ACKLifecycleManager, MessageProcessor
+from sw4rm.envelope import build_envelope
+from sw4rm import constants as C
 
 
 class CustomWorktreePolicy(DefaultWorktreePolicy):
@@ -94,7 +94,7 @@ class AdvancedAgent:
         self.processor: Optional[MessageProcessor] = None
         
     def connect(self, router_addr: str, registry_addr: str) -> None:
-        """Connect to SigAgent services."""
+        """Connect to SW4RM services."""
         print(f"[Connect] Router: {router_addr}, Registry: {registry_addr}")
         
         # Create gRPC channels
@@ -262,7 +262,7 @@ class AdvancedAgent:
         descriptor = {
             "agent_id": self.agent_id,
             "name": self.name,
-            "description": "Advanced agent demonstrating full SigAgent SDK capabilities",
+            "description": "Advanced agent demonstrating full SW4RM SDK capabilities",
             "capabilities": ["echo", "control", "worktree", "persistence", "ack_lifecycle"],
             "communication_class": C.STANDARD,
             "modalities_supported": ["application/json", "text/plain"],
@@ -348,7 +348,7 @@ class AdvancedAgent:
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="Advanced SigAgent SDK example")
+    parser = argparse.ArgumentParser(description="Advanced SW4RM SDK example")
     parser.add_argument("--agent-id", default="advanced-1", help="Agent ID")
     parser.add_argument("--name", default="AdvancedAgent", help="Agent name")
     parser.add_argument("--router", default="localhost:50051", help="Router address")

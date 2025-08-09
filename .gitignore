@@ -12,6 +12,7 @@ env/
 .DS_Store
 .idea/
 .vscode/
+.claude/
 
 # Build artifacts
 build/
@@ -32,7 +33,7 @@ htmlcov/
 .env
 
 # Generated protobuf stubs
-py_sdk/sigagent/protos/*.py
+py_sdk/sw4rm/protos/*.py
 
 # Documentation build output
 site/

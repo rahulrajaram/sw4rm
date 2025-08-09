@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package sigagent.logging;
+package sw4rm.logging;
 
 import "google/protobuf/timestamp.proto";
 

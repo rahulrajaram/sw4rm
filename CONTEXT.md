@@ -1,6 +1,6 @@
 # AgentOS SDK Work Context
 
-This file captures the current state, decisions, and next steps for building a Python SDK (SigAgent) and the gRPC contract defined in `spec.md`.
+This file captures the current state, decisions, and next steps for building a Python SDK (SW4RM) and the gRPC contract defined in `spec.md`.
 
 ## Summary
 - Goal: Provide an SDK to implement message-driven agents conforming to the spec and `.proto` contracts, enabling a CLI or service to act as an Agent.
@@ -20,23 +20,23 @@ This file captures the current state, decisions, and next steps for building a P
   - `reasoning.proto`: CheckParallelism/EvaluateDebate
   - `logging.proto`: LogEvent, Ingest.
 - Build helper:
-  - `Makefile`: `make protos` generates Python stubs into `py_sdk/sigagent/protos` and ensures the output directory exists.
+  - `Makefile`: `make protos` generates Python stubs into `py_sdk/sw4rm/protos` and ensures the output directory exists.
 - SDK scaffold (initial skeletons):
-  - `py_sdk/sigagent/__init__.py`: version and exports.
-  - `py_sdk/sigagent/config.py`: `Endpoints` and `AgentConfig` dataclasses.
-  - `py_sdk/sigagent/envelope.py`: envelope builders, idempotency helpers, sequence tracker.
-  - `py_sdk/sigagent/runtime/agent.py`: base `Agent` class with cooperative preemption helpers.
+  - `py_sdk/sw4rm/__init__.py`: version and exports.
+  - `py_sdk/sw4rm/config.py`: `Endpoints` and `AgentConfig` dataclasses.
+  - `py_sdk/sw4rm/envelope.py`: envelope builders, idempotency helpers, sequence tracker.
+  - `py_sdk/sw4rm/runtime/agent.py`: base `Agent` class with cooperative preemption helpers.
   - Clients:
-    - `py_sdk/sigagent/clients/registry.py`
-    - `py_sdk/sigagent/clients/router.py`
-    - `py_sdk/sigagent/clients/scheduler.py`
-    - `py_sdk/sigagent/clients/hitl.py`
-    - `py_sdk/sigagent/clients/worktree.py`
-    - `py_sdk/sigagent/clients/negotiation.py`
-    - `py_sdk/sigagent/clients/reasoning.py`
-    - `py_sdk/sigagent/clients/logging.py`
-    - `py_sdk/sigagent/clients/tool.py`
-    - `py_sdk/sigagent/clients/connector.py`
+    - `py_sdk/sw4rm/clients/registry.py`
+    - `py_sdk/sw4rm/clients/router.py`
+    - `py_sdk/sw4rm/clients/scheduler.py`
+    - `py_sdk/sw4rm/clients/hitl.py`
+    - `py_sdk/sw4rm/clients/worktree.py`
+    - `py_sdk/sw4rm/clients/negotiation.py`
+    - `py_sdk/sw4rm/clients/reasoning.py`
+    - `py_sdk/sw4rm/clients/logging.py`
+    - `py_sdk/sw4rm/clients/tool.py`
+    - `py_sdk/sw4rm/clients/connector.py`
 
 ## Not Yet Implemented
 - Runtime features:
@@ -54,7 +54,7 @@ This file captures the current state, decisions, and next steps for building a P
 - Prerequisites (local dev): `pip install grpcio grpcio-tools googleapis-common-protos`
 - Generate:
   - `make protos`
-- Output: `py_sdk/sigagent/protos/*_pb2.py` and `*_pb2_grpc.py`
+- Output: `py_sdk/sw4rm/protos/*_pb2.py` and `*_pb2_grpc.py`
 
 ## Suggested Next Steps
 1. Flesh out runtime helpers: activity buffer, worktree binding, ACK lifecycle utilities.
@@ -67,7 +67,7 @@ This file captures the current state, decisions, and next steps for building a P
   - `python -m pip install .`
 - Local dev install (includes codegen tool):
   - `python -m pip install -e ".[dev]"`
-  - `make protos` to generate Python stubs into `py_sdk/sigagent/protos`.
+  - `make protos` to generate Python stubs into `py_sdk/sw4rm/protos`.
 - Build distributables (wheel + sdist):
   - `python -m pip install build twine`
   - `python -m build`

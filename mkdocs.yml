@@ -1,15 +1,18 @@
-site_name: SigAgent SDK
+site_name: SW4RM SDK
 site_description: Production-ready SDK for building message-driven agents
-site_author: SigAgent Team
-site_url: https://sigagent.dev
+site_author: SW4RM Team
+site_url: https://sw4rm.ai
 
 docs_dir: documentation
 
-repo_name: sigagent/sigagent-sdk
-repo_url: https://github.com/sigagent/sigagent-sdk
+# Repo is private for now; update when public
+repo_name: sw4rm/sw4rm-sdk
+repo_url: https://github.com/sw4rm/sw4rm-sdk
 
 theme:
   name: material
+  logo: assets/icons/sw4rm-logo.svg
+  favicon: assets/icons/sw4rm-favicon.svg
   palette:
     # Palette toggle for light mode
     - scheme: default
@@ -67,6 +70,11 @@ markdown_extensions:
 plugins:
   - search
   - section-index
+  - kroki:
+      ServerURL: https://kroki.io
+      HttpMethod: POST
+      TagFormat: svg
+      FencePrefix: "kroki-"
 
 nav:
   - Home: index.md
@@ -74,16 +82,26 @@ nav:
     - quickstart/index.md
     - Installation: quickstart/installation.md
     - Your First Agent: quickstart/first-agent.md
+  - Protocol Specification:
+    - protocol/index.md
+    - Message Types: protocol/messages.md
+    - Services: protocol/services.md
+    - ACK Lifecycle: protocol/acks.md
   - Examples:
     - examples/index.md
+    - Use Cases: examples/use-cases.md
+    - Deployment Patterns: examples/deployment.md
   - Architecture:
     - architecture/index.md
 
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/sigagent/sigagent-sdk
+      link: https://github.com/sw4rm/sw4rm-sdk
     - icon: fontawesome/brands/python
-      link: https://pypi.org/project/sigagent-sdk/
+      link: https://pypi.org/project/sw4rm-sdk/
 
-copyright: Copyright &copy; 2024 SigAgent Team
+extra_css:
+  - assets/custom.css
+
+copyright: Copyright &copy; 2024 SW4RM Team

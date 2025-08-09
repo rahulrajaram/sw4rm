@@ -1,6 +1,6 @@
-# SigAgent SDK Examples
+# SW4RM SDK Examples
 
-This directory contains examples demonstrating the SigAgent SDK features and capabilities.
+This directory contains examples demonstrating the SW4RM SDK features and capabilities.
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@ This directory contains examples demonstrating the SigAgent SDK features and cap
    make protos
    ```
 
-3. **Have SigAgent services running** (Registry and Router services at the specified addresses)
+3. **Have SW4RM services running** (Registry and Router services at the specified addresses)
 
 ## Examples
 

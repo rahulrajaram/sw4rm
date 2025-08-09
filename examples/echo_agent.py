@@ -22,9 +22,9 @@ from typing import Optional
 
 import grpc
 
-from sigagent.clients.registry import RegistryClient
-from sigagent.clients.router import RouterClient
-from sigagent.envelope import build_envelope
+from sw4rm.clients.registry import RegistryClient
+from sw4rm.clients.router import RouterClient
+from sw4rm.envelope import build_envelope
 
 
 def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
