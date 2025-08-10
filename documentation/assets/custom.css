@@ -1,21 +1,133 @@
-/* Header logo: keep proportions, avoid layout shifts */
+/*
+ Minimal dark theme adjustments for SW4RM docs
+ Primary: black background
+ Secondary: yellow accents
+ Tertiary: indigo highlights
+*/
+
+:root {
+  --sw4rm-black: #000000;
+  --sw4rm-offblack: #0a0a0a;
+  --sw4rm-text: #e6e6e6;
+  --sw4rm-muted: #b9b9b9;
+  --sw4rm-yellow: #ffd400; /* secondary */
+  --sw4rm-indigo: #4b0082; /* tertiary */
+}
+
+/* Apply colors to Material variables (dark scheme) */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: var(--sw4rm-black);
+  --md-primary-fg-color--light: #111111;
+  --md-primary-fg-color--dark: #000000;
+  --md-accent-fg-color: var(--sw4rm-yellow);
+
+  --md-default-bg-color: var(--sw4rm-black);
+  --md-default-fg-color: var(--sw4rm-text);
+  --md-default-fg-color--light: var(--sw4rm-muted);
+  --md-default-fg-color--lighter: #d5d5d5;
+
+  --md-code-bg-color: var(--sw4rm-offblack);
+  --md-code-fg-color: var(--sw4rm-text);
+
+  --md-footer-bg-color: var(--sw4rm-black);
+  --md-footer-fg-color: var(--sw4rm-muted);
+}
+
+/* Global surfaces */
+.md-header,
+.md-tabs,
+.md-footer,
+.md-nav,
+.md-sidebar--primary,
+.md-sidebar--secondary {
+  background-color: var(--sw4rm-black) !important;
+  box-shadow: none;
+}
+
+.md-nav__title,
+.md-nav__link,
+.md-nav__item .md-nav__link {
+  color: var(--sw4rm-text);
+}
+
+/* Links: yellow default, indigo hover */
+.md-typeset a {
+  color: var(--sw4rm-yellow);
+}
+.md-typeset a:hover,
+.md-typeset a:focus {
+  color: var(--sw4rm-indigo);
+}
+
+/* Inline code and blocks */
+.md-typeset code,
+.md-typeset pre code {
+  color: var(--sw4rm-text);
+}
+.md-typeset pre > code {
+  background-color: var(--sw4rm-offblack);
+}
+
+/* Buttons, chips, switches using yellow accents */
+.md-button,
+.md-typeset .md-button {
+  border-color: var(--sw4rm-yellow);
+  color: var(--sw4rm-yellow);
+}
+.md-button--primary,
+.md-typeset .md-button--primary {
+  background-color: var(--sw4rm-yellow);
+  color: #1a1a1a;
+}
+
+/* Headings slightly brighter; keep minimalist spacing */
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+  color: #f2f2f2;
+  margin-top: 1.2em;
+}
+
+/* Tables scroll and use dark rows */
+.md-typeset table:not([class]) {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.md-typeset table:not([class]) tr {
+  background: var(--sw4rm-offblack);
+}
+
+/* Images scale within content width */
+.md-typeset img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Paragraph readability */
+.md-typeset p {
+  line-height: 1.55;
+}
+
+/* Header logo sizing */
 .md-header__button.md-logo {
   margin: 0;
   padding: 0.25rem 0.5rem;
 }
-
 .md-header__button.md-logo img,
 .md-header__button.md-logo svg {
   height: 1.8rem;
   width: auto;
 }
 
-/* Preserve default tabs spacing (remove negative margins) */
-.md-tabs {
-  margin: 0;
+/* Reduce visual noise in outlines and separators */
+.md-divider,
+.md-nav__list .md-nav__item--section > .md-nav__link {
+  border-color: #1a1a1a;
 }
 
-/* Responsive tweaks for smaller viewports */
+/* Responsive tweaks */
 @media screen and (max-width: 76.1875em) {
   .md-header__button.md-logo {
     padding: 0.25rem 0.4rem;
@@ -24,22 +136,4 @@
   .md-header__button.md-logo svg {
     height: 1.6rem;
   }
-}
-
-/* Make wide tables scroll instead of overflowing */
-.md-typeset table:not([class]) {
-  display: block;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Ensure images scale within content width */
-.md-typeset img {
-  max-width: 100%;
-  height: auto;
-}
-
-/* Slightly tighten paragraphs for readability */
-.md-typeset p {
-  line-height: 1.55;
 }

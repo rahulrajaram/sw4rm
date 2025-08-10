@@ -14,20 +14,9 @@ theme:
   logo: assets/icons/sw4rm-logo.svg
   favicon: assets/icons/sw4rm-favicon.svg
   palette:
-    # Palette toggle for light mode
-    - scheme: default
-      primary: blue
-      accent: blue
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    # Palette toggle for dark mode
     - scheme: slate
-      primary: blue
-      accent: blue
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
+      primary: blue grey
+      accent: yellow
   features:
     - navigation.tabs
     - navigation.tabs.sticky
@@ -70,11 +59,7 @@ markdown_extensions:
 plugins:
   - search
   - section-index
-  - kroki:
-      ServerURL: https://kroki.io
-      HttpMethod: POST
-      TagFormat: svg
-      FencePrefix: "kroki-"
+  - kroki
 
 nav:
   - Home: index.md
