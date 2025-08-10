@@ -1,30 +1,30 @@
-# Comprehensive Getting Started Guide
+# 2. Comprehensive Getting Started Guide
 
 **Build Enterprise-Grade Message-Driven Agents with Production-Ready Architecture**
 
 This comprehensive guide provides detailed instructions for developing, configuring, and deploying production-ready agents using the SW4RM SDK. The guide covers every aspect from system requirements and architectural concepts to advanced configuration patterns and troubleshooting procedures.
 
-## Learning Objectives and Deliverables
+## 2.1. Learning Objectives and Deliverables
 
 Upon completion of this quickstart guide, you will have successfully implemented and deployed a fully-functional agent system with the following capabilities:
 
-### Core Functional Requirements
+### 2.1.1. Core Functional Requirements
 - **Message State Persistence**: Complete message processing history and state preservation across system restarts, crashes, and network partitions
 - **Acknowledgment Lifecycle Management**: Comprehensive ACK handling with automatic retry policies, dead letter queues, and timeout management
 - **Multi-Protocol Message Processing**: Support for all SW4RM message types (DATA, CONTROL, HITL_INVOCATION, WORKTREE_CONTROL, TOOL_CALL)
 - **Git Repository Integration**: Full worktree binding capabilities with branch switching, commit-specific context, and workspace isolation
 - **Graceful Shutdown Procedures**: Signal-based shutdown handling with proper resource cleanup and state persistence
 
-### Non-Functional Requirements
+### 2.1.2. Non-Functional Requirements
 - **Performance**: Message processing latency under 100ms for typical payloads
 - **Reliability**: 99.9% message delivery success rate with automatic failure recovery
 - **Observability**: Comprehensive logging, metrics collection, and distributed tracing
 - **Security**: TLS-encrypted communication and role-based access control
 - **Scalability**: Horizontal scaling support with load balancing and service discovery
 
-## Comprehensive Prerequisites and System Requirements
+## 2.2. Comprehensive Prerequisites and System Requirements
 
-### Hardware and Infrastructure Requirements
+### 2.2.1. Hardware and Infrastructure Requirements
 
 **Minimum Development Environment**:
 - **CPU**: 2 cores (x86_64 or ARM64 architecture)
@@ -38,7 +38,7 @@ Upon completion of this quickstart guide, you will have successfully implemented
 - **Storage**: 50+ GB SSD storage with RAID configuration for fault tolerance
 - **Network**: Multi-homed network configuration with redundant connectivity paths
 
-### Software Dependencies and Version Requirements
+### 2.2.2. Software Dependencies and Version Requirements
 
 **Core Runtime Dependencies**:
 - **Python**: Version 3.9.0+ (Python 3.11+ recommended for optimal performance and security)
@@ -57,7 +57,7 @@ Upon completion of this quickstart guide, you will have successfully implemented
 - **gRPC Tools**: grpcio-tools for Python gRPC stub generation
 - **Monitoring Tools**: OpenTelemetry-compatible observability stack (optional but recommended)
 
-### Knowledge Prerequisites and Technical Background
+### 2.2.3. Knowledge Prerequisites and Technical Background
 
 **Required Technical Knowledge**:
 - **Distributed Systems Concepts**: Understanding of eventual consistency, CAP theorem, and distributed consensus
@@ -72,11 +72,11 @@ Upon completion of this quickstart guide, you will have successfully implemented
 - **Security Best Practices**: Knowledge of authentication, authorization, and secure communication protocols
 - **Production Operations**: Experience with deployment strategies, health monitoring, and incident response
 
-## Comprehensive SDK Architecture and Component Overview
+## 2.3. Comprehensive SDK Architecture and Component Overview
 
 The SW4RM SDK implements a sophisticated, layered architecture designed for enterprise-grade reliability, performance, and maintainability. The SDK abstracts complex distributed system concerns while providing fine-grained control over system behavior through comprehensive configuration interfaces.
 
-### Detailed Component Architecture
+### 2.3.1. Detailed Component Architecture
 
 ```mermaid
 graph TB
@@ -132,9 +132,9 @@ graph TB
     AB --> LOGGING
 ```
 
-### Core Component Specifications
+### 2.3.2. Core Component Specifications
 
-#### MessageProcessor: Advanced Message Routing Engine
+#### 2.3.2.1. MessageProcessor: Advanced Message Routing Engine
 
 **Technical Specifications**:
 - **Handler Registration**: Type-safe handler registration with automatic method introspection
@@ -160,7 +160,7 @@ MessageProcessorConfig:
 - **Memory Utilization**: <100MB base memory footprint with configurable limits
 - **CPU Efficiency**: <5% CPU utilization at 1,000 messages/second processing rate
 
-#### ACKLifecycleManager: Guaranteed Delivery Management
+#### 2.3.2.2. ACKLifecycleManager: Guaranteed Delivery Management
 
 **Acknowledgment State Machine**:
 The ACK lifecycle implements a comprehensive state machine for tracking message delivery and processing status:
@@ -189,7 +189,7 @@ stateDiagram-v2
 - **Dead Letter Queue**: Automatic routing of failed messages to dead letter queues
 - **Custom Retry Strategies**: Pluggable retry strategy interface for custom implementations
 
-#### PersistentActivityBuffer: Stateful Message History
+#### 2.3.2.3. PersistentActivityBuffer: Stateful Message History
 
 **Persistence Capabilities**:
 - **Message Deduplication**: SHA-256 based message fingerprinting for duplicate detection
@@ -208,7 +208,7 @@ RecoveryConfig:
     max_recovery_attempts: int = 3             # Maximum recovery attempts
 ```
 
-#### PersistentWorktreeState: Git Integration and Repository Management
+#### 2.3.2.4. PersistentWorktreeState: Git Integration and Repository Management
 
 **Git Integration Features**:
 - **Repository Cloning**: Automatic repository cloning with credential management
@@ -223,11 +223,11 @@ RecoveryConfig:
 - **Security Policies**: Fine-grained security policies for repository access
 - **Cleanup Strategies**: Automatic cleanup of temporary workspaces and abandoned state
 
-## Comprehensive Implementation Roadmap
+## 2.4. Comprehensive Implementation Roadmap
 
 This section provides a detailed, step-by-step implementation pathway that progresses from basic SDK installation through advanced production deployment scenarios. Each step includes comprehensive technical details, configuration options, troubleshooting guidance, and validation procedures.
 
-### Phase 1: Environment Preparation and SDK Installation
+### 2.4.1. Phase 1: Environment Preparation and SDK Installation
 
 **Objectives**: Establish a secure, validated development environment with all required dependencies and configurations.
 
@@ -250,7 +250,7 @@ This section provides a detailed, step-by-step implementation pathway that progr
 - SDK diagnostic tests passing with 100% success rate
 - Security certificates properly configured and validated
 
-### Phase 2: Basic Agent Implementation and Message Processing
+### 2.4.2. Phase 2: Basic Agent Implementation and Message Processing
 
 **Objectives**: Implement a fully-functional agent with comprehensive message handling, error management, and basic observability.
 
@@ -280,7 +280,7 @@ This section provides a detailed, step-by-step implementation pathway that progr
 - Logging output includes structured information with proper correlation
 - Graceful shutdown completes within 30 seconds with proper cleanup
 
-### Phase 3: Advanced State Management and Persistence
+### 2.4.3. Phase 3: Advanced State Management and Persistence
 
 **Objectives**: Implement enterprise-grade state persistence with crash recovery, data consistency, and multi-backend storage support.
 
@@ -309,7 +309,7 @@ This section provides a detailed, step-by-step implementation pathway that progr
 - Storage backend failover occurs transparently
 - Data retention policies automatically clean up expired data
 
-### Phase 4: Production Deployment and Operational Excellence
+### 2.4.4. Phase 4: Production Deployment and Operational Excellence
 
 **Objectives**: Deploy agents in production-ready configurations with comprehensive monitoring, security, and scalability features.
 
@@ -332,11 +332,11 @@ This section provides a detailed, step-by-step implementation pathway that progr
 **Production Guide**:
 [**Production Deployment** :material-arrow-right:](../production/){{ .md-button .md-button--primary }
 
-## Advanced Learning Pathways
+## 2.5. Advanced Learning Pathways
 
 After completing the core implementation phases, explore these specialized topics for advanced use cases and enterprise requirements:
 
-### Enterprise Integration Patterns
+### 2.5.1. Enterprise Integration Patterns
 
 **Service Mesh Integration**: Learn to deploy agents within service mesh architectures (Istio, Linkerd) for advanced traffic management, security policies, and observability.
 
@@ -346,7 +346,7 @@ After completing the core implementation phases, explore these specialized topic
 
 [**Integration Patterns Guide** :material-arrow-right:](../examples/){{ .md-button }
 
-### Performance Optimization and Scaling
+### 2.5.2. Performance Optimization and Scaling
 
 **Performance Tuning**: Deep dive into performance optimization techniques, including message batching, connection pooling, and resource optimization.
 
@@ -356,7 +356,7 @@ After completing the core implementation phases, explore these specialized topic
 
 [**Performance Guide** :material-arrow-right:](../performance/){{ .md-button }
 
-### Security and Compliance
+### 2.5.3. Security and Compliance
 
 **Enterprise Security**: Implement advanced security features including certificate management, secret rotation, and audit logging for compliance.
 
@@ -366,21 +366,21 @@ After completing the core implementation phases, explore these specialized topic
 
 [**Security Guide** :material-arrow-right:](../security/){{ .md-button }
 
-## Comprehensive Reference Documentation
+## 2.6. Comprehensive Reference Documentation
 
-### API Reference and SDK Documentation
+### 2.6.1. API Reference and SDK Documentation
 
 **Complete API Documentation**: Comprehensive reference documentation for all SDK classes, methods, and configuration options.
 
 [**API Reference** :material-arrow-right:](../reference/){{ .md-button }
 
-### Architecture Deep Dive
+### 2.6.2. Architecture Deep Dive
 
 **System Architecture**: Detailed technical architecture documentation including service interactions, data flows, and system boundaries.
 
 [**Architecture Guide** :material-arrow-right:](../architecture/){{ .md-button }
 
-### Troubleshooting and Operational Guidance
+### 2.6.3. Troubleshooting and Operational Guidance
 
 **Troubleshooting Guide**: Comprehensive troubleshooting procedures for common issues, error codes, and diagnostic techniques.
 
@@ -388,21 +388,21 @@ After completing the core implementation phases, explore these specialized topic
 
 [**Operations Guide** :material-arrow-right:](../operations/){{ .md-button }
 
-## Expert Support and Community Resources
+## 2.7. Expert Support and Community Resources
 
-### Community Support Channels
+### 2.7.1. Community Support Channels
 
 - **GitHub Discussions**: Community-driven support and feature discussions
 - **Discord Server**: Real-time chat support for development questions
 - **Stack Overflow**: Tagged questions for searchable knowledge base
 
-### Professional Support Options
+### 2.7.2. Professional Support Options
 
 - **Enterprise Support**: Dedicated technical support for enterprise deployments
 - **Professional Services**: Implementation assistance and custom development
 - **Training Programs**: Comprehensive training programs for development teams
 
-### Contributing to the Project
+### 2.7.3. Contributing to the Project
 
 - **Contribution Guidelines**: How to contribute code, documentation, and community support
 - **Development Environment**: Setting up development environments for SDK contribution

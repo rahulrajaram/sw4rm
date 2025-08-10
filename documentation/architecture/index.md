@@ -1,8 +1,8 @@
-# Architecture
+# 5. Architecture
 
 Deep dive into the SW4RM SDK architecture, design patterns, and extensibility.
 
-## Overview
+## 5.1. Overview
 
 The SW4RM SDK is built with a layered architecture that provides flexibility while maintaining simplicity:
 
@@ -48,21 +48,21 @@ graph TB
     K --> L
 ```
 
-## Core Principles
+## 5.2. Core Principles
 
-### 1. Persistence by Design
+### 5.2.1. Persistence by Design
 All stateful components support persistence across restarts with configurable backends.
 
-### 2. Policy-Driven Behavior  
+### 5.2.2. Policy-Driven Behavior  
 Extensible policy hooks for validation, transformation, and custom logic.
 
-### 3. Automatic ACK Lifecycle
+### 5.2.3. Automatic ACK Lifecycle
 Built-in acknowledgment handling reduces boilerplate and ensures reliability.
 
-### 4. Composable Architecture
+### 5.2.4. Composable Architecture
 Mix and match components based on your agent's requirements.
 
-## Key Components
+## 5.3. Key Components
 
 Learn more about each architectural layer:
 

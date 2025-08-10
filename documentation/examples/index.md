@@ -1,8 +1,8 @@
-# Examples
+# 4. Examples
 
 Comprehensive examples showing SW4RM SDK usage from basic to advanced patterns.
 
-## Available Examples
+## 4.1. Available Examples
 
 <div class="grid cards" markdown>
 
@@ -32,7 +32,7 @@ Comprehensive examples showing SW4RM SDK usage from basic to advanced patterns.
 
 </div>
 
-## Running the Examples
+## 4.2. Running the Examples
 
 All examples are located in the `examples/` directory:
 

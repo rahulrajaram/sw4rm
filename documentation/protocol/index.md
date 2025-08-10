@@ -1,4 +1,4 @@
-# SW4RM Protocol Specification
+# 3. SW4RM Protocol Specification
 
 **Enterprise-Grade Message-Driven Agent Communication Protocol**
 
@@ -6,7 +6,7 @@
 
 This comprehensive protocol specification defines the complete SW4RM message-driven agent communication system. The protocol is built on industry-standard gRPC and Protocol Buffers, providing a robust foundation for enterprise-grade distributed agent systems with guaranteed message delivery, comprehensive observability, and enterprise security features.
 
-## Executive Summary
+## 3.1. Executive Summary
 
 The SW4RM protocol addresses the fundamental challenges of distributed agent systems by providing a complete communication framework with the following core capabilities:
 
@@ -17,9 +17,9 @@ The SW4RM protocol addresses the fundamental challenges of distributed agent sys
 - **Horizontal Scalability**: Linear scaling with no single points of failure
 - **Multi-Tenancy Support**: Secure isolation between different agent workloads
 
-## Architectural Foundation and Design Principles
+## 3.2. Architectural Foundation and Design Principles
 
-### Service-Oriented Architecture (SOA) Implementation
+### 3.2.1. Service-Oriented Architecture (SOA) Implementation
 
 SW4RM implements a **microservices architecture** with clear service boundaries, standardized communication protocols, and comprehensive fault tolerance mechanisms. The architecture is designed for:
 
@@ -94,9 +94,9 @@ graph TB
     HITL -.-> CONSUL
 ```
 
-### Fundamental Protocol Design Principles
+### 3.2.2. Fundamental Protocol Design Principles
 
-#### 1. Message-Driven Communication Model
+#### 3.2.2.1. Message-Driven Communication Model
 
 **Event Sourcing Architecture**: All system interactions are represented as immutable events (messages) that form an event log, enabling complete system state reconstruction and audit trails.
 
@@ -112,7 +112,7 @@ graph TB
 - **Storage Efficiency**: 70% compression ratio with protocol buffer encoding
 - **Memory Footprint**: <200MB per service instance under typical loads
 
-#### 2. Distributed System Consistency Model
+#### 3.2.2.2. Distributed System Consistency Model
 
 **Implementation of Eventual Consistency with Strong Consistency Options**:
 
@@ -138,7 +138,7 @@ enum ConsistencyLevel {
 }
 ```
 
-#### 3. Comprehensive Security Architecture
+#### 3.2.2.3. Comprehensive Security Architecture
 
 **Zero-Trust Network Model**: Every service interaction requires authentication and authorization, with no implicit trust relationships.
 
@@ -189,7 +189,7 @@ message AuthenticationConfig {
 }
 ```
 
-#### 4. Enterprise-Grade Observability Framework
+#### 3.2.2.4. Enterprise-Grade Observability Framework
 
 **Three Pillars of Observability Implementation**:
 
@@ -234,9 +234,9 @@ enum SamplingStrategy {
 }
 ```
 
-## Core Concepts
+## 3.3. Core Concepts
 
-### Message Envelope
+### 3.3.1. Message Envelope
 
 Every message is wrapped in a standard envelope providing:
 
@@ -260,7 +260,7 @@ message Envelope {
 }
 ```
 
-### Message Types
+### 3.3.2. Message Types
 
 | Type | Value | Description | Use Case |
 |------|-------|-------------|----------|
@@ -274,7 +274,7 @@ message Envelope {
 | `TOOL_RESULT` | 10 | Tool execution results | Success responses, data returns |
 | `TOOL_ERROR` | 11 | Tool execution failures | Error conditions, exceptions |
 
-### Acknowledgment Lifecycle
+### 3.3.3. Acknowledgment Lifecycle
 
 Every message follows a predictable ACK progression:
 
@@ -311,9 +311,9 @@ sequenceDiagram
 - `FAILED` (5): Processing failed due to error
 - `TIMED_OUT` (6): Processing exceeded time limits
 
-## Service Architecture
+## 3.4. Service Architecture
 
-### Core Services
+### 3.4.1. Core Services
 
 **Registry Service** - Agent lifecycle management
 - Agent registration and discovery
@@ -330,7 +330,7 @@ sequenceDiagram
 - Resource allocation and preemption
 - Activity buffer management
 
-### Extended Services
+### 3.4.2. Extended Services
 
 **HITL Service** - Human oversight
 - Escalation workflows and approvals
@@ -347,9 +347,9 @@ sequenceDiagram
 - Result capture and error handling
 - Permission and security policies
 
-## Message Patterns
+## 3.5. Message Patterns
 
-### Request-Response
+### 3.5.1. Request-Response
 ```protobuf
 // Request
 message: {
@@ -366,7 +366,7 @@ message: {
 }
 ```
 
-### Fire-and-Forget
+### 3.5.2. Fire-and-Forget
 ```protobuf
 message: {
   message_type: NOTIFICATION,
@@ -375,7 +375,7 @@ message: {
 }
 ```
 
-### Command Pattern
+### 3.5.3. Command Pattern
 ```protobuf
 message: {
   message_type: CONTROL,
@@ -386,9 +386,9 @@ message: {
 }
 ```
 
-## Error Handling
+## 3.6. Error Handling
 
-### Error Codes
+### 3.6.1. Error Codes
 
 | Code | Name | Description |
 |------|------|-------------|
@@ -401,7 +401,7 @@ message: {
 | 9 | `OVERSIZE_PAYLOAD` | Message exceeds size limits |
 | 99 | `INTERNAL_ERROR` | Unexpected system failure |
 
-### Error Response Pattern
+### 3.6.2. Error Response Pattern
 ```protobuf
 ack: {
   ack_for_message_id: "original-msg-id",
@@ -411,41 +411,41 @@ ack: {
 }
 ```
 
-## Security Model
+## 3.7. Security Model
 
-### Authentication
+### 3.7.1. Authentication
 - Service-to-service authentication via mutual TLS
 - Agent identity verification through public key cryptography
 - Token-based session management
 
-### Authorization  
+### 3.7.2. Authorization  
 - Role-based access control (RBAC) for service operations
 - Message-level permissions based on sender/receiver identity
 - Policy-based filtering and transformation
 
-### Data Protection
+### 3.7.3. Data Protection
 - End-to-end encryption for sensitive payloads
 - Audit logging of all security-relevant operations
 - Compliance with data residency and retention policies
 
-## Deployment Considerations
+## 3.8. Deployment Considerations
 
-### Scalability
+### 3.8.1. Scalability
 - Horizontal scaling of all services
 - Message partitioning and sharding
 - Load balancing with session affinity
 
-### Reliability
+### 3.8.2. Reliability
 - At-least-once message delivery guarantees
 - Circuit breakers and retry policies  
 - Graceful degradation during partial failures
 
-### Observability
+### 3.8.3. Observability
 - Distributed tracing across service boundaries
 - Metrics for throughput, latency, and error rates
 - Structured logging with correlation IDs
 
-## Next Steps
+## 3.9. Next Steps
 
 - [Message Types](messages.md) - Detailed message specifications
 - [Services](services.md) - Complete service API reference  
