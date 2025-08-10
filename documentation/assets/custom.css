@@ -93,13 +93,18 @@
 }
 
 /* Active and hover nav states */
+.md-nav__link {
+  padding-left: 0.2em;
+  border-left: 2px solid transparent;
+}
 .md-nav__item .md-nav__link:hover {
   color: var(--sw4rm-yellow);
   background-color: #101010;
+  border-left-color: rgba(255, 212, 0, 0.8);
 }
 .md-nav__item .md-nav__link--active {
   color: #ffffff;
-  box-shadow: inset 2px 0 0 0 var(--sw4rm-yellow);
+  border-left-color: var(--sw4rm-yellow);
 }
 
 /* Links: yellow default, indigo hover */
