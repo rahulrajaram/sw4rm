@@ -1,6 +1,6 @@
 """Protocol constants mirroring common.proto enums.
 
-These are numeric values to keep the SDK usable without generated stubs
+These are numeric values to keep the reference SDK usable without generated stubs
 at import time. When pb2 modules are available, prefer using those enums
 directly. Values must match common.proto definitions.
 """
@@ -38,4 +38,3 @@ AGENT_SHUTDOWN = 5
 VALIDATION_ERROR = 6
 PERMISSION_DENIED = 7
 UNSUPPORTED_MESSAGE_TYPE = 8
-

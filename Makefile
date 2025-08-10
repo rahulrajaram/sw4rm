@@ -62,7 +62,7 @@ docs-build: docs-deps protos
 	$(PYTHON) -m mkdocs build
 
 docs-serve: docs-deps protos
-	$(PYTHON) -m mkdocs serve
+	$(PYTHON) -m mkdocs serve --dev-addr=0.0.0.0:8010
 
 # Add dev-deps as an implicit prerequisite for common tasks
 protos: dev-deps

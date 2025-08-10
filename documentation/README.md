@@ -1,6 +1,6 @@
-# SW4RM SDK Documentation
+# SW4RM Agentic Protocol Documentation
 
-This directory contains the documentation source for the SW4RM SDK website built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/).
+This directory contains the documentation source for the SW4RM Agentic Protocol website (with a section for the reference Python SDK) built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/).
 
 ## Setup
 

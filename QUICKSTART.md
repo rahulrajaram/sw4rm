@@ -1,13 +1,13 @@
-# SW4RM SDK Quickstart Guide
+# SW4RM Agentic Protocol — Quickstart (Python SDK)
 
-Get up and running with the SW4RM SDK in 5 minutes. This guide walks you through creating your first production-ready agent with persistent state.
+Get up and running with the SW4RM Agentic Protocol using the reference Python SDK. This guide walks you through creating your first production-ready agent with persistent state.
 
 ## Step 1: Installation
 
 Install the SDK in development mode to get all tools and dependencies:
 
 ```bash
-# Clone or navigate to the SW4RM SDK directory
+# Clone or navigate to the SW4RM repository
 cd /path/to/sw4rm-sdk
 
 # Install with development dependencies
@@ -19,7 +19,7 @@ make protos
 
 Verify installation:
 ```bash
-python -c "import sw4rm; print('SDK installed successfully')"
+python -c "import sw4rm; print('SW4RM protocol SDK installed successfully')"
 ```
 
 ## Step 2: Basic Agent Setup
@@ -29,7 +29,7 @@ Create your first agent (`my_first_agent.py`):
 ```python
 #!/usr/bin/env python3
 """
-My first SW4RM - demonstrates core SDK features.
+My first SW4RM — demonstrates core protocol + SDK features.
 """
 import grpc
 import json

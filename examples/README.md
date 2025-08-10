@@ -1,6 +1,6 @@
-# SW4RM SDK Examples
+# SW4RM Agentic Protocol — Examples (Python SDK)
 
-This directory contains examples demonstrating the SW4RM SDK features and capabilities.
+This directory contains examples demonstrating the SW4RM Agentic Protocol using the reference Python SDK.
 
 ## Prerequisites
 

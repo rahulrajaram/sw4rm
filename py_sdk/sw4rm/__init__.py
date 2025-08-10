@@ -1,7 +1,7 @@
-"""SW4RM Python SDK (experimental).
+"""SW4RM Agentic Protocol — Reference Python SDK (experimental).
 
-This package provides a lightweight runtime, clients, and helpers
-to build agents that speak the gRPC protocol defined by the local .proto files.
+This package provides a lightweight runtime, clients, and helpers for building
+agents that speak the SW4RM Agentic Protocol specified in the local .proto files.
 """
 
 __all__ = [

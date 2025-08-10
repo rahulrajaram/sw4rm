@@ -1,10 +1,10 @@
-# SW4RM SDK
+# SW4RM Agentic Protocol
 
 **Enterprise-Grade Message-Driven Agent Development Platform**
 
-SW4RM SDK is a comprehensive, production-ready software development kit designed for building resilient, distributed agent systems that operate reliably in mission-critical enterprise environments. The SDK transforms traditional agent development paradigms from fragile, stateless scripts into robust, stateful, message-driven architectures that provide guaranteed delivery semantics, persistent state management, and comprehensive observability.
+SW4RM is an open agentic protocol for building resilient, distributed agent systems that operate reliably in mission‑critical enterprise environments. It defines services, message envelopes, and ACK lifecycle semantics that enable robust, stateful, message‑driven architectures.
 
-The SW4RM SDK addresses the fundamental challenges inherent in distributed agent systems: message loss, state corruption, coordination failures, and operational complexity. By providing a complete abstraction layer over complex distributed system primitives, SW4RM enables developers to focus on business logic while the SDK handles infrastructure concerns including fault tolerance, persistence, routing, and monitoring.
+This repository provides the reference Python SDK that implements the protocol. The SDK addresses the fundamental challenges inherent in distributed agent systems — message loss, state corruption, coordination failures, and operational complexity — while letting developers focus on business logic as the SDK handles fault tolerance, persistence, routing, and monitoring.
 
 ## Technical Architecture Overview
 
@@ -1165,12 +1165,13 @@ sdk.run()
 ```
 
 **This 30-line agent provides:**
-- ✅ Persistent state across restarts
-- ✅ Human approval workflows  
-- ✅ Repository context management
-- ✅ External tool execution
-- ✅ Automatic error handling and retry
-- ✅ Complete audit trail
+
+- Persistent state across restarts
+- Human approval workflows  
+- Repository context management
+- External tool execution
+- Automatic error handling and retry
+- Complete audit trail
 
 ## Next Steps
 

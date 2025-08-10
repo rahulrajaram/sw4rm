@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Smoke test: compile protobufs and import generated modules + SDK clients.
+Smoke test: compile protobufs and import generated modules + protocol clients (Python SDK).
 
 Usage:
   python scripts/smoke_protos.py

@@ -9,18 +9,18 @@ This comprehensive guide provides detailed instructions for developing, configur
 Upon completion of this quickstart guide, you will have successfully implemented and deployed a fully-functional agent system with the following capabilities:
 
 ### Core Functional Requirements
-- ✅ **Message State Persistence**: Complete message processing history and state preservation across system restarts, crashes, and network partitions
-- ✅ **Acknowledgment Lifecycle Management**: Comprehensive ACK handling with automatic retry policies, dead letter queues, and timeout management
-- ✅ **Multi-Protocol Message Processing**: Support for all SW4RM message types (DATA, CONTROL, HITL_INVOCATION, WORKTREE_CONTROL, TOOL_CALL)
-- ✅ **Git Repository Integration**: Full worktree binding capabilities with branch switching, commit-specific context, and workspace isolation
-- ✅ **Graceful Shutdown Procedures**: Signal-based shutdown handling with proper resource cleanup and state persistence
+- **Message State Persistence**: Complete message processing history and state preservation across system restarts, crashes, and network partitions
+- **Acknowledgment Lifecycle Management**: Comprehensive ACK handling with automatic retry policies, dead letter queues, and timeout management
+- **Multi-Protocol Message Processing**: Support for all SW4RM message types (DATA, CONTROL, HITL_INVOCATION, WORKTREE_CONTROL, TOOL_CALL)
+- **Git Repository Integration**: Full worktree binding capabilities with branch switching, commit-specific context, and workspace isolation
+- **Graceful Shutdown Procedures**: Signal-based shutdown handling with proper resource cleanup and state persistence
 
 ### Non-Functional Requirements
-- ✅ **Performance**: Message processing latency under 100ms for typical payloads
-- ✅ **Reliability**: 99.9% message delivery success rate with automatic failure recovery
-- ✅ **Observability**: Comprehensive logging, metrics collection, and distributed tracing
-- ✅ **Security**: TLS-encrypted communication and role-based access control
-- ✅ **Scalability**: Horizontal scaling support with load balancing and service discovery
+- **Performance**: Message processing latency under 100ms for typical payloads
+- **Reliability**: 99.9% message delivery success rate with automatic failure recovery
+- **Observability**: Comprehensive logging, metrics collection, and distributed tracing
+- **Security**: TLS-encrypted communication and role-based access control
+- **Scalability**: Horizontal scaling support with load balancing and service discovery
 
 ## Comprehensive Prerequisites and System Requirements
 

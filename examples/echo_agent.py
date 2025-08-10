@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Minimal echo agent example using AgentOS SDK clients.
+Minimal echo agent example using SW4RM Agentic Protocol (Python SDK) clients.
 
 Prereqs:
   - Generate protobuf stubs: `make protos`
