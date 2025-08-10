@@ -11,7 +11,7 @@
   --sw4rm-text: #e6e6e6;
   --sw4rm-muted: #b9b9b9;
   --sw4rm-yellow: #ffd400; /* secondary */
-  --sw4rm-indigo: #4b0082; /* tertiary */
+  --sw4rm-indigo: #157795; /* tertiary */
 }
 
 /* Apply colors to Material variables (dark scheme) */
@@ -37,16 +37,98 @@
 /* Global surfaces */
 /* Header remains pure black with a subtle divider */
 .md-header {
-  background-color: var(--sw4rm-black) !important;
-  border-bottom: 1px solid rgba(75, 0, 130, 0.22);
+  background-color: var(--sw4rm-indigo) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.25);
   box-shadow: none;
 }
 
-/* Tabs row follows header styling */
+/* Subtle indigo wash within the header content area */
+[data-md-color-scheme="slate"] .md-header__inner {
+  background-color: var(--sw4rm-indigo);
+  margin-bottom: 0;           /* remove extra gap below header */
+  padding-bottom: 0.2rem;     /* tighten spacing under header */
+}
+
+/* On small screens, remove extra header bottom padding */
+@media screen and (max-width: 76.1875em) {
+  [data-md-color-scheme="slate"] .md-header__inner {
+    padding-bottom: 0;
+  }
+}
+
+/* Tabs row matches header indigo */
 .md-tabs {
-  background-color: var(--sw4rm-black) !important;
-  border-bottom: 1px solid rgba(75, 0, 130, 0.12);
-  padding: 0.15rem 0; /* breathing room for hover panel */
+  background-color: var(--sw4rm-indigo) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.25);
+  margin-top: -1em;           /* pull tabs closer to header */
+  padding: 0.05rem 0 0.5em;   /* subtle top, larger bottom padding */
+  overflow: visible;          /* prevent hover panels from being clipped */
+}
+
+/* Align tabs content with logo edge by matching header logo padding */
+/* Align tabs left by offsetting the tabs list, not the grid */
+[data-md-color-scheme="slate"] .md-tabs .md-grid {
+  padding-left: 0;            /* avoid shifting content inside grid */
+}
+/* Ensure left offset applies regardless of wrapper specificity */
+/* Apply left alignment only on larger screens */
+@media screen and (min-width: 76.1875em) {
+  [data-md-color-scheme="slate"] .md-tabs__list {
+    margin-left: -1.55em !important; /* align first tab with logo edge */
+  }
+}
+
+/* Mobile primary nav: render subsections in a tree-like fashion */
+@media screen and (max-width: 76.1875em) {
+  /* Reduce vertical density and remove gray block on expandable items */
+  .md-nav--primary .md-nav__link {
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+    line-height: 1.2;
+  }
+  .md-nav--primary label.md-nav__link {
+    background-color: transparent !important; /* avoid large gray reveal block */
+  }
+  .md-nav--primary .md-nav__link--active {
+    background-color: transparent !important; /* keep active clean; we use border-left */
+  }
+
+  .md-nav--primary .md-nav__list .md-nav__list {
+    border-left: 1px solid rgba(21, 119, 149, 0.35); /* subtle indigo line */
+    margin-left: 0.7em;
+    padding-left: 0.55em;
+  }
+  .md-nav--primary .md-nav__list .md-nav__item {
+    position: relative;
+  }
+  .md-nav--primary .md-nav__list .md-nav__item::before {
+    content: "";
+    position: absolute;
+    left: -0.7em;
+    top: 1.15em; /* aligns roughly with link baseline */
+    width: 0.55em;
+    height: 1px;
+    background: rgba(21, 119, 149, 0.35);
+  }
+  /* Expand nested sections inline (avoid overlay panel behavior) */
+  .md-nav--primary .md-nav__item--nested > .md-nav {
+    position: static !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    height: auto !important;
+    max-height: none !important;
+    transform: none !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  /* Only show nested nav when the toggle is checked */
+  .md-nav--primary .md-nav__item--nested > input.md-nav__toggle:not(:checked) ~ .md-nav {
+    display: none !important;
+  }
+  /* Remove nested panel title bar */
+  .md-nav--primary .md-nav__item--nested > .md-nav > .md-nav__title {
+    display: none !important;
+  }
 }
 
 /* Header tabs: consistent yellow hover; subtle panel highlight */
