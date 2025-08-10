@@ -110,6 +110,8 @@
     padding-top: 0.35rem;
     padding-bottom: 0.35rem;
     line-height: 1.2;
+    border-left: none !important; /* highlight should be on LI only */
+    padding-left: 0.2em; /* apply left padding only on small/medium views */
   }
   .md-nav--primary label.md-nav__link {
     background-color: transparent !important; /* avoid large gray reveal block */
@@ -118,22 +120,26 @@
     background-color: transparent !important; /* keep active clean; we use border-left */
   }
 
+  /* Remove tree connector border; keep indentation */
   .md-nav--primary .md-nav__list .md-nav__list {
-    border-left: 1px solid rgba(21, 119, 149, 0.35); /* subtle indigo line */
+    border-left: 0 !important;
     margin-left: 0.7em;
     padding-left: 0.55em;
   }
   .md-nav--primary .md-nav__list .md-nav__item {
     position: relative;
   }
+  /* Remove horizontal connector tick */
   .md-nav--primary .md-nav__list .md-nav__item::before {
-    content: "";
-    position: absolute;
-    left: -0.7em;
-    top: 1.15em; /* aligns roughly with link baseline */
-    width: 0.55em;
-    height: 1px;
-    background: rgba(21, 119, 149, 0.35);
+    content: none !important;
+  }
+
+  /* Normalize vertical rhythm between items, including before nested groups */
+  .md-nav--primary .md-nav__list > .md-nav__item {
+    margin: 0.15rem 0;
+  }
+  .md-nav--primary .md-nav__list > .md-nav__item--nested {
+    margin-top: 0.25rem; /* ensure no gap reduction before nested groups */
   }
   /* Expand nested sections inline (avoid overlay panel behavior) */
   .md-nav--primary .md-nav__item--nested > .md-nav {
@@ -146,13 +152,27 @@
     visibility: visible !important;
     opacity: 1 !important;
   }
-  /* Only show nested nav when the toggle is checked */
-  .md-nav--primary .md-nav__item--nested > input.md-nav__toggle:not(:checked) ~ .md-nav {
+  /* Show/hide nested nav using the checkbox state (inline expansion) */
+  .md-nav--primary .md-nav__item--nested > input.md-nav__toggle ~ .md-nav {
     display: none !important;
+  }
+  .md-nav--primary .md-nav__item--nested > input.md-nav__toggle:checked ~ .md-nav {
+    display: block !important;
   }
   /* Remove nested panel title bar */
   .md-nav--primary .md-nav__item--nested > .md-nav > .md-nav__title {
     display: none !important;
+  }
+
+  /* Highlight only the LI for hover/active states on small/medium */
+  .md-nav--primary .md-nav__item {
+    border-left: 2px solid transparent;
+  }
+  .md-nav--primary .md-nav__item:hover {
+    border-left-color: rgba(255, 212, 0, 0.8);
+  }
+  .md-nav--primary .md-nav__item--active {
+    border-left-color: var(--sw4rm-yellow);
   }
 }
 
@@ -201,17 +221,13 @@
 
 /* Active and hover nav states */
 .md-nav__link {
-  padding-left: 0.2em;
-  border-left: 2px solid transparent;
 }
 .md-nav__item .md-nav__link:hover {
   color: var(--sw4rm-yellow);
   background-color: #101010;
-  border-left-color: rgba(255, 212, 0, 0.8);
 }
 .md-nav__item .md-nav__link--active {
   color: #ffffff;
-  border-left-color: var(--sw4rm-yellow);
 }
 
 /* Links: yellow default, indigo hover */

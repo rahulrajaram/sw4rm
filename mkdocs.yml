@@ -21,7 +21,6 @@ theme:
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.sections
-    - navigation.expand
     - navigation.indexes
     - navigation.top
     - search.highlight
@@ -88,5 +87,8 @@ extra:
 
 extra_css:
   - assets/custom.css
+
+extra_javascript:
+  - assets/collapse-mobile-nav.js
 
 copyright: Copyright &copy; 2024 SW4RM Team
