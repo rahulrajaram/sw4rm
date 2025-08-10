@@ -11,7 +11,7 @@
   --sw4rm-text: #e6e6e6;
   --sw4rm-muted: #b9b9b9;
   --sw4rm-yellow: #ffd400; /* secondary */
-  --sw4rm-indigo: #157795; /* tertiary */
+  --sw4rm-indigo: #4b0082; /* tertiary */
 }
 
 /* Apply colors to Material variables (dark scheme) */
@@ -37,38 +37,16 @@
 /* Global surfaces */
 /* Header remains pure black with a subtle divider */
 .md-header {
-  background-color: var(--sw4rm-indigo) !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.25);
+  background-color: var(--sw4rm-black) !important;
+  border-bottom: 1px solid rgba(75, 0, 130, 0.22);
   box-shadow: none;
 }
 
-/* Subtle indigo wash within the header content area */
-[data-md-color-scheme="slate"] .md-header__inner {
-  background-color: var(--sw4rm-indigo);
-  margin-bottom: 0;           /* remove extra gap below header */
-  padding-bottom: 0.2rem;     /* tighten spacing under header */
-}
-
-/* Tabs row matches header indigo */
+/* Tabs row follows header styling */
 .md-tabs {
-  background-color: var(--sw4rm-indigo) !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.25);
-  margin-top: -1em;           /* pull tabs closer to header */
-  padding: 0.05rem 0 0.5em;   /* subtle top, larger bottom padding */
-  overflow: visible;          /* prevent hover panels from being clipped */
-}
-
-/* Align tabs content with logo edge by matching header logo padding */
-/* Align tabs left by offsetting the tabs list, not the grid */
-[data-md-color-scheme="slate"] .md-tabs .md-grid {
-  padding-left: 0;            /* avoid shifting content inside grid */
-}
-/* Ensure left offset applies regardless of wrapper specificity */
-/* Apply left alignment only on larger screens */
-@media screen and (min-width: 76.1875em) {
-  [data-md-color-scheme="slate"] .md-tabs__list {
-    margin-left: -1.55em !important; /* align first tab with logo edge */
-  }
+  background-color: var(--sw4rm-black) !important;
+  border-bottom: 1px solid rgba(75, 0, 130, 0.12);
+  padding: 0.15rem 0; /* breathing room for hover panel */
 }
 
 /* Header tabs: consistent yellow hover; subtle panel highlight */
@@ -115,18 +93,13 @@
 }
 
 /* Active and hover nav states */
-.md-nav__link {
-  padding-left: 0.2em;
-  border-left: 2px solid transparent;
-}
 .md-nav__item .md-nav__link:hover {
   color: var(--sw4rm-yellow);
   background-color: #101010;
-  border-left-color: rgba(255, 212, 0, 0.8);
 }
 .md-nav__item .md-nav__link--active {
   color: #ffffff;
-  border-left-color: var(--sw4rm-yellow);
+  box-shadow: inset 2px 0 0 0 var(--sw4rm-yellow);
 }
 
 /* Links: yellow default, indigo hover */
