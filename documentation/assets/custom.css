@@ -1,8 +1,15 @@
 /*
- Minimal dark theme adjustments for SW4RM docs
- Primary: black background
- Secondary: yellow accents
- Tertiary: indigo highlights
+ SW4RM Docs Theme Overrides
+ - Design tokens:
+   --sw4rm-black   #000000 (primary surfaces)
+   --sw4rm-offblack#0a0a0a (content surfaces)
+   --sw4rm-yellow  #ffd400 (secondary/accent)
+   --sw4rm-indigo  #157795 (tertiary/header/tabs)
+ - Breakpoints:
+   max-width: 76.1875em  -> mobile/tablet tweaks
+   min-width: 76.1875em  -> desktop/tabbar alignment
+ - Goals:
+   Minimal dark look, yellow accents, subtle indigo highlights
 */
 
 :root {
@@ -206,7 +213,7 @@
 }
 .md-typeset pre > code {
   background-color: var(--sw4rm-offblack);
-  border: 1px solid #1a1a1a;
+  border: 1px solid rgba(21, 119, 149, 0.25); /* subtle indigo */
 }
 
 /* Buttons, chips, switches using yellow accents */
@@ -241,7 +248,7 @@
 }
 .md-typeset table:not([class]) th,
 .md-typeset table:not([class]) td {
-  border-color: #1a1a1a;
+  border-color: rgba(21, 119, 149, 0.2); /* subtle indigo */
 }
 .md-typeset table:not([class]) tr:hover {
   background: #101010;
