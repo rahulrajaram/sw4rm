@@ -1,10 +1,10 @@
-# AgentOS SDK Work Context
+# SW4RM Agentic Protocol Work Context
 
-This file captures the current state, decisions, and next steps for building a Python SDK (SW4RM) and the gRPC contract defined in `spec.md`.
+This file captures the current state, decisions, and next steps for the SW4RM Agentic Protocol and its reference Python SDK (clients + lightweight runtime) defined by the gRPC contracts in `spec.md`.
 
 ## Summary
-- Goal: Provide an SDK to implement message-driven agents conforming to the spec and `.proto` contracts, enabling a CLI or service to act as an Agent.
-- Approach: Define gRPC contracts (protos), generate Python stubs, and build a minimal runtime with thin client wrappers and helper utilities.
+- Goal: Define an open agentic protocol (services, envelopes, ACK lifecycle) with a reference Python SDK so agents can interoperate across implementations.
+- Approach: Specify gRPC contracts (protos), generate Python stubs, and provide a minimal reference runtime with client wrappers and helper utilities.
 
 ## Changes Made
 - Protos completed per `spec.md` (populated placeholders):
@@ -21,7 +21,7 @@ This file captures the current state, decisions, and next steps for building a P
   - `logging.proto`: LogEvent, Ingest.
 - Build helper:
   - `Makefile`: `make protos` generates Python stubs into `py_sdk/sw4rm/protos` and ensures the output directory exists.
-- SDK scaffold (initial skeletons):
+- Reference SDK scaffold (initial skeletons):
   - `py_sdk/sw4rm/__init__.py`: version and exports.
   - `py_sdk/sw4rm/config.py`: `Endpoints` and `AgentConfig` dataclasses.
   - `py_sdk/sw4rm/envelope.py`: envelope builders, idempotency helpers, sequence tracker.
@@ -37,6 +37,22 @@ This file captures the current state, decisions, and next steps for building a P
     - `py_sdk/sw4rm/clients/logging.py`
     - `py_sdk/sw4rm/clients/tool.py`
     - `py_sdk/sw4rm/clients/connector.py`
+
+### Documentation Theme & Navigation
+- Theme: minimalist dark with black/off-black surfaces, yellow accents, and indigo header/tabs.
+- Desktop header/tabs:
+  - Indigo header (`#157795`); tabs row matches header color.
+  - Active tab is a solid yellow rectangle (sharp corners); hover/focus are sharp rectangles.
+  - Removed tabs bar bottom border/padding on desktop; tightened spacing; adjusted tab list offset for alignment; logo 3.8rem; title 3em.
+- Mobile/medium nav:
+  - Inline expansion (no overlay panels) via checkbox toggle; highlight applied to the `<li>` only; removed tree connector lines; normalized gaps.
+  - Disabled default auto-expand; optional JS shim collapses all groups on small screens.
+- In-page TOC: current section highlights in yellow while scrolling.
+
+Artifacts:
+- `documentation/assets/custom.css` — site overrides and layout tweaks.
+- `documentation/assets/collapse-mobile-nav.js` — optional small-screen “collapse all” shim.
+- `mkdocs.yml` — Material theme config and asset wiring.
 
 ### Documentation Theme & Navigation (SW4RM site)
 - Theme: minimalist dark with black/off-black surfaces, yellow accents, and indigo header/tabs.
@@ -59,7 +75,7 @@ Artifacts:
 - `mkdocs.yml` — Material theme config, features, and asset wiring.
 
 ## Not Yet Implemented
-- Runtime features:
+- Reference SDK runtime features:
   - Policy hooks for worktree binding; persist binding state (currently in-memory).
   - Activity buffer persistence beyond process lifetime and richer reconciliation.
   - ACK lifecycle integration with router responses in higher-level flows.
@@ -71,10 +87,10 @@ Artifacts:
   - Optional: package metadata, versioning, and publishing workflows.
 
 ## How To Generate Python Stubs
-- Prerequisites (local dev): `pip install grpcio grpcio-tools googleapis-common-protos`
-- Generate:
-  - `make protos`
-- Output: `py_sdk/sw4rm/protos/*_pb2.py` and `*_pb2_grpc.py`
+- Use repo tooling (recommended):
+  - `make venv && venv/bin/python -m pip install -e ".[dev]"`
+  - `make protos` (outputs to `py_sdk/sw4rm/protos`)
+- Output: `*_pb2.py`, `*_pb2_grpc.py`, and `*.pyi` under `py_sdk/sw4rm/protos/`
 
 ## Suggested Next Steps
 1. Flesh out runtime helpers: activity buffer, worktree binding, ACK lifecycle utilities.
@@ -82,19 +98,17 @@ Artifacts:
 3. Validate proto compatibility by compiling stubs and smoke-testing imports.
 4. Optionally add tests for envelope helpers and client wrappers.
 
-## Build & Publish
-- Local install (runtime only):
-  - `python -m pip install .`
-- Local dev install (includes codegen tool):
-  - `python -m pip install -e ".[dev]"`
-  - `make protos` to generate Python stubs into `py_sdk/sw4rm/protos`.
-- Build distributables (wheel + sdist):
-  - `python -m pip install build twine`
-  - `python -m build`
-- Publish to PyPI (requires credentials):
-  - `python -m twine upload dist/*`
-- Versioning:
-  - Bump `version` in `pyproject.toml`, rebuild, and tag the commit as needed.
+## Build, Docs, and Publish
+- Local install (runtime only): `python -m pip install .`
+- Local dev install (with codegen): `python -m pip install -e ".[dev]" && make protos`
+- Docs (served from repo venv):
+  - `make docs-deps`
+  - `make docs-serve` (http://0.0.0.0:8010)
+  - `make docs-build`
+- Customize docs visuals: edit `documentation/assets/custom.css`; small-screen collapse shim at `documentation/assets/collapse-mobile-nav.js` wired via `mkdocs.yml` `extra_javascript`.
+- Build distributables (wheel + sdist): `python -m pip install build twine && python -m build`
+- Publish to PyPI: `python -m twine upload dist/*`
+- Versioning: bump `version` in `pyproject.toml`, rebuild, and tag.
 
 ### Docs (local)
 - Serve: `make docs-serve`
@@ -103,9 +117,10 @@ Artifacts:
 - Optional: small-screen nav collapse via `documentation/assets/collapse-mobile-nav.js` (wired in `mkdocs.yml` `extra_javascript`).
 
 ## Open Questions
-- Do we want a strict dependency on generated protobufs at import time, or allow a lazy/optional mode with friendly errors (current clients do the latter)?
-- What default endpoint map should we ship (current defaults are localhost ports)?
-- Any specific languages besides Python to target for the first SDK?
+- Protocol vs. SDK split in docs: how much content should be protocol primers vs. SDK usage?
+- Strict dependency on generated protobufs at import time vs. lazy/optional mode (current clients do the latter)?
+- Default endpoint map to ship (current defaults are localhost ports)?
+- Additional language SDKs to prioritize after Python?
 
 ## Quick Notes
 - Network access may be restricted in some environments; the repo includes a `Makefile` to generate stubs locally when dependencies are available.
