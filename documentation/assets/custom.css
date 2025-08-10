@@ -61,6 +61,24 @@
   [data-md-color-scheme="slate"] .md-header__inner {
     padding-bottom: 0;
   }
+  /* Compact top spacing in small views */
+  .md-content__inner {
+    padding-top: 0 !important;
+  }
+  .md-content__inner::before {
+    content: none !important;
+    display: none !important;
+  }
+  /* Force-reset h1 margins (some themes use logical properties) */
+  .md-content .md-typeset h1,
+  .md-main .md-content__inner .md-typeset h1,
+  .md-typeset h1 {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    margin-block-start: 0 !important;
+    margin-block-end: 0 !important;
+    scroll-margin-top: 64px; /* maintain anchor visibility under sticky header */
+  }
 }
 
 /* Tabs row matches header indigo */
