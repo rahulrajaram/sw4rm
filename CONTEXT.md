@@ -50,8 +50,11 @@ This file captures the current state, decisions, and next steps for the SW4RM Ag
   - Emphasized autonomous agent vision and future of truly autonomous systems
   - Replaced "agent systems" with "agentic systems" terminology
   - Protocol-first approach with reference to Python SDK at rahulrajaram/sw4rm/py_sdk
+  - Reframed enterprise problem as lack of standardized agentic IPC (primary) with distributed system failures as secondary concern
+  - Removed unsubstantiated performance characteristics claims (throughput, latency metrics) pending demonstration
 - Added Google A2A protocol comparison in Protocol Specification §3.10
 - Fixed markdown formatting with proper spacing after bold headings
+- Implemented fullscreen diagram functionality with click-to-expand using custom CSS and JavaScript
 
 ### Documentation Theme & Navigation
 - Theme: minimalist dark with black/off-black surfaces, yellow accents, and indigo header/tabs.

@@ -406,3 +406,81 @@
   background-color: var(--sw4rm-offblack);
   border: 1px solid #1a1a1a;
 }
+
+/* Fullscreen diagram modal */
+.diagram-container {
+  position: relative;
+  cursor: zoom-in;
+}
+
+.fullscreen-modal {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(5px);
+}
+
+.fullscreen-modal.active {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fullscreen-modal-content {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.fullscreen-modal-close {
+  position: absolute;
+  top: 2rem;
+  right: 2rem;
+  background: var(--sw4rm-yellow);
+  color: #1a1a1a;
+  border: none;
+  border-radius: 50%;
+  width: 3rem;
+  height: 3rem;
+  font-size: 1.5rem;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.fullscreen-modal-close:hover {
+  background: #ffdd33;
+}
+
+.fullscreen-modal img,
+.fullscreen-modal svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: auto;
+  min-height: 100vh;
+  object-fit: cover;
+}
+
+/* On small screens, ensure the image fills the screen properly */
+@media screen and (max-width: 76.1875em) {
+  .fullscreen-modal img,
+  .fullscreen-modal svg {
+    width: 100vw;
+    height: 100vh;
+    object-fit: contain;
+    object-position: center;
+  }
+}
