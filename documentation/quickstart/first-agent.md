@@ -273,6 +273,7 @@ if __name__ == "__main__":
 
 **Terminal 1 - Start your agent:**
 
+
 ```bash
 python my_first_agent.py
 ```
@@ -285,6 +286,7 @@ Expected output:
 ```
 
 **Terminal 2 - Test your agent:**
+
 
 ```bash
 python test_my_agent.py

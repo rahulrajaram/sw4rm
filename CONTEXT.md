@@ -38,23 +38,22 @@ This file captures the current state, decisions, and next steps for the SW4RM Ag
     - `py_sdk/sw4rm/clients/tool.py`
     - `py_sdk/sw4rm/clients/connector.py`
 
+### Documentation Content & Structure
+- Implemented hierarchical numbering system across all documentation:
+  - H1 headings numbered sequentially across pages (1-5)
+  - H2 headings numbered as subsections (X.1, X.2, X.3, etc.)
+  - H3 headings as sub-subsections (X.Y.1, X.Y.2, etc.)
+  - H4 headings as sub-sub-subsections (X.Y.Z.1, X.Y.Z.2, etc.)
+- Enhanced main documentation page (index.md):
+  - Added comprehensive "Overview and Motivation" section emphasizing agent-to-agent communication
+  - Combined sections 1.2/1.3 into unified "SW4RM: A Universal Agentic Protocol"
+  - Emphasized autonomous agent vision and future of truly autonomous systems
+  - Replaced "agent systems" with "agentic systems" terminology
+  - Protocol-first approach with reference to Python SDK at rahulrajaram/sw4rm/py_sdk
+- Added Google A2A protocol comparison in Protocol Specification §3.10
+- Fixed markdown formatting with proper spacing after bold headings
+
 ### Documentation Theme & Navigation
-- Theme: minimalist dark with black/off-black surfaces, yellow accents, and indigo header/tabs.
-- Desktop header/tabs:
-  - Indigo header (`#157795`); tabs row matches header color.
-  - Active tab is a solid yellow rectangle (sharp corners); hover/focus are sharp rectangles.
-  - Removed tabs bar bottom border/padding on desktop; tightened spacing; adjusted tab list offset for alignment; logo 3.8rem; title 3em.
-- Mobile/medium nav:
-  - Inline expansion (no overlay panels) via checkbox toggle; highlight applied to the `<li>` only; removed tree connector lines; normalized gaps.
-  - Disabled default auto-expand; optional JS shim collapses all groups on small screens.
-- In-page TOC: current section highlights in yellow while scrolling.
-
-Artifacts:
-- `documentation/assets/custom.css` — site overrides and layout tweaks.
-- `documentation/assets/collapse-mobile-nav.js` — optional small-screen “collapse all” shim.
-- `mkdocs.yml` — Material theme config and asset wiring.
-
-### Documentation Theme & Navigation (SW4RM site)
 - Theme: minimalist dark with black/off-black surfaces, yellow accents, and indigo header/tabs.
 - Desktop header:
   - Indigo header (`#157795`) with subtle divider; tabs row matches header.

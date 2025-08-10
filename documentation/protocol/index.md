@@ -2,13 +2,15 @@
 
 **Enterprise-Grade Message-Driven Agent Communication Protocol**
 
+
 **Version 2.0** | **Status: Production Ready** | **Last Updated: 2024-08-09**
 
-This comprehensive protocol specification defines the complete SW4RM message-driven agent communication system. The protocol is built on industry-standard gRPC and Protocol Buffers, providing a robust foundation for enterprise-grade distributed agent systems with guaranteed message delivery, comprehensive observability, and enterprise security features.
+
+This comprehensive protocol specification defines the complete SW4RM message-driven agent communication system. The protocol is built on industry-standard gRPC and Protocol Buffers, providing a robust foundation for enterprise-grade distributed agentic systems with guaranteed message delivery, comprehensive observability, and enterprise security features.
 
 ## 3.1. Executive Summary
 
-The SW4RM protocol addresses the fundamental challenges of distributed agent systems by providing a complete communication framework with the following core capabilities:
+The SW4RM protocol addresses the fundamental challenges of distributed agentic systems by providing a complete communication framework with the following core capabilities:
 
 - **Guaranteed Message Delivery**: At-least-once delivery semantics with configurable consistency levels
 - **Comprehensive State Management**: Persistent state across failures with automatic recovery mechanisms
@@ -304,6 +306,7 @@ sequenceDiagram
 ```
 
 **ACK Stages:**
+
 - `RECEIVED` (1): Message delivered to target
 - `READ` (2): Message parsed and validated
 - `FULFILLED` (3): Processing completed successfully  
@@ -445,7 +448,54 @@ ack: {
 - Metrics for throughput, latency, and error rates
 - Structured logging with correlation IDs
 
-## 3.9. Next Steps
+## 3.9. Comparison with Google's Agent-to-Agent Protocol
+
+### Overview of Google's A2A Protocol
+
+Google's Agent2Agent (A2A) is an open standard designed for enterprise-grade interoperability among AI agents. The core aspects include:
+
+- **Agent Discovery via "Agent Cards"**—agents advertise capabilities in a JSON Agent Card format to help other agents find the best fit for a task.
+
+- **Task-Oriented Communication**—client agents send tasks to remote agents, which respond with artifacts and real‑time status updates; long‑running tasks and streaming support are first-class features.
+
+- **Secure, Standard Protocol**—built on HTTP, JSON-RPC, and Server-Sent Events; enterprise-ready authentication and authorization (aligned with OpenAPI schemes) are built in.
+
+- **Modality Agnostic**—supports text, audio, video, and multi-part content negotiation through "parts" attached to each message.
+
+- **Interoperability with MCP**—A2A complements Anthropic's Model Context Protocol (MCP), which focuses on tool invocation, creating a full-stack agent interoperability ecosystem.
+
+### Architectural Comparison
+
+| Aspect                            | A2A Protocol                                    | SW4RM Framework                                                    |
+| --------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
+| **Discovery Mechanism**           | Agent Card-based (via well-known URLs)          | Internal registry with broadcast discovery                         |
+| **Underlying Transport**          | HTTP / JSON-RPC / SSE                           | gRPC-native                                                        |
+| **Modality Handling**             | "Parts" with content-type negotiation           | content\_type + modality capabilities in registry                  |
+| **Task Focus**                    | External task outsourcing and artifact return   | Intra-system task scheduling and messaging                         |
+| **Preemption & Scheduling**       | Not addressed                                   | Preemption, priorities, safe-points deeply defined                 |
+| **Preemptible Sections**          | ─                                               | Fully specified (§7)                                               |
+| **Idempotency / Retry Logic**     | ─                                               | Robust idempotency\_token model with cache (§11.1)                 |
+| **Negotiation & HITL Escalation** | ─                                               | Built-in negotiation framework (§17) and escalation via HITL (§15) |
+| **Worktree & Confinement**        | ─                                               | Explicit Git worktree isolation (§16)                              |
+| **Observability & Logging**       | Enterprise-secure flow, but spec is lightweight | Strict structured logs and audit trails (§19)                      |
+
+### Overlap with SW4RM Specification
+
+**Similarities:**
+
+
+- **Agent Discovery & Registration**: A2A's Agent Cards align closely with our Registry & Discovery module—even though we haven't explicitly structured Agent Card, our system supports name, capabilities, modality, and description in the registry (§14).
+
+- **Secure Communication & Modality Support**: Our use of gRPC with optional signing and multi-modal content types corresponds to A2A's modality-agnostic design and enterprise security foundation.
+
+- **Long-Running Tasks & States**: A2A's support for long-running workflows parallels our task lifecycle, message states, and streaming tool calls.
+
+**Complementary Design Philosophy:**
+
+
+Google's A2A focuses on secure, interoperable agent messaging across enterprise boundaries, emphasizing discovery, modality negotiation, and long-running tasks. SW4RM defines the deeper machinery—scheduling, cancellation, preemption, idempotency, negotiation, worktree confinement, logs, and tool integration. These two can co-exist: use A2A for agent-to-agent orchestration and SW4RM for a resilient internal engine.
+
+## 3.10. Next Steps
 
 - [Message Types](messages.md) - Detailed message specifications
 - [Services](services.md) - Complete service API reference  
