@@ -38,6 +38,26 @@ This file captures the current state, decisions, and next steps for building a P
     - `py_sdk/sw4rm/clients/tool.py`
     - `py_sdk/sw4rm/clients/connector.py`
 
+### Documentation Theme & Navigation (SW4RM site)
+- Theme: minimalist dark with black/off-black surfaces, yellow accents, and indigo header/tabs.
+- Desktop header:
+  - Indigo header (`#157795`) with subtle divider; tabs row matches header.
+  - Active tab: solid yellow rectangular background (no underline, sharp corners); hover/focus tabs are sharp rectangles.
+  - Tabs strip (desktop): removed bottom border and extra padding; tightened item padding; adjusted tab list offset for alignment.
+  - Logo/title sizing: logo image 3.8rem height; title (`.md-header__title .md-ellipsis`) at 3em.
+  - Header inner spacing: uses only top padding for breathing room.
+- Mobile/medium primary nav:
+  - Expands inline (no overlay panels); caret toggles the hidden checkbox to show children.
+  - Yellow highlight on the list item (li) only; link/caret do not draw left borders.
+  - Removed tree connector lines; kept indentation; normalized gaps between items and before nested groups.
+  - Disabled `navigation.expand` to avoid default-open sections; optional JS shim collapses all groups by default on small screens.
+- In-page TOC: current section highlights in yellow while scrolling.
+
+Artifacts:
+- `documentation/assets/custom.css` — site overrides and layout tweaks.
+- `documentation/assets/collapse-mobile-nav.js` — optional small-screen “collapse all” shim.
+- `mkdocs.yml` — Material theme config, features, and asset wiring.
+
 ## Not Yet Implemented
 - Runtime features:
   - Policy hooks for worktree binding; persist binding state (currently in-memory).
@@ -75,6 +95,12 @@ This file captures the current state, decisions, and next steps for building a P
   - `python -m twine upload dist/*`
 - Versioning:
   - Bump `version` in `pyproject.toml`, rebuild, and tag the commit as needed.
+
+### Docs (local)
+- Serve: `make docs-serve`
+- Build: `make docs-build`
+- Customize visuals: edit `documentation/assets/custom.css`.
+- Optional: small-screen nav collapse via `documentation/assets/collapse-mobile-nav.js` (wired in `mkdocs.yml` `extra_javascript`).
 
 ## Open Questions
 - Do we want a strict dependency on generated protobufs at import time, or allow a lazy/optional mode with friendly errors (current clients do the latter)?
