@@ -118,7 +118,7 @@
 
   /* Desktop: enlarge header title text */
   .md-header__title .md-ellipsis {
-    font-size: 3em !important;
+    font-size: 2.3em !important;
     line-height: 1;
   }
 }
@@ -154,12 +154,12 @@
     content: none !important;
   }
 
-  /* Normalize vertical rhythm between items, including before nested groups */
+  /* Remove gaps between items so yellow highlights can overlap */
   .md-nav--primary .md-nav__list > .md-nav__item {
-    margin: 0.15rem 0;
+    margin: 0;
   }
   .md-nav--primary .md-nav__list > .md-nav__item--nested {
-    margin-top: 0.25rem; /* ensure no gap reduction before nested groups */
+    margin: 0;
   }
   /* Expand nested sections inline (avoid overlay panel behavior) */
   .md-nav--primary .md-nav__item--nested > .md-nav {
@@ -201,12 +201,17 @@
   display: inline-block;
   padding: 0.35rem 0.7rem; /* enlarge clickable + highlight area */
   border-radius: 0; /* sharp rectangle by default */
-  transition: background-color 120ms ease, color 120ms ease;
+  transition: background-color 20ms ease, color 20ms ease;
 }
 .md-tabs__link:hover,
 .md-tabs__link:focus {
   color: var(--sw4rm-yellow);
-  background: rgba(255, 212, 0, 0.08);
+  background: var(--sw4rm-yellow); /* bright yellow on hover */
+}
+/* When hovering over any tab, deemphasize the active tab */
+.md-tabs:hover .md-tabs__item--active > .md-tabs__link:not(:hover) {
+  background-color: rgba(255, 212, 0, 0.15) !important; /* more translucent yellow */
+  transition: background-color 20ms ease;
 }
 /* Desktop: show active tab as a solid yellow rectangle (not just underline) */
 @media screen and (min-width: 76.1875em) {
@@ -215,6 +220,10 @@
   .md-tabs__link:hover,
   .md-tabs__link:focus {
     border-radius: 0 !important;
+  }
+  .md-tabs__link:hover,
+  .md-tabs__link:focus {
+    color: #1a1a1a; /* dark text on bright yellow hover */
   }
   .md-tabs__item--active > .md-tabs__link {
     background-color: var(--sw4rm-yellow);
