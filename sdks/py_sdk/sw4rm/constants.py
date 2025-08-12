@@ -44,6 +44,12 @@ AGENT_SHUTDOWN = 5
 VALIDATION_ERROR = 6
 PERMISSION_DENIED = 7
 UNSUPPORTED_MESSAGE_TYPE = 8
+OVERSIZE_PAYLOAD = 9
+TOOL_TIMEOUT = 10
+PARTIAL_DELIVERY = 11  # reserved
+FORCED_PREEMPTION = 12
+TTL_EXPIRED = 13
+INTERNAL_ERROR = 99
 
 # ---------------------------------------------------------------------------
 # Default endpoints and environment variables

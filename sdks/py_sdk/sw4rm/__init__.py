@@ -14,6 +14,8 @@ __all__ = [
     "envelope",
     "acks",
     "constants",
+    "error_mapping",
+    "buffer_strategy",
 ]
 
 __version__ = "0.1.0"

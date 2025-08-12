@@ -3,9 +3,11 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Any, List
+from collections import deque
 
 from . import constants as C
 from .persistence import PersistenceBackend, JSONFilePersistence, PersistentActivityRecord
+from .buffer_strategy import BufferStrategy, DEFAULT_BUFFER_STRATEGY
 
 
 @dataclass
@@ -25,21 +27,35 @@ class ActivityRecord:
 
 
 class ActivityBuffer:
-    """In-memory activity buffer with simple reconciliation.
+    """In-memory activity buffer with configurable pruning strategy.
 
     Tracks inbound/outbound envelopes by message_id and records ACK progression.
     Not thread-safe; callers should synchronize if used across threads.
     """
 
-    def __init__(self, *, max_items: int = 1000) -> None:
+    def __init__(
+        self, 
+        *, 
+        max_items: int = 1000,
+        strategy: Optional[BufferStrategy] = None
+    ) -> None:
         self._by_id: Dict[str, ActivityRecord] = {}
-        self._order: List[str] = []
+        self._order: deque[str] = deque()
         self._max_items = max_items
+        self.strategy = strategy or DEFAULT_BUFFER_STRATEGY
 
     def _prune_if_needed(self) -> None:
-        while len(self._order) > self._max_items:
-            oldest = self._order.pop(0)
-            self._by_id.pop(oldest, None)
+        excess = max(0, len(self._order) - self._max_items)
+        if excess > 0:
+            victims = self.strategy.victims(list(self._order), excess)
+            for victim_id in victims:
+                if victim_id in self._by_id:
+                    del self._by_id[victim_id]
+                # Remove from order deque
+                try:
+                    self._order.remove(victim_id)
+                except ValueError:
+                    pass  # Item may have been removed already
 
     def record_incoming(self, envelope: Dict[str, Any]) -> ActivityRecord:
         mid = str(envelope.get("message_id"))
@@ -86,11 +102,18 @@ class PersistentActivityBuffer:
     and provides reconciliation on startup to restore previous state.
     """
 
-    def __init__(self, *, max_items: int = 1000, persistence: Optional[PersistenceBackend] = None):
+    def __init__(
+        self, 
+        *, 
+        max_items: int = 1000, 
+        persistence: Optional[PersistenceBackend] = None,
+        strategy: Optional[BufferStrategy] = None
+    ):
         self._by_id: Dict[str, PersistentActivityRecord] = {}
-        self._order: List[str] = []
+        self._order: deque[str] = deque()
         self._max_items = max_items
         self._persistence = persistence or JSONFilePersistence()
+        self.strategy = strategy or DEFAULT_BUFFER_STRATEGY
         self._dirty = False  # Track if we need to save
         
         # Load existing data on initialization
@@ -106,14 +129,14 @@ class PersistentActivityBuffer:
             for message_id, data in records_data.items():
                 self._by_id[message_id] = PersistentActivityRecord.from_dict(data)
             
-            self._order = order
+            self._order = deque(order)
             self._prune_if_needed()
             
             print(f"[ActivityBuffer] Loaded {len(self._by_id)} records from persistence")
         except Exception as e:
             print(f"[ActivityBuffer] Failed to load from persistence: {e}")
             self._by_id = {}
-            self._order = []
+            self._order = deque()
 
     def _save_to_persistence(self) -> None:
         """Save current state to persistent storage."""
@@ -122,16 +145,24 @@ class PersistentActivityBuffer:
             
         try:
             records_data = {mid: rec.to_dict() for mid, rec in self._by_id.items()}
-            self._persistence.save_records(records_data, self._order)
+            self._persistence.save_records(records_data, list(self._order))
             self._dirty = False
         except Exception as e:
             print(f"[ActivityBuffer] Failed to save to persistence: {e}")
 
     def _prune_if_needed(self) -> None:
-        """Remove oldest records if we exceed max_items."""
-        while len(self._order) > self._max_items:
-            oldest = self._order.pop(0)
-            self._by_id.pop(oldest, None)
+        """Remove records using configured strategy when we exceed max_items."""
+        excess = max(0, len(self._order) - self._max_items)
+        if excess > 0:
+            victims = self.strategy.victims(list(self._order), excess)
+            for victim_id in victims:
+                if victim_id in self._by_id:
+                    del self._by_id[victim_id]
+                # Remove from order deque
+                try:
+                    self._order.remove(victim_id)
+                except ValueError:
+                    pass  # Item may have been removed already
             self._dirty = True
 
     def record_incoming(self, envelope: Dict[str, Any]) -> PersistentActivityRecord:

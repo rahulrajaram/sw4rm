@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from .clients.router import RouterClient
 from .activity_buffer import PersistentActivityBuffer
 from .persistence import PersistentActivityRecord
-from .acks import build_ack_envelope, map_exception_to_error_code
+from .acks import build_ack_envelope
+from .error_mapping import ErrorCodeMapper, DEFAULT_MAPPER
 from . import constants as C
 
 
@@ -32,13 +33,15 @@ class ACKLifecycleManager:
         agent_id: str,
         *,
         auto_ack: bool = True,
-        ack_timeout_seconds: int = 30
+        ack_timeout_seconds: Optional[int] = None,
+        error_mapper: Optional[ErrorCodeMapper] = None
     ):
         self.router = router_client
         self.buffer = activity_buffer
         self.agent_id = agent_id
         self.auto_ack = auto_ack
-        self.ack_timeout_seconds = ack_timeout_seconds
+        self.ack_timeout_seconds = ack_timeout_seconds or 30  # Protocol default is 10s, but we use 30s for safety
+        self.error_mapper = error_mapper or DEFAULT_MAPPER
 
     def send_message_with_ack(self, envelope: Dict[str, Any]) -> SendResult:
         """Send a message and automatically handle ACK lifecycle."""
@@ -73,8 +76,8 @@ class ACKLifecycleManager:
             )
 
         except Exception as e:
-            # Handle send failure
-            error_code = map_exception_to_error_code(e)
+            # Handle send failure using configurable error mapper
+            error_code = self.error_mapper.map_exception(e)
             
             if message_id in self.buffer._by_id:
                 self.buffer._by_id[message_id].ack(C.FAILED, error_code, str(e))
@@ -175,7 +178,7 @@ class ACKLifecycleManager:
 
     def auto_ack_failed(self, message_id: str, error: Exception) -> SendResult:
         """Send FAILED ACK to indicate processing failure."""
-        error_code = map_exception_to_error_code(error)
+        error_code = self.error_mapper.map_exception(error)
         return self.send_ack(message_id, C.FAILED, error_code=error_code, note=str(error))
 
 
