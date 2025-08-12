@@ -8,6 +8,8 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
+use crate::ack_integration::AckLifecycleManager;
+use crate::activity_buffer::PersistentActivityBuffer;
 
 /// Base trait for SW4RM agents
 #[async_trait]
@@ -27,14 +29,24 @@ pub trait Agent: Send + Sync {
 
     /// Handle control messages (preemption, shutdown, etc.)
     async fn on_control(&mut self, envelope: EnvelopeData) -> Result<()> {
-        // Default implementation handles preemption requests
+        // Default implementation handles CONTROL requests related to preemption/shutdown
         if envelope.content_type == "application/json" {
             if let Ok(body) = envelope.json_payload::<HashMap<String, serde_json::Value>>() {
-                if let Some(msg_type) = body.get("type").and_then(|v| v.as_str()) {
-                    if msg_type == "PREEMPT_REQUEST" {
-                        let reason = body.get("reason").and_then(|v| v.as_str());
-                        tracing::info!("Preemption requested: {:?}", reason);
-                        return Ok(());
+                if let Some(kind) = body.get("type").and_then(|v| v.as_str()) {
+                    match kind {
+                        "PREEMPT_REQUEST" => {
+                            let reason = body.get("reason").and_then(|v| v.as_str()).map(|s| s.to_string());
+                            self.preemption_manager().request_preemption(reason.clone());
+                            tracing::info!("Preemption requested: {:?}", reason);
+                        }
+                        "TERMINATE" | "SHUTDOWN" => {
+                            let reason = body.get("reason").and_then(|v| v.as_str()).map(|s| s.to_string());
+                            let grace_ms = body.get("grace_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+                            self.preemption_manager().request_preemption(reason.clone());
+                            if grace_ms > 0 { self.preemption_manager().set_deadline(grace_ms); }
+                            tracing::info!("{} requested: reason={:?}, grace_ms={}", kind, reason, grace_ms);
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -119,6 +131,10 @@ impl AgentRuntime {
                 version: self.config.version.clone(),
                 capabilities: self.config.capabilities.clone(),
                 metadata: self.config.metadata.clone(),
+                communication_class: self.config.communication_class,
+                modalities_supported: self.config.modalities_supported.clone(),
+                reasoning_connectors: self.config.reasoning_connectors.clone(),
+                public_key: self.config.public_key.clone(),
             };
             client.register(&descriptor).await?;
             tracing::info!("Agent registered: {}", self.config.agent_id);
@@ -210,14 +226,34 @@ impl AgentRuntime {
         A: Agent + Send + 'static,
     {
         if let Some(router_client) = &mut self.router_client {
+            // Initialize ACK manager for automatic ACK lifecycle handling
+            let buffer = PersistentActivityBuffer::new(1000, None)?;
+            let ack_manager = AckLifecycleManager::new(
+                router_client.clone(),
+                buffer,
+                self.config.agent_id.clone(),
+                true,
+                10,
+            );
+
             let mut stream = router_client.stream_incoming(&self.config.agent_id).await?;
             
             let handle = tokio::spawn(async move {
                 while let Some(envelope_result) = stream.next().await {
                     match envelope_result {
                         Ok(envelope) => {
+                            // Send RECEIVED ACK immediately
+                            let _ = ack_manager.auto_ack_received(&envelope).await;
+
+                            let message_id = envelope.message_id.clone();
+                            let msg_type = envelope.message_type;
+
                             if let Err(e) = Self::dispatch_message(&mut agent, envelope).await {
                                 tracing::error!("Error processing message: {}", e);
+                                let _ = ack_manager.auto_ack_failed(message_id.clone(), &e).await;
+                            } else {
+                                let note = if msg_type == crate::constants::message_type::CONTROL { "Processed CONTROL" } else { "Processed successfully" };
+                                let _ = ack_manager.auto_ack_fulfilled(message_id.clone(), Some(note.to_string())).await;
                             }
 
                             // Check for preemption
