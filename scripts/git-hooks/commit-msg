@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MSG_FILE="$1"
+MSG=$(cat "$MSG_FILE")
+
+# Allow merge and revert commits to bypass checks
+if grep -Eiq '^(merge|revert) ' "$MSG_FILE"; then
+  exit 0
+fi
+
+subject=$(printf '%s' "$MSG" | head -n1)
+second=$(printf '%s' "$MSG" | sed -n '2p' || true)
+body=$(printf '%s' "$MSG" | tail -n +3 || true)
+
+fail=0
+
+# Subject non-empty
+if [ -z "$subject" ]; then
+  echo "[commit-msg] Subject line must not be empty" >&2
+  fail=1
+fi
+
+# Subject length <= 50
+if [ ${#subject} -gt 50 ]; then
+  echo "[commit-msg] Subject too long (${#subject} > 50): '$subject'" >&2
+  fail=1
+fi
+
+# Subject should not end with a period
+if printf '%s' "$subject" | grep -qE '\.$'; then
+  echo "[commit-msg] Subject must not end with a period" >&2
+  fail=1
+fi
+
+# Blank line after subject (unless no body at all)
+if [ -n "$body" ] && [ "$second" != "" ]; then
+  if [ "$second" != "" ] && [ "$second" != $'\n' ] && [ "$second" != $'\r\n' ]; then
+    if [ "$second" != "" ]; then
+      # second line must be blank
+      if [ -n "$second" ]; then
+        if [ "$second" != $'' ]; then
+          if [ -n "$second" ]; then
+            # Non-empty second line
+            echo "[commit-msg] Second line must be blank between subject and body" >&2
+            fail=1
+          fi
+        fi
+      fi
+    fi
+  fi
+fi
+
+# Body line length <= 72
+if [ -n "$body" ]; then
+  while IFS= read -r line; do
+    # Ignore link-heavy lines and bullet lists leniency up to 80
+    if echo "$line" | grep -Eq 'https?://'; then
+      continue
+    fi
+    if [ ${#line} -gt 72 ]; then
+      echo "[commit-msg] Body line exceeds 72 chars: '$line'" >&2
+      fail=1
+      break
+    fi
+  done <<< "$body"
+fi
+
+exit $fail
+

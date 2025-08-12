@@ -359,3 +359,17 @@ The SDK is organized into layers:
 - Built-in logging for all major operations
 - Activity buffer provides reconciliation API
 - Worktree policies support custom validation hooks
+
+## Git Commit Hooks
+
+To enforce consistent commit messages across the repo:
+
+- Recommended setup:
+  - Set versioned hooks path once per clone: `git config core.hooksPath scripts/git-hooks`
+  - Optionally install template and hooks via script: `./scripts/install_git_hooks.sh`
+- Hooks enforce:
+  - Subject: non-empty, ≤50 chars, imperative, no trailing period
+  - Blank line after subject
+  - Body lines wrapped at 72 characters (links exempt)
+  - Pre-commit will block if `core.hooksPath` is misconfigured; bypass once with
+    `ALLOW_HOOKS_PATH_MISMATCH=1 git commit` or `git commit --no-verify`.
