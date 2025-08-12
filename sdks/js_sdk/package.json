@@ -1,0 +1,56 @@
+{
+  "name": "@sw4rm/js-sdk",
+  "version": "0.1.0",
+  "description": "SW4RM Agentic Protocol JavaScript/TypeScript SDK",
+  "type": "module",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "npm run build:proto && npm run build:lib",
+    "example": "tsx",
+    "build:proto": "npm run proto:js && npm run proto:ts",
+    "build:lib": "npm run build:esm && npm run build:cjs && npm run build:types",
+    "build:esm": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/esm/index.js --external:@grpc/grpc-js",
+    "build:cjs": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/cjs/index.cjs --external:@grpc/grpc-js",
+    "build:types": "tsc --emitDeclarationOnly --project tsconfig.json --outDir dist/types",
+    "proto:js": "grpc_tools_node_protoc --js_out=import_style=commonjs,binary:src/types/generated --grpc_out=grpc_js:src/types/generated --proto_path=../../protos ../../protos/*.proto",
+    "proto:ts": "grpc_tools_node_protoc --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts --ts_out=grpc_js:src/types/generated --proto_path=../../protos ../../protos/*.proto",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src --ext .ts,.js",
+    "format": "prettier --write src"
+  },
+  "keywords": ["sw4rm", "agent", "protocol", "grpc", "typescript", "javascript"],
+  "author": "SW4RM Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "@vitest/coverage-v8": "^1.2.0",
+    "esbuild": "^0.19.0",
+    "eslint": "^8.56.0",
+    "grpc-tools": "^1.12.4",
+    "grpc_tools_node_protoc_ts": "^5.3.3",
+    "prettier": "^3.2.0",
+    "typescript": "^5.3.0",
+    "tsx": "^4.15.7",
+    "vitest": "^1.2.0"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.10.0",
+    "@grpc/proto-loader": "^0.7.10",
+    "google-protobuf": "^3.21.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
