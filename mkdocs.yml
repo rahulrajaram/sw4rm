@@ -13,6 +13,9 @@ theme:
   name: material
   logo: assets/icons/sw4rm-logo.svg
   favicon: assets/icons/sw4rm-favicon.svg
+  font:
+    text: Inter
+    code: JetBrains Mono
   palette:
     - scheme: slate
       primary: blue grey

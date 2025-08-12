@@ -21,6 +21,7 @@
   --sw4rm-indigo: #157795; /* tertiary */
 }
 
+
 /* Apply colors to Material variables (dark scheme) */
 [data-md-color-scheme="slate"] {
   --md-primary-fg-color: var(--sw4rm-black);
@@ -286,7 +287,7 @@
   text-decoration: underline;
 }
 
-/* Inline code and blocks */
+/* Inline code and blocks (base) */
 .md-typeset code,
 .md-typeset pre code {
   color: var(--sw4rm-text);
@@ -295,6 +296,8 @@
   background-color: var(--sw4rm-offblack);
   border: 1px solid rgba(21, 119, 149, 0.25); /* subtle indigo */
 }
+
+/* Typography Playground removed: using theme defaults for fonts and code sizing */
 
 /* Buttons, chips, switches using yellow accents */
 .md-button,
@@ -481,6 +484,9 @@
   .fullscreen-modal img,
   .fullscreen-modal svg {
     width: 100vw;
+/* Local webfont faces (generated from Google Fonts) */
+@import url('assets/fonts/fonts-local.css');
+
     height: 100vh;
     object-fit: contain;
     object-position: center;
