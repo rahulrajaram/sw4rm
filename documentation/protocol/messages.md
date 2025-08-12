@@ -348,18 +348,20 @@ message Ack {
 }
 ```
 
-## Message Size Limits
+## Recommended Message Size Limits
 
 | Message Type | Max Payload Size | Recommendations |
 |--------------|------------------|------------------|
 | `CONTROL` | 64 KB | Keep command payloads small |
-| `DATA` | 16 MB | Use streaming for large datasets |
+| `DATA` | 16 MB | SHOULD use streaming for large data |
 | `ACKNOWLEDGEMENT` | 4 KB | Brief status and error messages |
 | `HITL_INVOCATION` | 256 KB | Include necessary context only |
 | `TOOL_CALL` | 1 MB | Large data via external storage |
 | `NOTIFICATION` | 32 KB | Aggregate metrics when possible |
 
 ## Content Type Guidelines
+
+All payload-carrying messages MUST declare an appropriate `content_type`. When a payload is present, implementations MUST set an accurate `content_length`.
 
 ### JSON Payload Structure
 ```json
@@ -388,9 +390,11 @@ X-Compression: gzip
 ## Validation Rules
 
 
-1. **Required Fields**: All messages must include `message_id`, `producer_id`, `message_type`
-2. **Content Consistency**: `content_length` must match actual payload size
-3. **Type Safety**: Payload must be valid for declared `content_type`
-4. **Correlation**: Response messages must include `correlation_id` from request
-5. **Timestamps**: All timestamps must be ISO 8601 format with timezone
-6. **Encoding**: Text payloads must be UTF-8 encoded
+1. **Required Fields**: `message_id`, `producer_id`, `correlation_id`, `sequence_number`, `retry_count`, `message_type`
+2. **Payload Metadata**: When a payload is present, `content_type` and `content_length` are REQUIRED
+3. **Optional Fields**: `idempotency_token`, HLC timestamp, `ttl_ms`
+4. **Content Consistency**: `content_length` must match the actual payload size
+5. **Type Safety**: Payload must be valid for the declared `content_type`
+6. **Correlation**: Responses MUST include the original `correlation_id`
+7. **Timestamps**: All timestamps MUST be ISO 8601 format with timezone when used
+8. **Encoding**: Text payloads MUST be UTF-8 encoded

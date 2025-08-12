@@ -219,6 +219,10 @@ message TimeoutConfig {
 }
 ```
 
+### Late ACKs and Reconciliation
+
+Implementations MUST reconcile late ACKs. If an ACK arrives after local timeout handling, the system SHOULD update the final outcome to reflect the terminal stage observed (e.g., FULFILLED) and clear retries or DLQ markers accordingly. Per the base spec, the default time to reach RECEIVED is 10 seconds; upon timeout, set `TIMED_OUT` and NACK with `ack_timeout`, but accept a subsequent late ACK and reconcile state.
+
 ### Timeout Enforcement
 
 ```mermaid

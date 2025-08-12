@@ -47,6 +47,8 @@ message RegisterAgentResponse {
 }
 ```
 
+Note: Deployments commonly include additional declaration fields aligned with the spec, such as `communication_class` and `max_parallel_instances`. Field names and placement may vary by schema version; include them where supported to enable correct routing and scheduling policies.
+
 #### Discover Agents
 
 ```protobuf

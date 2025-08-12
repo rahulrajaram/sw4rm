@@ -1,5 +1,7 @@
 # 2. Comprehensive Getting Started Guide
 
+Terminology: In SW4RM, an “Agent” is a supervised, process‑isolated participant with registry‑backed identity, explicit message lifecycles, and cooperative preemption (see “Agents and Agentic Interaction” in documentation/index.md). This differs from the common “LLM wrapper” usage.
+
 This comprehensive guide provides detailed instructions for developing, configuring, and deploying production-ready agents using the SW4RM SDKs. The guide covers every aspect from system requirements and architectural concepts to advanced configuration patterns and troubleshooting procedures.
 
 ## 2.1. Learning Objectives and Deliverables

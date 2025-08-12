@@ -1,5 +1,7 @@
 # Your First Agent
 
+Terminology: In SW4RM, an “Agent” is a supervised, process‑isolated participant (see “Agents and Agentic Interaction” in documentation/index.md), not just an LLM wrapper or library coroutine.
+
 Build a complete agent that handles messages, manages state, and demonstrates core SDK features.
 
 ## Overview
@@ -96,6 +98,9 @@ Add message processing logic:
             content_type="application/json", 
             payload=json.dumps(response).encode()
         )
+        # Note: SDK helpers populate required envelope fields such as
+        # `correlation_id`, `sequence_number`, and `content_length`. An
+        # `idempotency_token` may be attached for exactly-once effects.
         
         result = self.ack_manager.send_message_with_ack(response_env)
         print(f"✅ Response sent: {result.success}")
@@ -255,6 +260,8 @@ def test_agent():
         content_type="application/json",
         payload=json.dumps(test_data).encode()
     )
+    # Tip: `build_envelope(...)` will generate a `correlation_id` and
+    # compute `content_length`; you can inspect them on the returned object.
     
     # Send message
     response = router.send_message(envelope)

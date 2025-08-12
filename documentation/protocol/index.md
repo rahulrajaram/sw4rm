@@ -6,6 +6,8 @@
 
 This comprehensive protocol specification defines the complete SW4RM message-driven agent communication system. The protocol is built on industry-standard gRPC and Protocol Buffers, providing a robust foundation for enterprise-grade distributed agentic systems with guaranteed message delivery, comprehensive observability, and enterprise security features.
 
+Terminology: “Agent” in this specification follows the supervised, process‑isolated definition in documentation/index.md (see “Agents and Agentic Interaction”), which differs from common industry usage where “agent” may mean an LLM wrapper or in‑process automation.
+
 ## 3.1. Executive Summary
 
 The SW4RM protocol addresses the fundamental challenges of distributed agentic systems by providing a complete communication framework with the following core capabilities:
