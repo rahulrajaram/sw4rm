@@ -7,6 +7,7 @@ View all patterns in: `documentation/assets/icon-patterns.html`
 
 ### 2. Generate Favicon Sizes
 Use the base SVG to create these sizes:
+
 - 16x16px (browser tab)
 - 32x32px (browser tab, high DPI)
 - 48x48px (Windows shortcut)
@@ -46,21 +47,25 @@ extra_css:
 ## Recommended Patterns
 
 ### For Documentation Sites:
+
 - **Pattern 1** (Geometric Network): Professional, scales well
 - **Pattern 3** (Hexagonal Grid): Modern, tech-focused
 - **Pattern 5** (Gradient Orb): Clean, memorable
 
 ### For Brand Identity:
+
 - **Pattern 8** (S Monogram): Unique brand mark
 - **Pattern 5** (Gradient Orb): Modern, AI-focused
 
 ### For Technical Audiences:
+
 - **Pattern 2** (Signal Waves): Communication focus
 - **Pattern 4** (Circuit Board): Developer appeal
 
 ## Color Schemes
 
 Each pattern includes multiple color variants:
+
 - **Blue Scheme**: Professional, trustworthy (#3b82f6, #1e40af)
 - **Green Scheme**: Growth, technology (#10b981, #059669)
 - **Purple Scheme**: Innovation, creativity (#8b5cf6, #7c3aed)
@@ -69,6 +74,7 @@ Each pattern includes multiple color variants:
 ## Implementation Files
 
 Available in `documentation/assets/icons/`:
+
 - `pattern-1-network.svg`
 - `pattern-2-waves.svg`
 - `pattern-3-hexagon.svg`
@@ -76,6 +82,7 @@ Available in `documentation/assets/icons/`:
 - `pattern-8-s-logo.svg`
 
 ## Next Steps
+
 
 1. Choose your preferred pattern from the HTML preview
 2. Customize colors if needed

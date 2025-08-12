@@ -25,14 +25,15 @@ import grpc
 from sw4rm.clients.registry import RegistryClient
 from sw4rm.clients.router import RouterClient
 from sw4rm.envelope import build_envelope
+from sw4rm import constants as C
 
 
 def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--agent-id", required=False, default=os.getenv("AGENT_ID", "echo-1"))
     p.add_argument("--name", required=False, default=os.getenv("AGENT_NAME", "EchoAgent"))
-    p.add_argument("--router", required=False, default=os.getenv("AGENTOS_ROUTER_ADDR", "localhost:50051"))
-    p.add_argument("--registry", required=False, default=os.getenv("AGENTOS_REGISTRY_ADDR", "localhost:50052"))
+    p.add_argument("--router", required=False, default=os.getenv(C.ENV_ROUTER_ADDR, C.DEFAULT_ROUTER_ADDR))
+    p.add_argument("--registry", required=False, default=os.getenv(C.ENV_REGISTRY_ADDR, C.DEFAULT_REGISTRY_ADDR))
     return p.parse_args(argv)
 
 

@@ -1,148 +1,155 @@
 # 2. Comprehensive Getting Started Guide
 
-**Build Enterprise-Grade Message-Driven Agents with Production-Ready Architecture**
-
-
-This comprehensive guide provides detailed instructions for developing, configuring, and deploying production-ready agents using the SW4RM SDK. The guide covers every aspect from system requirements and architectural concepts to advanced configuration patterns and troubleshooting procedures.
+This comprehensive guide provides detailed instructions for developing, configuring, and deploying production-ready agents using the SW4RM SDKs. The guide covers every aspect from system requirements and architectural concepts to advanced configuration patterns and troubleshooting procedures.
 
 ## 2.1. Learning Objectives and Deliverables
 
 Upon completion of this quickstart guide, you will have successfully implemented and deployed a fully-functional agent system with the following capabilities:
 
 ### 2.1.1. Core Functional Requirements
+
 - **Message State Persistence**: Complete message processing history and state preservation across system restarts, crashes, and network partitions
-- **Acknowledgment Lifecycle Management**: Comprehensive ACK handling with automatic retry policies, dead letter queues, and timeout management
-- **Multi-Protocol Message Processing**: Support for all SW4RM message types (DATA, CONTROL, HITL_INVOCATION, WORKTREE_CONTROL, TOOL_CALL)
+- **Acknowledgment Lifecycle Management**: Comprehensive `ACK` handling with automatic retry policies, dead letter queues, and timeout management
+- **Multi-Protocol Message Processing**: Support for all SW4RM message types (`DATA`, `CONTROL`, `HITL_INVOCATION`, `WORKTREE_CONTROL`, `TOOL_CALL`)
 - **Git Repository Integration**: Full worktree binding capabilities with branch switching, commit-specific context, and workspace isolation
 - **Graceful Shutdown Procedures**: Signal-based shutdown handling with proper resource cleanup and state persistence
 
-### 2.1.2. Non-Functional Requirements
-- **Performance**: Message processing latency under 100ms for typical payloads
-- **Reliability**: 99.9% message delivery success rate with automatic failure recovery
-- **Observability**: Comprehensive logging, metrics collection, and distributed tracing
-- **Security**: TLS-encrypted communication and role-based access control
-- **Scalability**: Horizontal scaling support with load balancing and service discovery
-
 ## 2.2. Comprehensive Prerequisites and System Requirements
 
-### 2.2.1. Hardware and Infrastructure Requirements
-
-**Minimum Development Environment**:
-- **CPU**: 2 cores (x86_64 or ARM64 architecture)
-- **Memory**: 4 GB RAM (2 GB for agent runtime, 2 GB for supporting services)
-- **Storage**: 10 GB available disk space (5 GB for dependencies, 5 GB for persistent state)
-- **Network**: Reliable network connectivity with latency <100ms to service endpoints
-
-**Recommended Production Environment**:
-- **CPU**: 4+ cores with dedicated CPU allocation for agent processes
-- **Memory**: 8+ GB RAM with memory isolation for agent workloads
-- **Storage**: 50+ GB SSD storage with RAID configuration for fault tolerance
-- **Network**: Multi-homed network configuration with redundant connectivity paths
-
-### 2.2.2. Software Dependencies and Version Requirements
+### 2.2.1. Software Dependencies and Version Requirements
 
 **Core Runtime Dependencies**:
-- **Python**: Version 3.9.0+ (Python 3.11+ recommended for optimal performance and security)
+
+
+- **Python**: Version 3.11.0+ (Python 3.12+ recommended for optimal performance and security)
 - **Operating System**: Linux (Ubuntu 20.04+, CentOS 8+), macOS 12+, or Windows 10+ with WSL2
-- **Container Runtime**: Docker 20.10+ and Docker Compose 2.0+ (for service deployment)
 - **Git**: Version 2.30+ for worktree management and repository integration
 
-**Network and Security Requirements**:
-- **Port Access**: Outbound connectivity to ports 50051-50067 for service communication
-- **TLS Support**: TLS 1.3 capability for encrypted inter-service communication
-- **Certificate Management**: Access to valid TLS certificates or ability to generate self-signed certificates
-- **Firewall Configuration**: Appropriate firewall rules for gRPC communication
+**Network Requirements**:
+
+
+- **Outbound HTTPS (443)**: Package repository access for installation (PyPI, GitHub)
+- **TLS Support**: TLS 1.2+ capability for secure communication
 
 **Development Tools and Utilities**:
-- **Protocol Buffers**: protoc compiler version 3.19+ for message schema compilation
+
+
+- **Protocol Buffers**: protoc compiler version v31 series for message schema compilation
 - **gRPC Tools**: grpcio-tools for Python gRPC stub generation
 - **Monitoring Tools**: OpenTelemetry-compatible observability stack (optional but recommended)
 
 ### 2.2.3. Knowledge Prerequisites and Technical Background
 
-**Required Technical Knowledge**:
-- **Distributed Systems Concepts**: Understanding of eventual consistency, CAP theorem, and distributed consensus
-- **Message-Driven Architectures**: Experience with message queues, pub/sub patterns, and asynchronous processing
-- **gRPC and Protocol Buffers**: Familiarity with gRPC service definitions and protobuf message serialization
-- **Container Technologies**: Basic understanding of Docker containers and container orchestration
-- **Version Control Systems**: Proficiency with Git operations, branching strategies, and repository management
+As of protocol v0.1, SW4RM can be used for single-agent applications on the same hardware. The protocol specification can lend itself to building workflows for distributed systems but is unopinionated about implementation therein. Developers are responsible for understanding these concepts when building multi-agent distributed systems. That being said may of these principles, and particularly the associated failure models, are important to understand in all contexts. 
 
-**Recommended Background Knowledge**:
-- **Microservices Architecture**: Understanding of service-oriented architecture and microservice design patterns
-- **Observability and Monitoring**: Experience with distributed tracing, metrics collection, and log aggregation
-- **Security Best Practices**: Knowledge of authentication, authorization, and secure communication protocols
-- **Production Operations**: Experience with deployment strategies, health monitoring, and incident response
+**Essential Technical Knowledge**:
+
+
+- **Distributed Systems Concepts**: Understanding eventual consistency and distributed consensus is crucial because SW4RM agents would coordinate across network boundaries where failures and partitions are common. Knowledge of the CAP theorem helps developers make informed trade-offs between consistency and availability in their agent designs.
+
+- **Message-Driven Architectures**: Experience with asynchronous message processing is fundamental since SW4RM is built around message-driven communication patterns. Understanding message queues and pub/sub systems helps developers design robust agent interactions and handle message delivery guarantees properly.
+
+- **gRPC and Protocol Buffers**: Familiarity with gRPC service definitions and protobuf serialization is necessary because SW4RM uses these technologies for inter-agent communication. Developers need to understand schema evolution and service versioning to maintain compatibility as their systems evolve.
+
+**Helpful Background Knowledge**:
+
+
+- **Version Control Systems**: Proficiency with Git operations is valuable because SW4RM includes worktree integration features that allow agents to work with repository contexts. Understanding branching strategies helps when designing agents that operate on different code versions.
+
+- **Observability and Monitoring**: Experience with distributed tracing and metrics collection becomes important in production deployments where understanding agent behavior across multiple instances is crucial for debugging and performance optimization.
 
 ## 2.3. Comprehensive SDK Architecture and Component Overview
 
-The SW4RM SDK implements a sophisticated, layered architecture designed for enterprise-grade reliability, performance, and maintainability. The SDK abstracts complex distributed system concerns while providing fine-grained control over system behavior through comprehensive configuration interfaces.
+The SW4RM SDKs implement a sophisticated, layered architecture designed for reliability, performance, and maintainability. The SDK abstracts complex distributed system concerns while providing fine-grained control over system behavior through comprehensive configuration interfaces.
 
 ### 2.3.1. Detailed Component Architecture
 
-```mermaid
-graph TB
-    subgraph "Agent Application Layer"
-        APP[User Application Code<br/>Business Logic Implementation]
-        HANDLERS[Message Handlers<br/>Business Logic Processors]
-    end
+<div class="diagram-container">
+
+```kroki-graphviz
+digraph SDK_Architecture {
+    rankdir=TB;
+    node [shape=rect, style=filled, fontname="Arial"];
     
-    subgraph "SW4RM SDK Core Runtime"
-        MP[MessageProcessor<br/>Handler Registry & Routing]
-        ACK[ACKLifecycleManager<br/>Delivery Confirmation & Retry]
-        AB[ActivityBuffer<br/>Message History & Recovery]
-        WS[WorktreeState<br/>Repository Context Management]
-    end
+    // Define clusters
+    subgraph cluster_app {
+        label="Agent Application Layer";
+        style=filled;
+        fillcolor="#e8f4f8";
+        APP [label="User Application Code\nBusiness Logic Implementation", fillcolor="#d4e6f1"];
+        HANDLERS [label="Message Handlers\nBusiness Logic Processors", fillcolor="#d4e6f1"];
+    }
     
-    subgraph "Client Layer"
-        RC[RouterClient<br/>Message Transport]
-        REG[RegistryClient<br/>Service Discovery]
-        HC[HealthClient<br/>Health Monitoring]
-    end
+    subgraph cluster_core {
+        label="SW4RM SDK Core Runtime";
+        style=filled;
+        fillcolor="#fef9e7";
+        MP [label="MessageProcessor\nHandler Registry & Routing", fillcolor="#f9e79f"];
+        ACK [label="ACKLifecycleManager\nDelivery Confirmation & Retry", fillcolor="#f9e79f"];
+        AB [label="ActivityBuffer\nMessage History & Recovery", fillcolor="#f9e79f"];
+        WS [label="WorktreeState\nRepository Context Management", fillcolor="#f9e79f"];
+    }
     
-    subgraph "Persistence Layer"
-        JSON[JSONFilePersistence<br/>File-based State Storage]
-        REDIS[RedisPersistence<br/>Distributed Cache Storage]
-        POSTGRES[PostgresPersistence<br/>Relational Database Storage]
-    end
+    subgraph cluster_client {
+        label="Client Layer";
+        style=filled;
+        fillcolor="#e8f8e8";
+        RC [label="RouterClient\nMessage Transport", fillcolor="#a9dfbf"];
+        REG [label="RegistryClient\nService Discovery", fillcolor="#a9dfbf"];
+        HC [label="HealthClient\nHealth Monitoring", fillcolor="#a9dfbf"];
+    }
     
-    subgraph "Monitoring & Observability"
-        METRICS[MetricsCollector<br/>Performance Metrics]
-        TRACING[TracingManager<br/>Distributed Tracing]
-        LOGGING[LoggingManager<br/>Structured Logging]
-    end
+    subgraph cluster_persistence {
+        label="Persistence Layer";
+        style=filled;
+        fillcolor="#fdeaea";
+        JSON [label="JSONFilePersistence\nFile-based State Storage", fillcolor="#f5b7b1"];
+        REDIS [label="RedisPersistence\nDistributed Cache Storage", fillcolor="#f5b7b1"];
+        POSTGRES [label="PostgresPersistence\nRelational Database Storage", fillcolor="#f5b7b1"];
+    }
     
-    APP --> HANDLERS
-    HANDLERS --> MP
-    MP --> ACK
-    MP --> AB
-    MP --> WS
+    subgraph cluster_monitoring {
+        label="Monitoring & Observability";
+        style=filled;
+        fillcolor="#f4e8f8";
+        METRICS [label="MetricsCollector\nPerformance Metrics", fillcolor="#d7b9e5"];
+        TRACING [label="TracingManager\nDistributed Tracing", fillcolor="#d7b9e5"];
+        LOGGING [label="LoggingManager\nStructured Logging", fillcolor="#d7b9e5"];
+    }
     
-    ACK --> RC
-    AB --> REG
-    WS --> HC
+    // Connections
+    APP -> HANDLERS;
+    HANDLERS -> MP;
+    MP -> ACK;
+    MP -> AB;
+    MP -> WS;
     
-    AB --> JSON
-    AB --> REDIS
-    AB --> POSTGRES
-    WS --> JSON
-    WS --> REDIS
-    WS --> POSTGRES
+    ACK -> RC;
+    AB -> REG;
+    WS -> HC;
     
-    MP --> METRICS
-    ACK --> TRACING
-    AB --> LOGGING
+    AB -> JSON;
+    AB -> REDIS;
+    AB -> POSTGRES;
+    WS -> JSON;
+    WS -> REDIS;
+    WS -> POSTGRES;
+    
+    MP -> METRICS;
+    ACK -> TRACING;
+    AB -> LOGGING;
+}
 ```
+
+</div>
 
 ### 2.3.2. Core Component Specifications
 
-#### 2.3.2.1. MessageProcessor: Advanced Message Routing Engine
+#### 2.3.2.1. `MessageProcessor`: Message Routing Engine
 
-**Technical Specifications**:
-- **Handler Registration**: Type-safe handler registration with automatic method introspection
-- **Message Routing**: High-performance message routing with O(1) lookup time
-- **Concurrency Control**: Configurable concurrency limits with back-pressure handling
-- **Error Handling**: Comprehensive error classification and recovery strategies
-- **Message Validation**: Schema-based message validation with configurable strictness levels
+**Core Functionality**:
+
+The `MessageProcessor` component provides a registry for message handlers and routes incoming messages to appropriate handler functions. Handler registration uses Python type hints to validate message types at registration time. The component supports configurable concurrency limits to prevent resource exhaustion during high-volume message processing. Error handling includes exception catching and classification, with configurable retry policies for transient failures. Message validation can be enabled to verify incoming messages against protocol buffer schemas before processing.
 
 **Configuration Options**:
 ```python
@@ -155,16 +162,11 @@ MessageProcessorConfig:
     circuit_breaker: CircuitBreakerConfig = None      # Circuit breaker settings
 ```
 
-**Performance Characteristics**:
-- **Message Throughput**: 10,000+ messages/second with optimal configuration
-- **Handler Latency**: <5ms overhead for message routing and validation
-- **Memory Utilization**: <100MB base memory footprint with configurable limits
-- **CPU Efficiency**: <5% CPU utilization at 1,000 messages/second processing rate
-
-#### 2.3.2.2. ACKLifecycleManager: Guaranteed Delivery Management
+#### 2.3.2.2. `ACKLifecycleManager`: Guaranteed Delivery Management
 
 **Acknowledgment State Machine**:
-The ACK lifecycle implements a comprehensive state machine for tracking message delivery and processing status:
+
+The `ACK` lifecycle implements a comprehensive state machine for tracking message delivery and processing status:
 
 ```mermaid
 stateDiagram-v2
@@ -183,21 +185,15 @@ stateDiagram-v2
     DeadLetter --> [*] : Terminal State
 ```
 
-**Advanced Retry Policies**:
-- **Exponential Backoff**: Configurable initial delay, maximum delay, and backoff multiplier
-- **Jitter Implementation**: Random jitter to prevent thundering herd problems
-- **Circuit Breaker Integration**: Automatic circuit breaking on consecutive failures
-- **Dead Letter Queue**: Automatic routing of failed messages to dead letter queues
-- **Custom Retry Strategies**: Pluggable retry strategy interface for custom implementations
+**Retry Policy Features**:
 
-#### 2.3.2.3. PersistentActivityBuffer: Stateful Message History
+The `ACKLifecycleManager` supports exponential backoff retry strategies with configurable initial delay, maximum delay, and backoff multiplier values. Random jitter can be added to retry delays to help prevent thundering herd scenarios when multiple agents retry simultaneously. Circuit breaker functionality automatically suspends retry attempts after a configurable number of consecutive failures. Messages that exhaust all retry attempts are automatically routed to dead letter queues for manual inspection or alternative processing. The retry system provides a pluggable interface allowing custom retry strategy implementations.
 
-**Persistence Capabilities**:
-- **Message Deduplication**: SHA-256 based message fingerprinting for duplicate detection
-- **Crash Recovery**: Automatic state reconciliation using vector clocks and causal ordering
-- **Storage Backends**: Pluggable storage backend architecture (File, Redis, PostgreSQL)
-- **Retention Policies**: Configurable retention policies with automatic cleanup
-- **Compression**: Optional message compression for storage efficiency
+#### 2.3.2.3. `PersistentActivityBuffer`: Stateful Message History
+
+**Persistence Features**:
+
+The `PersistentActivityBuffer` maintains a history of processed messages using configurable storage backends including file-based storage, Redis, and PostgreSQL. Message deduplication uses SHA-256 fingerprinting to identify and prevent duplicate message processing. The component supports crash recovery through state reconciliation mechanisms that can use vector clocks, timestamps, or sequence numbers depending on configuration. Retention policies automatically clean up old messages based on age or count limits to prevent unbounded storage growth. Optional compression can be enabled to reduce storage space requirements for message history.
 
 **Recovery Mechanisms**:
 ```python
@@ -209,20 +205,15 @@ RecoveryConfig:
     max_recovery_attempts: int = 3             # Maximum recovery attempts
 ```
 
-#### 2.3.2.4. PersistentWorktreeState: Git Integration and Repository Management
+#### 2.3.2.4. `PersistentWorktreeState`: Git Integration and Repository Management
 
 **Git Integration Features**:
-- **Repository Cloning**: Automatic repository cloning with credential management
-- **Branch Switching**: Atomic branch switching with state preservation
-- **Commit Tracking**: SHA-based commit tracking with integrity verification
-- **Workspace Isolation**: Container-based workspace isolation for security
-- **Merge Conflict Resolution**: Configurable merge strategies and conflict resolution
+
+The `PersistentWorktreeState` component manages Git repository contexts for agents that work with code repositories. Repository cloning supports standard Git credential management including SSH keys and personal access tokens. Branch switching operations preserve agent state while transitioning between different repository contexts. Commit tracking uses SHA-based identification to ensure agents work with consistent repository states across operations. Workspace isolation can be configured at the process level or using containerization depending on security requirements.
 
 **Workspace Management**:
-- **Isolation Levels**: Process, container, and VM-based isolation options
-- **Resource Limits**: Configurable CPU, memory, and disk quotas for workspaces
-- **Security Policies**: Fine-grained security policies for repository access
-- **Cleanup Strategies**: Automatic cleanup of temporary workspaces and abandoned state
+
+The component supports configurable workspace isolation using process-level separation or container-based isolation for enhanced security. Resource limits can be applied to workspace operations including CPU usage, memory consumption, and disk space allocation. Security policies control repository access permissions and prevent unauthorized repository operations. Automatic cleanup removes temporary workspaces and abandoned state to prevent resource leaks in long-running deployments.
 
 ## 2.4. Comprehensive Implementation Roadmap
 
@@ -235,21 +226,15 @@ This section provides a detailed, step-by-step implementation pathway that progr
 **Time Commitment**: 30-60 minutes for complete setup and validation
 
 **Technical Requirements**:
-- System dependency installation and verification
-- Security certificate generation and configuration
-- Network connectivity validation
-- Protocol buffer stub generation
-- SDK installation verification and diagnostic testing
+
+This phase involves installing system dependencies and verifying their versions meet minimum requirements. Protocol buffer stub generation creates the necessary gRPC interface code from the SW4RM protocol definitions. SDK installation verification ensures all components are properly installed and accessible. Basic network connectivity validation confirms access to package repositories during installation.
 
 **Detailed Instructions**:
 [**Complete Installation Guide** :material-arrow-right:](installation.md){ .md-button .md-button--primary }
 
 **Validation Criteria**:
-- All system dependencies installed and versions verified
-- Protocol buffer stubs generated successfully
-- Network connectivity to required ports confirmed
-- SDK diagnostic tests passing with 100% success rate
-- Security certificates properly configured and validated
+
+Successful completion of this phase requires system dependencies to be installed with versions meeting the minimum requirements specified in the installation guide. Protocol buffer stub generation should complete without errors and produce the expected output files. SDK diagnostic tests should execute successfully, though specific test coverage may vary depending on the local environment configuration.
 
 ### 2.4.2. Phase 2: Basic Agent Implementation and Message Processing
 
@@ -258,52 +243,40 @@ This section provides a detailed, step-by-step implementation pathway that progr
 **Time Commitment**: 45-90 minutes for complete implementation and testing
 
 **Technical Implementation Details**:
-- Message handler registration and routing configuration
-- Error handling and retry policy implementation
-- Basic logging and monitoring setup
-- Agent lifecycle management (startup, shutdown, signal handling)
-- Message validation and schema enforcement
+
+This phase covers the implementation of message handler registration where agents define functions to process specific message types. Error handling implementation includes exception catching and configurable retry policies for failed message processing. Basic logging setup provides structured output for debugging and monitoring agent operations. Agent lifecycle management includes proper startup initialization, graceful shutdown procedures, and signal handling for process management.
 
 **Advanced Features Covered**:
-- Concurrent message processing with configurable limits
-- Circuit breaker implementation for fault tolerance
-- Structured logging with correlation IDs
-- Health check endpoint implementation
-- Graceful shutdown with resource cleanup
+
+The implementation includes concurrent message processing capabilities with configurable limits to prevent resource exhaustion. Circuit breaker patterns can be implemented to provide fault tolerance when downstream services become unavailable. Structured logging includes correlation identifiers to track message processing across distributed operations. Health check endpoints provide monitoring capabilities for deployment orchestration systems.
 
 **Detailed Tutorial**:
 [**Build Your First Agent** :material-arrow-right:](first-agent.md){ .md-button .md-button--primary }
 
 **Success Metrics**:
-- Agent successfully processes 100+ test messages without errors
-- Error handling properly catches and recovers from simulated failures
-- Health check endpoint returns appropriate status information
-- Logging output includes structured information with proper correlation
-- Graceful shutdown completes within 30 seconds with proper cleanup
+
+Successful completion of this phase is demonstrated when the agent can process test messages without unhandled exceptions. Error handling should properly catch and classify processing failures according to the implemented retry policies. Health check endpoints should return appropriate status information reflecting the agent's operational state. Logging output should include structured information with correlation identifiers for message tracking. Graceful shutdown should complete resource cleanup without leaving orphaned processes or open connections.
 
 ### 2.4.3. Phase 3: Advanced State Management and Persistence
 
-**Objectives**: Implement enterprise-grade state persistence with crash recovery, data consistency, and multi-backend storage support.
+**Objectives**: Implement state persistence with crash recovery, data consistency, and multi-backend storage support.
 
 **Time Commitment**: 60-120 minutes for complete implementation and testing
 
-**Advanced Persistence Features**:
-- Multi-backend persistence configuration (File, Redis, PostgreSQL)
-- Crash recovery mechanisms with automatic state reconciliation
-- Message deduplication and idempotency handling
-- Storage backend failover and redundancy
-- Data retention policies and automated cleanup
+**Persistence Features**:
+
+This phase covers configuration of multiple storage backends including file-based persistence, Redis, and PostgreSQL depending on deployment requirements. Crash recovery mechanisms implement state reconciliation using configurable strategies such as vector clocks or timestamp-based ordering. Message deduplication prevents duplicate processing using message fingerprinting. Data retention policies automatically remove old data to prevent unbounded storage growth.
 
 **State Management Patterns**:
-- Activity buffer configuration for message history tracking
-- Worktree state management for Git repository integration
-- Configuration state persistence with versioning
-- Distributed state synchronization across agent instances
+
+Implementation includes activity buffer configuration for maintaining message processing history. Worktree state management provides Git repository integration for agents that work with code repositories. Configuration state persistence enables agent settings to survive restarts. State synchronization patterns help coordinate agent instances in distributed deployments.
 
 **Implementation Guide**:
 [**Advanced State Management** :material-arrow-right:](persistence.md){ .md-button .md-button--primary }
 
 **Validation Requirements**:
+
+
 - State successfully persists across agent restarts
 - Crash recovery completes within configured timeout limits
 - Message deduplication prevents duplicate processing
@@ -317,6 +290,8 @@ This section provides a detailed, step-by-step implementation pathway that progr
 **Time Commitment**: 2-4 hours for complete production deployment setup
 
 **Production Readiness Checklist**:
+
+
 - Container-based deployment with security hardening
 - Service mesh integration for observability and traffic management
 - Comprehensive monitoring and alerting configuration
@@ -324,6 +299,8 @@ This section provides a detailed, step-by-step implementation pathway that progr
 - Scalability configuration and load testing validation
 
 **Operational Features**:
+
+
 - Zero-downtime deployment strategies
 - Automated scaling based on message queue depth
 - Comprehensive observability with distributed tracing
@@ -347,15 +324,7 @@ After completing the core implementation phases, explore these specialized topic
 
 [**Integration Patterns Guide** :material-arrow-right:](../examples/){{ .md-button }
 
-### 2.5.2. Performance Optimization and Scaling
-
-**Performance Tuning**: Deep dive into performance optimization techniques, including message batching, connection pooling, and resource optimization.
-
-**Horizontal Scaling**: Learn advanced scaling patterns including agent clustering, load balancing strategies, and distributed state management.
-
-**Capacity Planning**: Understand methodologies for capacity planning, load testing, and performance monitoring in production environments.
-
-[**Performance Guide** :material-arrow-right:](../performance/){{ .md-button }
+<!-- Performance Optimization and Scaling section removed to avoid implying guarantees. Consider documenting platform-specific tuning separately. -->
 
 ### 2.5.3. Security and Compliance
 
@@ -393,17 +362,20 @@ After completing the core implementation phases, explore these specialized topic
 
 ### 2.7.1. Community Support Channels
 
+
 - **GitHub Discussions**: Community-driven support and feature discussions
 - **Discord Server**: Real-time chat support for development questions
 - **Stack Overflow**: Tagged questions for searchable knowledge base
 
 ### 2.7.2. Professional Support Options
 
+
 - **Enterprise Support**: Dedicated technical support for enterprise deployments
 - **Professional Services**: Implementation assistance and custom development
 - **Training Programs**: Comprehensive training programs for development teams
 
 ### 2.7.3. Contributing to the Project
+
 
 - **Contribution Guidelines**: How to contribute code, documentation, and community support
 - **Development Environment**: Setting up development environments for SDK contribution

@@ -13,7 +13,7 @@ SW4RM is an open agentic protocol for building message-driven agents with guaran
 - For local development, install dev deps and generate protobuf stubs:
   - `python -m pip install -e ".[dev]"`
   - `make protos`
-  - Stubs are generated under `py_sdk/sw4rm/protos`.
+  - Stubs are generated under `sdks/py_sdk/sw4rm/protos`.
 
 ## Core Features
 
@@ -294,6 +294,32 @@ python -m pip install build twine
 python -m build
 python -m twine upload dist/*
 ```
+
+## Release
+
+Use the provided Makefile targets for a reproducible release process.
+
+- Prerequisites
+  - Install dev tooling: `python -m pip install -e ".[dev]"`
+  - Generate protobuf stubs: `make protos`
+
+- Build artifacts
+  - `make release` — generates stubs, verifies presence, builds wheel/sdist
+
+- Verify artifacts
+  - `make release-verify` — validates wheel/sdist metadata and runs `twine check`
+  - `make smoke-wheel` — reinstalls latest wheel into the repo venv and runs `sw4rm-doctor`
+
+- Optional: TestPyPI / PyPI
+  - `make publish-test` — upload to TestPyPI (requires credentials)
+  - `make publish` — upload to PyPI (requires credentials)
+
+- Tagging
+  - `make tag && make tag-push` — create and push an annotated git tag from `pyproject.toml` version
+
+Notes
+- Twine ≥ 5.x and pkginfo ≥ 1.10 are recommended to support modern `Metadata-Version` (e.g., 2.4).
+- See `docs/PROGRESS_REPORT.md` for a detailed Release Checklist.
 
 ### Testing
 ```bash

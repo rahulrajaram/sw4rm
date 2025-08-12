@@ -2,6 +2,8 @@
 
 Get up and running with the SW4RM Agentic Protocol using the reference Python SDK. This guide walks you through creating your first production-ready agent with persistent state.
 
+> Note: Higher-level ACK lifecycle helpers are still maturing; behavior may differ by router implementation. The examples here focus on concepts and may require adaptation.
+
 ## Step 1: Installation
 
 Install the SDK in development mode to get all tools and dependencies:
@@ -20,6 +22,12 @@ make protos
 Verify installation:
 ```bash
 python -c "import sw4rm; print('SW4RM protocol SDK installed successfully')"
+```
+
+Tip: running examples without installing the package
+```bash
+# Run example modules by pointing PYTHONPATH at the SDK source tree
+PYTHONPATH=sdks/py_sdk python examples/echo_agent.py
 ```
 
 ## Step 2: Basic Agent Setup
@@ -199,7 +207,8 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     # Connect and run
-    agent.connect("localhost:50051", "localhost:50052")
+    # Use centralized defaults (overridable via env vars)
+    agent.connect(C.get_default_router_addr(), C.get_default_registry_addr())
     
     if agent.register():
         agent.run()
@@ -478,3 +487,14 @@ chmod 755 agent_data
 ```
 
 Happy agent building! 🤖
+
+## Config & Env Vars
+
+- `SW4RM_ROUTER_ADDR`: router address (default `localhost:50051`)
+- `SW4RM_REGISTRY_ADDR`: registry address (default `localhost:50052`)
+
+You can override CLI defaults by exporting these before running your agent:
+```bash
+export SW4RM_ROUTER_ADDR=router.example.com:50051
+export SW4RM_REGISTRY_ADDR=registry.example.com:50052
+```

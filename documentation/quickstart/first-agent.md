@@ -6,6 +6,7 @@ Build a complete agent that handles messages, manages state, and demonstrates co
 
 We'll create an agent that:
 
+
 - Connects to SW4RM services (Router and Registry)
 - Registers itself with service discovery
 - Processes incoming DATA messages with automatic ACK handling
@@ -332,6 +333,7 @@ sequenceDiagram
 
 The `MessageProcessor` automatically sends acknowledgments:
 
+
 1. **RECEIVED** - Immediately when message arrives
 2. **READ** - Before processing begins  
 3. **FULFILLED** - On successful processing
@@ -341,6 +343,7 @@ The `MessageProcessor` automatically sends acknowledgments:
 
 The `PersistentActivityBuffer` tracks:
 
+
 - All incoming and outgoing messages
 - ACK progression for each message
 - Messages that need reconciliation
@@ -349,6 +352,7 @@ The `PersistentActivityBuffer` tracks:
 ### Message Handlers
 
 Handlers are functions that:
+
 
 - Receive envelope dictionaries
 - Return status strings
@@ -385,6 +389,7 @@ chmod 755 ./agent_data
 Your agent now handles basic message processing with persistent state! 
 
 In the next section, we'll add more advanced features:
+
 - Worktree management
 - Custom control commands  
 - Cross-restart state recovery

@@ -131,6 +131,7 @@ enum AckStage {
 
 Messages are guaranteed to be delivered **at least once** to the target agent:
 
+
 1. **Router Persistence**: Router stores messages until RECEIVED ACK
 2. **Retry Logic**: Failed deliveries trigger automatic retry with exponential backoff
 3. **Dead Letter Queue**: Messages exceeding retry limits moved to DLQ for manual inspection
@@ -140,6 +141,7 @@ Messages are guaranteed to be delivered **at least once** to the target agent:
 
 While delivery is at-least-once, processing is **exactly once** via:
 
+
 1. **Idempotency Tokens**: Stable identifiers across retry attempts
 2. **Deduplication Windows**: Track processed tokens within time window
 3. **State Checkpointing**: Persist processing state before side effects
@@ -148,6 +150,7 @@ While delivery is at-least-once, processing is **exactly once** via:
 ### Ordering Guarantees
 
 Message ordering is preserved **per conversation**:
+
 
 1. **Sequence Numbers**: Monotonic sequence within `correlation_id` groups
 2. **Router Queuing**: FIFO queues maintain sequence order
@@ -194,6 +197,7 @@ message RetryPolicy {
 ### Circuit Breaker Integration
 
 ACK patterns trigger circuit breaker state changes:
+
 
 - **Failure Rate**: High FAILED/TIMED_OUT ACK rate opens circuit
 - **Latency**: Slow FULFILLED ACKs indicate performance issues  
@@ -273,6 +277,7 @@ The Activity Buffer maintains ACK state across agent restarts:
 ### Recovery Patterns
 
 When agents restart, they can resume from last ACK state:
+
 
 1. **Query Activity Buffer**: Load pending message state
 2. **Resume Processing**: Continue from last ACK stage  
@@ -390,6 +395,7 @@ Distributed tracing spans ACK lifecycle:
 
 Critical ACK patterns trigger alerts:
 
+
 - **High Failure Rate**: >5% FAILED ACKs in 5-minute window
 - **Slow Processing**: >95th percentile ACK latency exceeds SLA
 - **Timeout Spike**: >10x normal TIMED_OUT ACK rate
@@ -400,6 +406,7 @@ Critical ACK patterns trigger alerts:
 
 ### For Message Senders
 
+
 1. **Set Appropriate Timeouts**: Balance responsiveness with processing complexity
 2. **Handle All ACK Stages**: Don't assume RECEIVED means FULFILLED
 3. **Implement Retry Logic**: Use exponential backoff with jitter
@@ -408,6 +415,7 @@ Critical ACK patterns trigger alerts:
 
 ### For Message Receivers
 
+
 1. **Send Timely ACKs**: ACK RECEIVED immediately upon message arrival
 2. **Validate Before READ ACK**: Only ACK READ after successful validation
 3. **Provide Detailed Error Info**: Include helpful context in FAILED ACKs
@@ -415,6 +423,7 @@ Critical ACK patterns trigger alerts:
 5. **Support Idempotency**: Check tokens before processing
 
 ### For System Operators
+
 
 1. **Monitor End-to-End Latency**: Track full message lifecycle
 2. **Set Up ACK Dashboards**: Visualize success rates and error patterns

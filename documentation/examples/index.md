@@ -6,13 +6,15 @@ Comprehensive examples showing SW4RM SDK usage from basic to advanced patterns.
 
 <div class="grid cards" markdown>
 
--   :material-echo:{ .lg .middle } **Echo Agent**
+
+-   :material-repeat:{ .lg .middle } **Echo Agent**
 
     ---
 
     Simple agent demonstrating registration and message echoing
 
-    [:octicons-arrow-right-24: View Code](echo-agent.md)
+    [:octicons-arrow-right-24: View Code](https://github.com/rahulrajaram/sw4rm/blob/main/examples/echo_agent.py)
+
 
 -   :material-robot:{ .lg .middle } **Advanced Agent**
 
@@ -20,7 +22,8 @@ Comprehensive examples showing SW4RM SDK usage from basic to advanced patterns.
 
     Full-featured agent with persistence, worktree management, and ACK lifecycle
 
-    [:octicons-arrow-right-24: View Code](advanced-agent.md)
+    [:octicons-arrow-right-24: View Code](https://github.com/rahulrajaram/sw4rm/blob/main/examples/advanced_agent.py)
+
 
 -   :material-test-tube:{ .lg .middle } **Test Client**
 
@@ -28,7 +31,7 @@ Comprehensive examples showing SW4RM SDK usage from basic to advanced patterns.
 
     Client for testing agent functionality with various message types
 
-    [:octicons-arrow-right-24: View Code](test-client.md)
+    [:octicons-arrow-right-24: View Code](https://github.com/rahulrajaram/sw4rm/blob/main/examples/test_client.py)
 
 </div>
 

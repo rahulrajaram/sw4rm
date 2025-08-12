@@ -26,6 +26,7 @@ enum MessageType {
 **Purpose**: Application-level data exchange between agents.
 
 **Content Types**: 
+
 - `application/json` - Structured data interchange
 - `text/plain` - Simple text content
 - `application/octet-stream` - Binary data
@@ -51,6 +52,8 @@ enum MessageType {
 ```
 
 **Usage Patterns**:
+
+
 - Business logic execution results
 - Data processing pipeline intermediates
 - Agent-to-agent coordination data
@@ -130,6 +133,8 @@ message Ack {
 ```
 
 **ACK Stages**:
+
+
 - `RECEIVED` (1): Delivered to target queue
 - `READ` (2): Parsed and validated
 - `FULFILLED` (3): Processing completed successfully
@@ -381,6 +386,7 @@ X-Compression: gzip
 ```
 
 ## Validation Rules
+
 
 1. **Required Fields**: All messages must include `message_id`, `producer_id`, `message_type`
 2. **Content Consistency**: `content_length` must match actual payload size

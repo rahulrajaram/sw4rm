@@ -1,9 +1,9 @@
 # Comprehensive Installation and Configuration Guide
 
-**Enterprise-Grade SDK Installation with Security, Performance, and Reliability Considerations**
+**Enterprise-Grade SDK Installation with Security and Reliability Considerations**
 
 
-This comprehensive installation guide provides detailed procedures for installing, configuring, and validating the SW4RM SDK across multiple environments including development, staging, and production deployments. The guide includes security hardening procedures, performance optimization configurations, and comprehensive troubleshooting workflows.
+This comprehensive installation guide provides detailed procedures for installing, configuring, and validating the SW4RM SDK across multiple environments including development, staging, and production deployments. The guide includes security hardening procedures and comprehensive troubleshooting workflows.
 
 ## System Requirements and Pre-Installation Validation
 
@@ -15,21 +15,18 @@ This comprehensive installation guide provides detailed procedures for installin
 | **Staging** | 4+ dedicated | 8+ (16+ recommended) | 50+ SSD RAID-1 | 100 Mbps |
 | **Production** | 8+ dedicated | 16+ (32+ recommended) | 100+ NVMe RAID-10 | 1+ Gbps |
 
-### Software Dependencies and Version Compatibility Matrix
+### Software Dependencies
 
-| Component | Minimum Version | Recommended Version | Maximum Tested Version |
-|-----------|----------------|-------------------|----------------------|
-| **Python** | 3.9.0 | 3.11.7 | 3.12.1 |
-| **pip** | 21.0 | 23.3+ | 24.0 |
-| **Git** | 2.25.0 | 2.42+ | 2.43.0 |
-| **Docker** | 20.10.0 | 24.0+ | 25.0 |
-| **Docker Compose** | 2.0.0 | 2.23+ | 2.24.0 |
-| **gRPC Tools** | 1.48.0 | 1.59+ | 1.60.0 |
-| **Protocol Buffers** | 3.19.0 | 4.25+ | 4.25.1 |
+| Component | Minimum Version | Recommended Version |
+|-----------|----------------|-------------------|
+| **Python** | 3.11.0 | 3.12+ |
+| **pip** | 21.0 | Latest |
+| **Git** | 2.30+ | Latest |
 
 ### Operating System Support and Kernel Requirements
 
 **Supported Operating Systems**:
+
 
 - **Linux Distributions**:
   - Ubuntu 20.04 LTS, 22.04 LTS, 24.04 LTS
@@ -49,23 +46,19 @@ This comprehensive installation guide provides detailed procedures for installin
   - Windows Server 2019/2022 with WSL2
 
 **Kernel Requirements**:
+
+
 - Linux Kernel 5.4+ (5.15+ recommended for optimal performance)
 - Container support (cgroups v1/v2, namespaces, overlay2 filesystem)
 - Network namespace isolation support for security features
 
-### Network and Security Prerequisites
+### Network Requirements
 
 **Required Network Connectivity**:
-- **Outbound HTTPS (443)**: Package repository access (PyPI, GitHub, Docker Hub)
-- **Outbound gRPC (50051-50067)**: SW4RM service communication
-- **Outbound Git (22/443)**: Repository cloning and synchronization
-- **Inbound Health Checks (8080)**: Agent health monitoring endpoints
 
-**Security Requirements**:
-- **TLS Certificate Management**: Valid certificates or self-signed generation capability
-- **User Account Isolation**: Non-root user account for agent execution
-- **File System Permissions**: Appropriate permissions for persistent state directories
-- **Container Security**: SELinux/AppArmor policies for container-based deployments
+
+- **Outbound HTTPS (443)**: Package repository access for installation (PyPI, GitHub)
+- **TLS Support**: TLS 1.2+ capability for secure communication
 
 ## Comprehensive SDK Installation Procedures
 
@@ -162,7 +155,7 @@ if ! make protos; then
 fi
 
 # Validate protocol buffer stub generation
-PROTO_STUBS_PATH="py_sdk/sw4rm/protos"
+PROTO_STUBS_PATH="sdks/py_sdk/sw4rm/protos"
 if [[ ! -d "$PROTO_STUBS_PATH" ]] || [[ -z "$(ls -A $PROTO_STUBS_PATH)" ]]; then
     log_error "Protocol buffer stubs not generated correctly."
     exit 1
@@ -485,7 +478,7 @@ CMD ["agent.py"]
 #!/usr/bin/env python3
 """
 SW4RM SDK Comprehensive Installation Verification Suite
-Version: 2.0.0
+Version: 0.1
 Purpose: Complete validation of SDK installation across environments
 """
 
@@ -824,7 +817,7 @@ if __name__ == "__main__":
 set -euo pipefail
 
 PROTO_SRC_DIR="protos"
-PROTO_OUTPUT_DIR="py_sdk/sw4rm/protos"
+PROTO_OUTPUT_DIR="sdks/py_sdk/sw4rm/protos"
 TEMP_DIR=$(mktemp -d)
 
 log_info() { echo -e "\033[0;34m[INFO]\033[0m $1"; }

@@ -1,16 +1,15 @@
 # 3. SW4RM Protocol Specification
 
-**Enterprise-Grade Message-Driven Agent Communication Protocol**
+([Link to full RFC](https://github.com/rahulrajaram/sw4rm/blob/main/documentation/protocol/spec.md))
 
-
-**Version 2.0** | **Status: Production Ready** | **Last Updated: 2024-08-09**
-
+**SW4RM Protocol v0.1** | **Status: Production Ready** | **Last Updated: 2025-08-09**
 
 This comprehensive protocol specification defines the complete SW4RM message-driven agent communication system. The protocol is built on industry-standard gRPC and Protocol Buffers, providing a robust foundation for enterprise-grade distributed agentic systems with guaranteed message delivery, comprehensive observability, and enterprise security features.
 
 ## 3.1. Executive Summary
 
 The SW4RM protocol addresses the fundamental challenges of distributed agentic systems by providing a complete communication framework with the following core capabilities:
+
 
 - **Guaranteed Message Delivery**: At-least-once delivery semantics with configurable consistency levels
 - **Comprehensive State Management**: Persistent state across failures with automatic recovery mechanisms
@@ -24,6 +23,7 @@ The SW4RM protocol addresses the fundamental challenges of distributed agentic s
 ### 3.2.1. Service-Oriented Architecture (SOA) Implementation
 
 SW4RM implements a **microservices architecture** with clear service boundaries, standardized communication protocols, and comprehensive fault tolerance mechanisms. The architecture is designed for:
+
 
 - **Independent Service Scaling**: Each service can be scaled independently based on workload requirements
 - **Fault Isolation**: Service failures are contained and do not cascade to other components
@@ -103,22 +103,21 @@ graph TB
 **Event Sourcing Architecture**: All system interactions are represented as immutable events (messages) that form an event log, enabling complete system state reconstruction and audit trails.
 
 **Technical Implementation**:
+
+
 - **Message Persistence**: All messages are durably persisted before acknowledgment using write-ahead logging
 - **Event Ordering**: Global message ordering using hybrid logical clocks (HLC) for causal consistency
 - **Message Deduplication**: SHA-256 based content hashing prevents duplicate message processing
 - **Delivery Semantics**: Configurable delivery guarantees (at-most-once, at-least-once, exactly-once)
 
-**Performance Characteristics**:
-- **Throughput**: 50,000+ messages/second per service instance with batching enabled
-- **Latency**: P99 latency <100ms for local delivery, <500ms for cross-region
-- **Storage Efficiency**: 70% compression ratio with protocol buffer encoding
-- **Memory Footprint**: <200MB per service instance under typical loads
+<!-- Performance characteristics intentionally omitted to avoid implying guarantees. -->
 
 #### 3.2.2.2. Distributed System Consistency Model
 
 **Implementation of Eventual Consistency with Strong Consistency Options**:
 
-- **Eventual Consistency (Default)**: Optimal performance with eventual convergence guarantees
+
+- **Eventual Consistency (Default)**: Default mode with eventual convergence guarantees
 - **Strong Consistency**: Configurable strong consistency for critical operations using distributed consensus
 - **Causal Consistency**: Maintains causal relationships between related messages using vector clocks
 - **Session Consistency**: Guarantees consistency within agent session boundaries
@@ -145,6 +144,7 @@ enum ConsistencyLevel {
 **Zero-Trust Network Model**: Every service interaction requires authentication and authorization, with no implicit trust relationships.
 
 **Security Implementation Layers**:
+
 
 1. **Transport Security**:
    - Mutual TLS (mTLS) for all inter-service communication
@@ -194,6 +194,7 @@ message AuthenticationConfig {
 #### 3.2.2.4. Enterprise-Grade Observability Framework
 
 **Three Pillars of Observability Implementation**:
+
 
 1. **Comprehensive Metrics Collection**:
    - Business metrics: Message processing rates, success/failure ratios, processing latencies
@@ -307,6 +308,7 @@ sequenceDiagram
 
 **ACK Stages:**
 
+
 - `RECEIVED` (1): Message delivered to target
 - `READ` (2): Message parsed and validated
 - `FULFILLED` (3): Processing completed successfully  
@@ -319,16 +321,19 @@ sequenceDiagram
 ### 3.4.1. Core Services
 
 **Registry Service** - Agent lifecycle management
+
 - Agent registration and discovery
 - Health monitoring and heartbeats
 - Capability advertisement
 
 **Router Service** - Message delivery
+
 - Reliable message routing between agents
 - Message streaming and buffering
 - Load balancing and failover
 
 **Scheduler Service** - Work coordination  
+
 - Task distribution and prioritization
 - Resource allocation and preemption
 - Activity buffer management
@@ -336,16 +341,19 @@ sequenceDiagram
 ### 3.4.2. Extended Services
 
 **HITL Service** - Human oversight
+
 - Escalation workflows and approvals
 - Decision points and manual overrides
 - Audit trails and compliance
 
 **Worktree Service** - Repository context
+
 - Git repository binding and switching
 - Branch and commit management  
 - Workspace isolation
 
 **Tool Service** - External integrations
+
 - API and system command execution
 - Result capture and error handling
 - Permission and security policies
@@ -417,16 +425,19 @@ ack: {
 ## 3.7. Security Model
 
 ### 3.7.1. Authentication
+
 - Service-to-service authentication via mutual TLS
 - Agent identity verification through public key cryptography
 - Token-based session management
 
 ### 3.7.2. Authorization  
+
 - Role-based access control (RBAC) for service operations
 - Message-level permissions based on sender/receiver identity
 - Policy-based filtering and transformation
 
 ### 3.7.3. Data Protection
+
 - End-to-end encryption for sensitive payloads
 - Audit logging of all security-relevant operations
 - Compliance with data residency and retention policies
@@ -434,16 +445,19 @@ ack: {
 ## 3.8. Deployment Considerations
 
 ### 3.8.1. Scalability
+
 - Horizontal scaling of all services
 - Message partitioning and sharding
 - Load balancing with session affinity
 
 ### 3.8.2. Reliability
+
 - At-least-once message delivery guarantees
 - Circuit breakers and retry policies  
 - Graceful degradation during partial failures
 
 ### 3.8.3. Observability
+
 - Distributed tracing across service boundaries
 - Metrics for throughput, latency, and error rates
 - Structured logging with correlation IDs
@@ -453,6 +467,7 @@ ack: {
 ### Overview of Google's A2A Protocol
 
 Google's Agent2Agent (A2A) is an open standard designed for enterprise-grade interoperability among AI agents. The core aspects include:
+
 
 - **Agent Discovery via "Agent Cards"**—agents advertise capabilities in a JSON Agent Card format to help other agents find the best fit for a task.
 
@@ -484,6 +499,7 @@ Google's Agent2Agent (A2A) is an open standard designed for enterprise-grade int
 **Similarities:**
 
 
+
 - **Agent Discovery & Registration**: A2A's Agent Cards align closely with our Registry & Discovery module—even though we haven't explicitly structured Agent Card, our system supports name, capabilities, modality, and description in the registry (§14).
 
 - **Secure Communication & Modality Support**: Our use of gRPC with optional signing and multi-modal content types corresponds to A2A's modality-agnostic design and enterprise security foundation.
@@ -496,6 +512,7 @@ Google's Agent2Agent (A2A) is an open standard designed for enterprise-grade int
 Google's A2A focuses on secure, interoperable agent messaging across enterprise boundaries, emphasizing discovery, modality negotiation, and long-running tasks. SW4RM defines the deeper machinery—scheduling, cancellation, preemption, idempotency, negotiation, worktree confinement, logs, and tool integration. These two can co-exist: use A2A for agent-to-agent orchestration and SW4RM for a resilient internal engine.
 
 ## 3.10. Next Steps
+
 
 - [Message Types](messages.md) - Detailed message specifications
 - [Services](services.md) - Complete service API reference  
