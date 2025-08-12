@@ -1,14 +1,15 @@
+"""Worktree binding data structures and policy interfaces.
+
+This module provides the core data structures and interfaces for worktree
+binding management. It does NOT include policy implementations - those
+should be provided by specialized implementations as needed.
+"""
+
 from __future__ import annotations
 
-import json
-import os
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Callable, Protocol
+from typing import Dict, Optional, Any, Protocol
 from enum import Enum
-
-from .persistence import PersistenceBackend, JSONFilePersistence
 
 
 class BindingAction(Enum):
@@ -41,63 +42,62 @@ class WorktreeBinding:
 
 
 class WorktreePolicyHook(Protocol):
-    """Interface for worktree policy hooks."""
+    """Protocol interface for worktree policy hooks.
+    
+    Implementations can provide custom policy logic by implementing
+    this protocol. All methods are optional - provide only the hooks
+    you need for your specific policy requirements.
+    """
 
     def before_bind(self, repo_id: str, worktree_id: str, current_binding: Optional[WorktreeBinding]) -> bool:
-        """Called before binding to a worktree. Return False to reject the binding."""
-        ...
-
-    def after_bind(self, binding: WorktreeBinding) -> None:
-        """Called after successful binding."""
-        ...
-
-    def before_unbind(self, binding: WorktreeBinding) -> bool:
-        """Called before unbinding. Return False to reject the unbind."""
-        ...
-
-    def after_unbind(self, former_binding: WorktreeBinding) -> None:
-        """Called after successful unbinding."""
-        ...
-
-    def on_bind_error(self, repo_id: str, worktree_id: str, error: Exception) -> None:
-        """Called when binding fails."""
-        ...
-
-
-class DefaultWorktreePolicy:
-    """Default worktree policy with basic validation."""
-
-    def __init__(self, *, allow_rebinding: bool = True, max_binding_age_hours: int = 24):
-        self.allow_rebinding = allow_rebinding
-        self.max_binding_age_hours = max_binding_age_hours
-
-    def before_bind(self, repo_id: str, worktree_id: str, current_binding: Optional[WorktreeBinding]) -> bool:
-        """Validate binding request."""
-        # Reject if already bound and rebinding not allowed
-        if current_binding and not self.allow_rebinding:
-            return False
+        """Called before binding to a worktree.
         
-        # Basic validation
-        if not repo_id or not worktree_id:
-            return False
+        Args:
+            repo_id: Repository identifier
+            worktree_id: Worktree identifier
+            current_binding: Current binding if any
             
-        return True
+        Returns:
+            True to allow binding, False to reject
+        """
+        ...
 
     def after_bind(self, binding: WorktreeBinding) -> None:
-        """Log successful binding."""
-        print(f"[Worktree] Bound to {binding.repo_id}/{binding.worktree_id}")
+        """Called after successful binding.
+        
+        Args:
+            binding: The newly created binding
+        """
+        ...
 
     def before_unbind(self, binding: WorktreeBinding) -> bool:
-        """Always allow unbinding."""
-        return True
+        """Called before unbinding.
+        
+        Args:
+            binding: The binding being removed
+            
+        Returns:
+            True to allow unbinding, False to reject
+        """
+        ...
 
     def after_unbind(self, former_binding: WorktreeBinding) -> None:
-        """Log successful unbinding."""
-        print(f"[Worktree] Unbound from {former_binding.repo_id}/{former_binding.worktree_id}")
+        """Called after successful unbinding.
+        
+        Args:
+            former_binding: The binding that was removed
+        """
+        ...
 
     def on_bind_error(self, repo_id: str, worktree_id: str, error: Exception) -> None:
-        """Log binding errors."""
-        print(f"[Worktree] Failed to bind to {repo_id}/{worktree_id}: {error}")
+        """Called when binding fails.
+        
+        Args:
+            repo_id: Repository identifier that failed to bind
+            worktree_id: Worktree identifier that failed to bind
+            error: The exception that occurred
+        """
+        ...
 
 
 class WorktreePersistence:

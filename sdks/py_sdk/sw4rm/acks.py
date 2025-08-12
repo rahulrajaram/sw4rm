@@ -60,21 +60,14 @@ def build_ack_envelope(
     )
 
 
-def map_exception_to_error_code(exc: BaseException) -> int:
-    """Best-effort mapping from exceptions to ErrorCode constants."""
-    name = exc.__class__.__name__.lower()
-    msg = str(exc).lower()
-    if "timeout" in name or "timeout" in msg:
-        return C.ACK_TIMEOUT
-    if "permission" in name or "permission" in msg:
-        return C.PERMISSION_DENIED
-    if "route" in msg or "unavailable" in msg:
-        return C.NO_ROUTE
-    if "oversize" in msg or "too large" in msg:
-        return C.OVERSIZE_PAYLOAD
-    if "validation" in msg or "invalid" in msg:
-        return C.VALIDATION_ERROR
-    return C.INTERNAL_ERROR
+def map_exception_to_error_code(exc: Exception) -> int:
+    """Map exception to error code using the default mapper.
+    
+    This function is deprecated. Use error_mapping.DEFAULT_MAPPER directly
+    or create a custom DictErrorCodeMapper for more control.
+    """
+    from .error_mapping import DEFAULT_MAPPER
+    return DEFAULT_MAPPER.map_exception(exc)
 
 
 def ack_for_send_result(
