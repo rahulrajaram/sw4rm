@@ -1,0 +1,177 @@
+# SW4RM Rust SDK
+
+A production-grade Rust implementation of the SW4RM Agentic Protocol, providing high-performance gRPC clients and runtime utilities for building distributed autonomous agents.
+
+## Features
+
+- **Type-safe gRPC clients** for all SW4RM protocol services
+- **Async/await runtime** built on Tokio for high concurrency
+- **Cooperative preemption** support for graceful agent shutdown
+- **Envelope helpers** for message construction and parsing
+- **Built-in logging and tracing** via tracing crate
+- **Configurable endpoints** with sensible defaults
+- **Production-ready** error handling and resource management
+
+## Quick Start
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+sw4rm-sdk = "0.1.0"
+tokio = { version = "1.0", features = ["full"] }
+```
+
+### Basic Agent Example
+
+```rust
+use sw4rm_sdk::*;
+use async_trait::async_trait;
+
+struct EchoAgent {
+    config: AgentConfig,
+    preemption: PreemptionManager,
+}
+
+impl EchoAgent {
+    fn new(config: AgentConfig) -> Self {
+        Self {
+            config,
+            preemption: PreemptionManager::new(),
+        }
+    }
+}
+
+#[async_trait]
+impl Agent for EchoAgent {
+    async fn on_message(&mut self, envelope: EnvelopeData) -> Result<()> {
+        if let Ok(text) = envelope.string_payload() {
+            println!("Echo: {}", text);
+        }
+        Ok(())
+    }
+
+    fn config(&self) -> &AgentConfig {
+        &self.config
+    }
+
+    fn preemption_manager(&self) -> &PreemptionManager {
+        &self.preemption
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let config = AgentConfig::new(
+        "echo-agent-1".to_string(),
+        "Echo Agent".to_string()
+    );
+    
+    let agent = EchoAgent::new(config.clone());
+    let mut runtime = AgentRuntime::new(config);
+    
+    runtime.run(agent).await
+}
+```
+
+## Architecture
+
+The SDK is organized into several key modules:
+
+- **`clients/`** - Type-safe gRPC clients for each service
+- **`runtime/`** - Agent runtime and preemption management
+- **`envelope/`** - Message envelope builders and utilities
+- **`config/`** - Configuration structures and defaults
+- **`types/`** - Common types and utilities
+- **`error/`** - Error types and result handling
+
+## Protocol Services
+
+The SDK provides clients for all SW4RM protocol services:
+
+- **Registry** - Agent registration and discovery
+- **Router** - Message routing and delivery
+- **Scheduler** - Task scheduling and preemption
+- **HITL** - Human-in-the-loop decisions
+- **Worktree** - Code repository management
+- **Tool** - Tool execution and management
+- **Connector** - Tool provider registration
+- **Negotiation** - Multi-agent negotiation
+- **Reasoning** - Parallelism and debate evaluation
+- **Logging** - Distributed logging and telemetry
+
+## Configuration
+
+Configure service endpoints via the `Endpoints` struct:
+
+```rust
+use sw4rm_sdk::*;
+
+let endpoints = Endpoints {
+    registry: "http://localhost:50051".to_string(),
+    router: "http://localhost:50052".to_string(),
+    // ... other services
+    ..Default::default()
+};
+
+let config = AgentConfig::new("my-agent".to_string(), "My Agent".to_string())
+    .with_endpoints(endpoints);
+```
+
+## Building from Source
+
+The SDK requires protobuf compilation. Ensure you have the protocol buffer compiler installed:
+
+```bash
+# On macOS
+brew install protobuf
+
+# On Ubuntu/Debian
+sudo apt-get install protobuf-compiler
+
+# On other systems, see: https://grpc.io/docs/protoc-installation/
+```
+
+Then build:
+
+```bash
+cargo build --release
+```
+
+## Examples
+
+See the `examples/` directory for more comprehensive usage examples including:
+
+- Basic echo agent
+- Tool integration
+- HITL workflows  
+- Multi-agent negotiation
+- Preemption handling
+
+## Testing
+
+Run the test suite:
+
+```bash
+cargo test
+```
+
+For integration tests with a running SW4RM cluster:
+
+```bash
+cargo test --features integration-tests
+```
+
+## Contributing
+
+This SDK follows the SW4RM protocol specification. When contributing:
+
+1. Ensure protobuf compatibility
+2. Maintain async/await patterns
+3. Add comprehensive error handling
+4. Include tests for new features
+5. Update documentation
+
+## License
+
+MIT License - see LICENSE file for details.

@@ -1,0 +1,31 @@
+# Rust
+/target/
+/Cargo.lock
+**/*.rs.bk
+
+# Generated protobuf code
+src/proto/
+src/generated/
+
+# Demo/test files
+demo_activity.json
+sw4rm_activity.json
+sw4rm_worktree.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local configuration
+.env
+local.toml
