@@ -397,6 +397,7 @@ message ServiceEndpoint {
 
 Services support multiple load balancing strategies:
 
+
 - **Round Robin**: Distribute requests evenly across endpoints
 - **Least Connections**: Route to endpoint with fewest active connections  
 - **Weighted**: Route based on endpoint capacity weights
@@ -417,6 +418,8 @@ message CircuitBreakerConfig {
 ```
 
 **States**:
+
+
 - **CLOSED**: Normal operation, requests pass through
 - **OPEN**: Failing fast, requests immediately rejected  
 - **HALF_OPEN**: Testing recovery, limited requests allowed
@@ -453,48 +456,7 @@ def calculate_delay(attempt: int, base_delay_ms: int, max_delay_ms: int) -> int:
     return int(delay + jitter)
 ```
 
-## Performance and Scaling
-
-### Connection Pooling
-
-Services use connection pooling for efficiency:
-
-```protobuf
-message ConnectionPoolConfig {
-  uint32 max_connections = 1;      // Max connections per endpoint
-  uint32 max_idle_connections = 2; // Idle connections to maintain
-  uint64 max_connection_age_ms = 3; // Force connection refresh
-  uint64 connection_timeout_ms = 4; // Connection establishment timeout
-  bool enable_keepalive = 5;       // TCP keepalive
-}
-```
-
-### Message Batching
-
-High-throughput operations support batching:
-
-```protobuf
-rpc SendMessageBatch(SendMessageBatchRequest) returns (SendMessageBatchResponse);
-
-message SendMessageBatchRequest {
-  repeated SendMessageRequest messages = 1;
-  uint32 max_batch_size = 2;
-  uint64 batch_timeout_ms = 3;
-}
-```
-
-### Streaming Optimizations
-
-Long-lived streams use flow control:
-
-```protobuf
-message StreamControlMessage {
-  string stream_id = 1;
-  StreamAction action = 2;  // PAUSE, RESUME, CLOSE
-  uint32 buffer_size = 3;   // Adjust buffer size
-  map<string, string> parameters = 4;
-}
-```
+<!-- Performance and Scaling section removed to avoid implying guarantees. Configuration patterns should be documented alongside concrete implementations. -->
 
 ## Security Considerations
 

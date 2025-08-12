@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Python gRPC stubs into py_sdk/sw4rm/protos using repo venv.
+"""Generate Python gRPC stubs into sdks/py_sdk/sw4rm/protos using repo venv.
 
 Usage:
   venv/bin/python scripts/gen_protos.py
@@ -12,7 +12,7 @@ import sys
 
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
-    py_out = repo_root / "py_sdk" / "sw4rm" / "protos"
+    py_out = repo_root / "sdks" / "py_sdk" / "sw4rm" / "protos"
     protos = [
         "common.proto",
         "registry.proto",
@@ -40,12 +40,12 @@ def main() -> int:
 
     args = [
         "protoc",
-        f"-I{repo_root}",
+        f"-I{(repo_root / "protos").as_posix()}",
         f"-I{inc}",
         f"--python_out={py_out}",
         f"--grpc_python_out={py_out}",
         f"--pyi_out={py_out}",
-        *[str(repo_root / p) for p in protos],
+        *[(repo_root / "protos" / p).as_posix() for p in protos],
     ]
 
     rc = protoc.main(args)

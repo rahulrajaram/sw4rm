@@ -433,9 +433,12 @@
 
 .fullscreen-modal-content {
   position: relative;
-  width: 100vw;
-  height: 100vh;
+  width: 90vw;
+  height: 90vh;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .fullscreen-modal-close {
@@ -465,13 +468,12 @@
 
 .fullscreen-modal img,
 .fullscreen-modal svg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100vw;
+  position: static;
+  width: 100%;
   height: auto;
-  min-height: 100vh;
-  object-fit: cover;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 /* On small screens, ensure the image fills the screen properly */

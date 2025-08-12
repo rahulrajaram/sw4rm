@@ -63,13 +63,19 @@ mkdocs gh-deploy
 ### Netlify
 
 1. Connect your repository to Netlify
-2. Set build command: `mkdocs build`
+2. Set build command:
+   ```bash
+   mkdocs build
+   ```
 3. Set publish directory: `site`
 
 ### Vercel
 
 1. Import your repository to Vercel  
-2. Set build command: `mkdocs build`
+2. Set build command:
+   ```bash
+   mkdocs build
+   ```
 3. Set output directory: `site`
 
 ### Docker
@@ -84,6 +90,7 @@ RUN mkdocs build
 
 The documentation is configured in `mkdocs.yml` at the repository root. Key settings:
 
+
 - **Theme**: Material Design with dark/light mode toggle
 - **Plugins**: Search and section indexing
 - **Extensions**: Code highlighting, diagrams, admonitions
@@ -94,6 +101,7 @@ The documentation is configured in `mkdocs.yml` at the repository root. Key sett
 ### Markdown Extensions
 
 The site supports:
+
 
 - **Code blocks** with syntax highlighting
 - **Mermaid diagrams** for architecture visualizations  
@@ -120,6 +128,7 @@ The site supports:
 
 ### Adding Pages
 
+
 1. Create a new `.md` file in the appropriate directory
 2. Add to the `nav` section in `mkdocs.yml`
 3. Use relative links: `[Link text](../other-section/page.md)`
@@ -127,6 +136,7 @@ The site supports:
 ## Future Enhancements
 
 When ready to add API documentation:
+
 
 1. Uncomment the plugins in `mkdocs.yml`:
    ```yaml

@@ -4,16 +4,41 @@
  */
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Wait for Mermaid to render, then set up click handlers
+    // Try multiple times with increasing delays
+    setTimeout(setupDiagramHandlers, 500);
+    setTimeout(setupDiagramHandlers, 1500);
+    setTimeout(setupDiagramHandlers, 3000);
+});
+
+function setupDiagramHandlers() {
     // Find all existing diagram containers (manually wrapped)
     const existingContainers = document.querySelectorAll('.diagram-container');
     
     existingContainers.forEach(function(container) {
-        // Add click handler to existing containers
-        container.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            openFullscreenModal(this);
-        });
+        // Skip if already has handler
+        if (container.hasAttribute('data-fullscreen-handler')) {
+            return;
+        }
+        
+        // Look for any diagram-like content
+        const hasAnyDiagramContent = container.querySelector('svg') || 
+                                   container.querySelector('img') ||
+                                   container.querySelector('.mermaid') ||
+                                   container.querySelector('code[class*="language-"]') ||
+                                   container.querySelector('pre');
+        
+        if (hasAnyDiagramContent) {
+            // Mark as having handler and add click event
+            container.setAttribute('data-fullscreen-handler', 'true');
+            container.style.cursor = 'zoom-in';
+            
+            container.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                openFullscreenModal(this);
+            });
+        }
     });
     
     // Find all kroki diagrams that aren't already wrapped
@@ -64,7 +89,31 @@ document.addEventListener('DOMContentLoaded', function() {
             openFullscreenModal(this);
         });
     });
-});
+    
+    // Handle Mermaid diagrams that aren't already wrapped
+    const mermaidDiagrams = document.querySelectorAll('.mermaid:not(.diagram-container .mermaid)');
+    
+    mermaidDiagrams.forEach(function(mermaidDiv) {
+        // Skip if already wrapped
+        if (mermaidDiv.closest('.diagram-container')) {
+            return;
+        }
+        
+        const container = document.createElement('div');
+        container.className = 'diagram-container';
+        
+        // Wrap the mermaid div
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+        
+        // Add click handler
+        container.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            openFullscreenModal(this);
+        });
+    });
+}
 
 function openFullscreenModal(diagramContainer) {
     // Create modal if it doesn't exist
@@ -76,7 +125,6 @@ function openFullscreenModal(diagramContainer) {
     // Get the diagram content
     const diagramContent = diagramContainer.querySelector('img, svg, pre');
     if (!diagramContent) {
-        console.warn('No diagram content found');
         return;
     }
     
