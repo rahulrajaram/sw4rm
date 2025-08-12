@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package sw4rm.reasoning;
+
+message ParallelismCheckRequest { string scope_a = 1; string scope_b = 2; }
+message ParallelismCheckResponse { double confidence_score = 1; string notes = 2; }
+
+message DebateEvaluateRequest {
+  string negotiation_id = 1;
+  string proposal_a = 2;
+  string proposal_b = 3;
+  string intensity = 4; // map from enum if needed
+}
+message DebateEvaluateResponse { double confidence_score = 1; string notes = 2; }
+
+service ReasoningProxy {
+  rpc CheckParallelism(ParallelismCheckRequest) returns (ParallelismCheckResponse);
+  rpc EvaluateDebate(DebateEvaluateRequest) returns (DebateEvaluateResponse);
+}

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "sw4rm-sdk"
 version = "0.1.0"
 description = "SW4RM Agentic Protocol — Reference Python SDK (experimental)"
-readme = "CONTEXT.md"
+readme = "README.md"
 requires-python = ">=3.9"
 authors = [{ name = "SW4RM Devs" }]
 dependencies = [
@@ -18,6 +18,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "grpcio-tools>=1.56,<2",
+  "build>=1.0,<2",
+  "twine>=5,<6",
+  "pkginfo>=1.10,<2",
 ]
 docs = [
   "mkdocs>=1.5.0",
@@ -32,9 +35,15 @@ docs = [
 Homepage = "https://sw4rm.ai"
 Source = "https://sw4rm.ai/repo"
 
+[project.scripts]
+sw4rm-doctor = "sw4rm.cli:main"
+
 [tool.setuptools]
-package-dir = {"" = "py_sdk"}
+package-dir = {"" = "sdks/py_sdk"}
 
 [tool.setuptools.packages.find]
-where = ["py_sdk"]
+where = ["sdks/py_sdk"]
 include = ["sw4rm*"]
+
+[tool.setuptools.package-data]
+"sw4rm.protos" = ["*.pyi"]

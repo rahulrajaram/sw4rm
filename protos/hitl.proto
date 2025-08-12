@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package sw4rm.hitl;
+
+import "common.proto";
+
+message HitlInvocation {
+  sw4rm.common.HitlReasonType reason_type = 1;
+  bytes context = 2;             // JSON or protobuf, see content_type in envelope
+  repeated string proposed_actions = 3;
+  int32 priority = 4;
+}
+
+message HitlDecision {
+  string action = 1;
+  bytes decision_payload = 2;
+  string rationale = 3;
+}
+
+service HitlService {
+  // Invocation is carried in Envelope.payload; this service handles the decision side.
+  rpc Decide(HitlInvocation) returns (HitlDecision);
+}
