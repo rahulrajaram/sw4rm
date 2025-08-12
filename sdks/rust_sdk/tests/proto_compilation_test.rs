@@ -14,8 +14,19 @@ fn test_envelope_struct_exists() {
     // Test that we can create an envelope struct
     let envelope = proto::sw4rm::common::Envelope {
         message_id: "test".to_string(),
-        producer_id: "test-producer".to_string(), 
+        idempotency_token: String::new(),
+        producer_id: "test-producer".to_string(),
+        correlation_id: String::new(),
+        sequence_number: 1,
+        retry_count: 0,
         message_type: proto::sw4rm::common::MessageType::Data as i32,
+        content_type: "application/octet-stream".to_string(),
+        content_length: 3,
+        repo_id: String::new(),
+        worktree_id: String::new(),
+        hlc_timestamp: String::new(),
+        ttl_ms: 0,
+        timestamp: None,
         payload: vec![1, 2, 3],
     };
     
@@ -56,8 +67,19 @@ fn test_proto_compilation_integration() {
     // Test common types
     let _envelope = sw4rm::common::Envelope {
         message_id: String::new(),
+        idempotency_token: String::new(),
         producer_id: String::new(),
+        correlation_id: String::new(),
+        sequence_number: 0,
+        retry_count: 0,
         message_type: 0,
+        content_type: String::new(),
+        content_length: 0,
+        repo_id: String::new(),
+        worktree_id: String::new(),
+        hlc_timestamp: String::new(),
+        ttl_ms: 0,
+        timestamp: None,
         payload: Vec::new(),
     };
     

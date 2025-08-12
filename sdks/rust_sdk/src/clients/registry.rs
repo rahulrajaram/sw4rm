@@ -179,11 +179,11 @@ mod tests {
     use crate::proto::sw4rm::common::AgentState;
     use std::collections::HashMap;
 
-    #[test]
-    fn test_registry_client_creation() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_registry_client_creation() {
         // Test that we can create the client struct
         let endpoint = "http://localhost:50051";
-        let channel = Channel::from_static("http://localhost:50051");
+        let channel = Endpoint::from_static("http://localhost:50051").connect_lazy();
         let client = RegistryClient::with_channel(channel, endpoint.to_string());
         
         assert_eq!(client.endpoint(), endpoint);

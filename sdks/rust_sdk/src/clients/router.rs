@@ -213,10 +213,10 @@ mod tests {
     use crate::envelope::EnvelopeBuilder;
     use crate::constants;
 
-    #[test]
-    fn test_router_client_creation() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_router_client_creation() {
         let endpoint = "http://localhost:50052";
-        let channel = Channel::from_static("http://localhost:50052");
+        let channel = Endpoint::from_static("http://localhost:50052").connect_lazy();
         let client = RouterClient::with_channel(channel, endpoint.to_string());
         
         assert_eq!(client.endpoint(), endpoint);

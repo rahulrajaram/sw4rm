@@ -105,9 +105,8 @@ mod activity_buffer_tests {
         // Flush to persistence
         buffer.flush().unwrap();
 
-        // Create new buffer to test persistence
-        let temp_file2 = temp_file.reopen().unwrap();
-        let persistence2 = Box::new(JsonFilePersistence::new(temp_file2.path()));
+        // Create new buffer to test persistence using same file path
+        let persistence2 = Box::new(JsonFilePersistence::new(temp_file.path()));
         let buffer2 = PersistentActivityBuffer::new(10, Some(persistence2)).unwrap();
 
         // Should be able to retrieve the previously recorded message

@@ -139,8 +139,9 @@ impl Agent for EchoAgent {
                 
                 match tool_name {
                     "echo" => {
-                        let params = call_data.get("parameters").unwrap_or(&json!({}));
-                        tracing::info!("🔄 Echo tool called with params: {}", params);
+                        let empty = json!({});
+                        let params_ref = call_data.get("parameters").unwrap_or(&empty);
+                        tracing::info!("🔄 Echo tool called with params: {}", params_ref);
                     }
                     "status" => {
                         let status = json!({

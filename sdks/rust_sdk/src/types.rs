@@ -36,12 +36,7 @@ impl Default for SequenceTracker {
     }
 }
 
-/// Preemption state for cooperative agent shutdown
-#[derive(Debug, Clone, Default)]
-pub struct PreemptionState {
-    pub requested: bool,
-    pub reason: Option<String>,
-}
+// Note: PreemptionState lives in runtime::preemption; no duplicate here to avoid ambiguity
 
 /// Agent descriptor for registration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,6 +60,16 @@ impl AgentDescriptor {
             metadata: HashMap::new(),
         }
     }
+
+    pub fn with_description(mut self, description: String) -> Self {
+        self.description = description;
+        self
+    }
+
+    pub fn with_capabilities(mut self, capabilities: Vec<String>) -> Self {
+        self.capabilities = capabilities;
+        self
+    }
 }
 
 /// Utility functions for UUID and timestamp generation
@@ -84,6 +89,8 @@ pub fn make_idempotency_token(producer_id: &str, operation_type: &str, determini
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::PreemptionManager;
+    use crate::config::{AgentConfig, Endpoints};
 
     #[test]
     fn test_sequence_tracker_creation() {
@@ -141,39 +148,39 @@ mod tests {
 
     #[test]
     fn test_preemption_manager_creation() {
-        let manager = PreemptionState::new();
+        let manager = PreemptionManager::new();
         assert!(!manager.is_preemption_requested());
-        assert!(manager.get_preemption_reason().is_none());
+        assert!(manager.preemption_reason().is_none());
     }
 
     #[test]
     fn test_preemption_manager_request() {
-        let mut manager = PreemptionState::new();
+        let manager = PreemptionManager::new();
         
         manager.request_preemption(Some("Test shutdown".to_string()));
         assert!(manager.is_preemption_requested());
-        assert_eq!(manager.get_preemption_reason(), Some("Test shutdown".to_string()));
+        assert_eq!(manager.preemption_reason(), Some("Test shutdown".to_string()));
     }
 
     #[test]
     fn test_preemption_manager_request_without_reason() {
-        let mut manager = PreemptionState::new();
+        let manager = PreemptionManager::new();
         
         manager.request_preemption(None);
         assert!(manager.is_preemption_requested());
-        assert!(manager.get_preemption_reason().is_none());
+        assert!(manager.preemption_reason().is_none());
     }
 
     #[test]
     fn test_preemption_manager_clear() {
-        let mut manager = PreemptionState::new();
+        let manager = PreemptionManager::new();
         
         manager.request_preemption(Some("Test".to_string()));
         assert!(manager.is_preemption_requested());
         
         manager.clear_preemption();
         assert!(!manager.is_preemption_requested());
-        assert!(manager.get_preemption_reason().is_none());
+        assert!(manager.preemption_reason().is_none());
     }
 
     #[test]
@@ -234,7 +241,7 @@ mod tests {
 
     #[test]
     fn test_agent_config_creation() {
-        let config = crate::config::AgentConfig::new(
+        let config = AgentConfig::new(
             "config-agent".to_string(),
             "Config Test Agent".to_string()
         );
@@ -242,31 +249,35 @@ mod tests {
         assert_eq!(config.agent_id, "config-agent");
         assert_eq!(config.name, "Config Test Agent");
         assert!(config.capabilities.is_empty());
-        assert_eq!(config.endpoints.registry, None);
-        assert_eq!(config.endpoints.router, None);
+        // Default endpoints present
+        assert_eq!(config.endpoints.registry, "http://localhost:50051");
+        assert_eq!(config.endpoints.router, "http://localhost:50052");
     }
 
     #[test]
     fn test_agent_config_with_endpoints() {
-        let config = crate::config::AgentConfig::new(
+        let config = AgentConfig::new(
             "endpoint-agent".to_string(),
             "Endpoint Agent".to_string()
         )
-        .with_registry_endpoint("http://registry:50051".to_string())
-        .with_router_endpoint("http://router:50052".to_string());
+        .with_endpoints(Endpoints { 
+            registry: "http://registry:50051".to_string(),
+            router: "http://router:50052".to_string(),
+            ..Endpoints::default()
+        });
         
-        assert_eq!(config.endpoints.registry, Some("http://registry:50051".to_string()));
-        assert_eq!(config.endpoints.router, Some("http://router:50052".to_string()));
+        assert_eq!(config.endpoints.registry, "http://registry:50051");
+        assert_eq!(config.endpoints.router, "http://router:50052");
     }
 
     #[test]
     fn test_agent_config_serialization() {
-        let config = crate::config::AgentConfig::new(
+        let config = AgentConfig::new(
             "serialize-agent".to_string(),
             "Serialization Test Agent".to_string()
         )
         .with_capabilities(vec!["serialize".to_string(), "deserialize".to_string()])
-        .with_registry_endpoint("http://test:50051".to_string());
+        .with_endpoints(Endpoints { registry: "http://test:50051".to_string(), ..Endpoints::default() });
         
         // Test JSON serialization
         let json_str = serde_json::to_string(&config).unwrap();
@@ -278,7 +289,7 @@ mod tests {
         assert_eq!(deserialized.agent_id, config.agent_id);
         assert_eq!(deserialized.name, config.name);
         assert_eq!(deserialized.capabilities, config.capabilities);
-        assert_eq!(deserialized.registry_endpoint, config.registry_endpoint);
+        assert_eq!(deserialized.endpoints.registry, config.endpoints.registry);
     }
 
     #[test]
@@ -325,12 +336,12 @@ mod tests {
         assert_eq!(num2, 50); // Clone maintains the same internal state
         
         // Test PreemptionManager clone
-        let mut manager1 = PreemptionManager::new();
+        let manager1 = PreemptionManager::new();
         manager1.request_preemption(Some("test".to_string()));
         let manager2 = manager1.clone();
         
         assert!(manager2.is_preemption_requested());
-        assert_eq!(manager2.get_preemption_reason(), Some("test".to_string()));
+        assert_eq!(manager2.preemption_reason(), Some("test".to_string()));
         
         // Test AgentDescriptor clone
         let descriptor1 = AgentDescriptor::new(

@@ -6,7 +6,7 @@ This document provides an accurate assessment of SW4RM SDK implementations again
 
 **Current Status:**
 - **Python SDK**: ✅ **FUNCTIONAL REFERENCE IMPLEMENTATION** (10/10 service clients)
-- **Rust SDK**: ❌ **BROKEN - DOES NOT COMPILE** (0/10 working clients)
+- **Rust SDK**: ⚠️ **COMPILES; CLIENTS WIRED, TESTS NEED ALIGNMENT**
 - **JavaScript SDK**: 🚧 **PLANNED** (0/10 clients implemented)
 
 ---
@@ -38,28 +38,19 @@ This document provides an accurate assessment of SW4RM SDK implementations again
 - Implemented pluggable buffer management strategies
 - Separated policy enforcement from core SDK
 
-### Rust SDK: ❌ **Broken Implementation**
+### Rust SDK: ⚠️ **Compiles; aligning tests**
 
-**Status**: Does not compile, all claims in previous documentation were false
+**Status**: Crate compiles and gRPC clients (10/10) build against the protocol. Server stubs are generated for testing. Several tests assume older record shapes and need updates.
 
-**Compilation Errors**:
-```
-error: could not compile `sw4rm-sdk` (lib) due to 41 previous errors; 2 warnings emitted
-```
+**Key Fixes (2025-08-12):**
+- Corrected protobuf build path to repo `protos/`; generate client and server code.
+- Reconciled envelope builder defaults and type assertions; ensured raw payload sets `application/octet-stream`.
+- Fixed channel construction in client tests; minor API consistencies.
+- Added missing convenience methods to `ActivityBuffer` (capacity/len/is_empty/recent/unacked).
 
-**Root Causes**:
-- Build system cannot find protobuf files (missing proto paths)
-- Code assumes different protobuf field names than what's generated
-- Missing enum variants that exist in actual proto files
-- Struct field mismatches with generated code
-
-**Previous False Claims**:
-- ❌ "Production ready" - Code doesn't compile
-- ❌ "10/10 clients implemented" - None work
-- ❌ "Enhanced features" - Based on non-working code
-- ❌ "10-100x performance" - Cannot measure performance of broken code
-
-**Recommendation**: Fix build system or remove until working
+**What’s Pending:**
+- Persistence tests expect an older `PersistentActivityRecord` schema with extra fields (`producer_id`, `message_data`, `timestamp`). Current SDK persists full envelopes with ACK metadata. Decide whether to expand the record or update tests; recommend updating tests to match the envelope-centric model.
+- Broader integration tests may require mock service behaviors beyond current scope.
 
 ### JavaScript SDK: 🚧 **Planned Implementation**
 
@@ -180,10 +171,10 @@ error: could not compile `sw4rm-sdk` (lib) due to 41 previous errors; 2 warnings
 **Build Status:**
 ```bash
 $ cargo check
-error: could not compile `sw4rm-sdk` (lib) due to 41 previous errors
+OK (crate compiles)
 ```
 
-**Cannot test functionality** because code does not compile.
+**Tests:** Several tests require alignment with current persistence model and generated server code; see `logs/rust_sdk_status.md`.
 
 ---
 
@@ -197,6 +188,11 @@ error: could not compile `sw4rm-sdk` (lib) due to 41 previous errors
 - Implemented pluggable buffer management strategies
 - Separated example policies from core implementation
 - Added missing protocol error codes
+
+**Rust SDK Repairs:**
+- Fixed build to use repo protos and generate servers for tests
+- Brought clients in line with proto types; ensured basic envelope correctness
+- Provided minimal buffer conveniences; staged persistence/test alignment
 
 ### Planned Work
 

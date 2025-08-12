@@ -392,7 +392,7 @@ async fn test_error_handling_and_recovery() {
         .with_content_type("application/json".to_string())
         .build();
 
-    let json_result: Result<serde_json::Value, _> = envelope.json_payload();
+    let json_result: serde_json::Result<serde_json::Value> = envelope.json_payload();
     assert!(json_result.is_err());
 
     // Test string fallback

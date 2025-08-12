@@ -54,6 +54,18 @@ impl ActivityBuffer {
         }
     }
 
+    pub fn capacity(&self) -> usize {
+        self.max_items
+    }
+
+    pub fn len(&self) -> usize {
+        self.by_id.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.by_id.is_empty()
+    }
+
     fn prune_if_needed(&mut self) {
         while self.order.len() > self.max_items {
             let oldest = self.order.remove(0);
@@ -123,24 +135,31 @@ impl ActivityBuffer {
         self.by_id.get(message_id)
     }
 
-    pub fn unacked(&self) -> Vec<&ActivityRecord> {
-        self.by_id
+    pub fn unacked(&self) -> Result<Vec<&ActivityRecord>> {
+        let records = self.by_id
             .values()
             .filter(|r| matches!(r.ack_stage, 
                 ack_stage::ACK_STAGE_UNSPECIFIED | 
                 ack_stage::RECEIVED | 
                 ack_stage::READ
             ))
-            .collect()
+            .collect();
+        Ok(records)
     }
 
-    pub fn recent(&self, n: usize) -> Vec<&ActivityRecord> {
+    pub fn recent(&self, n: usize) -> Result<Vec<&ActivityRecord>> {
         let start = if self.order.len() > n { self.order.len() - n } else { 0 };
         
-        self.order[start..]
+        let records = self.order[start..]
             .iter()
+            .rev()
             .filter_map(|id| self.by_id.get(id))
-            .collect()
+            .collect();
+        Ok(records)
+    }
+
+    pub fn get_by_id(&self, message_id: &str) -> Option<&ActivityRecord> {
+        self.get(message_id)
     }
 }
 
@@ -278,6 +297,7 @@ impl PersistentActivityBuffer {
         
         let records = inner.order[start..]
             .iter()
+            .rev()
             .filter_map(|id| inner.by_id.get(id))
             .cloned()
             .collect();
@@ -307,6 +327,14 @@ impl PersistentActivityBuffer {
         inner.persistence.clear()?;
         inner.dirty = false;
         Ok(())
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.inner.read().map(|i| i.max_items).unwrap_or(0)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.read().map(|i| i.by_id.is_empty()).unwrap_or(true)
     }
 }
 
@@ -388,7 +416,7 @@ mod tests {
         let record = buffer.record_incoming(message.clone()).unwrap();
         
         assert_eq!(record.message_id, "msg-1");
-        assert_eq!(record.producer_id, "test-agent");
+        assert_eq!(record.envelope["producer_id"], "test-agent");
         assert_eq!(record.direction, "in");
         assert_eq!(record.ack_stage, constants::ack_stage::ACK_STAGE_UNSPECIFIED);
         assert_eq!(buffer.len(), 1);
@@ -417,7 +445,7 @@ mod tests {
             "note": "Message received successfully"
         });
 
-        let ack_result = buffer.ack(&ack).unwrap();
+        let ack_result = buffer.ack(&ack);
         assert!(ack_result.is_some());
         
         let updated_record = ack_result.unwrap();

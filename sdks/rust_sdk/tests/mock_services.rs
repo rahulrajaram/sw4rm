@@ -3,6 +3,7 @@
 use sw4rm_sdk::proto::sw4rm;
 use tonic::{transport::Server, Request, Response, Status};
 use tokio::sync::mpsc;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::net::SocketAddr;
@@ -105,7 +106,7 @@ impl sw4rm::registry::registry_service_server::RegistryService for MockRegistryS
 }
 
 /// Mock router service that handles message routing
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MockRouterService {
     messages: Arc<Mutex<Vec<sw4rm::common::Envelope>>>,
     streams: Arc<Mutex<HashMap<String, mpsc::UnboundedSender<sw4rm::router::StreamItem>>>>,
@@ -148,7 +149,8 @@ impl sw4rm::router::router_service_server::RouterService for MockRouterService {
             self.messages.lock().unwrap().push(envelope.clone());
 
             // Simulate message routing - echo back to sender for testing
-            self.send_test_message_to_agent(&envelope.producer_id, envelope);
+            let producer = envelope.producer_id.clone();
+            self.send_test_message_to_agent(&producer, envelope);
 
             Ok(Response::new(sw4rm::router::SendMessageResponse {
                 accepted: true,
@@ -162,7 +164,7 @@ impl sw4rm::router::router_service_server::RouterService for MockRouterService {
         }
     }
 
-    type StreamIncomingStream = mpsc::UnboundedReceiver<Result<sw4rm::router::StreamItem, Status>>;
+    type StreamIncomingStream = UnboundedReceiverStream<Result<sw4rm::router::StreamItem, Status>>;
 
     async fn stream_incoming(
         &self,
@@ -190,7 +192,7 @@ impl sw4rm::router::router_service_server::RouterService for MockRouterService {
         // Store the sender for this agent
         self.streams.lock().unwrap().insert(agent_id, tx);
 
-        Ok(Response::new(result_rx))
+        Ok(Response::new(UnboundedReceiverStream::new(result_rx)))
     }
 }
 
@@ -198,14 +200,16 @@ impl sw4rm::router::router_service_server::RouterService for MockRouterService {
 pub struct MockServer {
     addr: SocketAddr,
     shutdown_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    router_handle: MockRouterService,
 }
 
 impl MockServer {
     pub async fn start() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let registry_service = MockRegistryService::new();
         let router_service = MockRouterService::new();
+        let router_clone = router_service.clone();
 
-        let addr = "127.0.0.1:0".parse()?;
+        let addr: SocketAddr = "127.0.0.1:0".parse()?;
         let listener = tokio::net::TcpListener::bind(addr).await?;
         let addr = listener.local_addr()?;
 
@@ -232,6 +236,7 @@ impl MockServer {
         Ok(Self {
             addr,
             shutdown_tx: Some(shutdown_tx),
+            router_handle: router_clone,
         })
     }
 
@@ -253,6 +258,11 @@ impl MockServer {
         }
         // Give server time to shutdown gracefully
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    }
+
+    /// Send a test envelope to an agent's stream via the router
+    pub fn send_to_agent(&self, agent_id: &str, envelope: sw4rm::common::Envelope) {
+        self.router_handle.send_test_message_to_agent(agent_id, envelope);
     }
 }
 

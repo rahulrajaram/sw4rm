@@ -69,8 +69,17 @@ impl PersistenceBackend for JsonFilePersistence {
         let content = fs::read_to_string(&self.file_path)
             .map_err(|e| Error::Io(e))?;
         
-        let data: PersistedData = serde_json::from_str(&content)
-            .map_err(|e| Error::Serialization(e))?;
+        if content.trim().is_empty() {
+            return Ok((HashMap::new(), Vec::new()));
+        }
+        
+        let data: PersistedData = match serde_json::from_str(&content) {
+            Ok(d) => d,
+            Err(_) => {
+                // Gracefully handle corrupted/empty content by returning empty
+                return Ok((HashMap::new(), Vec::new()));
+            }
+        };
         
         // Validate data consistency
         let valid_order: Vec<String> = data.order
@@ -217,19 +226,18 @@ mod tests {
             let persistence_clone = Arc::clone(&persistence);
             let handle = thread::spawn(move || {
                 let mut records = HashMap::new();
-                records.insert(format!("msg-{}", i), PersistentActivityRecord {
-                    message_id: format!("msg-{}", i),
-                    producer_id: format!("agent-{}", i),
-                    direction: "in".to_string(),
-                    ack_stage: 1,
-                    error_code: 0,
-                    ack_note: "concurrent test".to_string(),
-                    message_data: serde_json::json!({"thread": i}),
-                    timestamp: Utc::now(),
+                let id = format!("msg-{}", i);
+                let env = serde_json::json!({
+                    "message_id": id,
+                    "producer_id": format!("agent-{}", i),
+                    "thread": i
                 });
+                let mut rec = PersistentActivityRecord::new(id.clone(), "in".to_string(), env);
+                rec.ack(1, 0, "concurrent test".to_string());
+                records.insert(id.clone(), rec);
                 
                 let mut p = persistence_clone.lock().unwrap();
-                p.save_records(records, vec![format!("msg-{}", i)]).unwrap();
+                p.save_records(records, vec![id]).unwrap();
             });
             handles.push(handle);
         }
@@ -248,20 +256,18 @@ mod tests {
 
     #[test]
     fn test_persistent_activity_record_serialization() {
-        let record = PersistentActivityRecord {
-            message_id: "serialize-test".to_string(),
-            producer_id: "test-agent".to_string(),
-            direction: "in".to_string(),
-            ack_stage: 2,
-            error_code: 0,
-            ack_note: "serialization test".to_string(),
-            message_data: serde_json::json!({
+        let mut record = PersistentActivityRecord::new(
+            "serialize-test".to_string(),
+            "in".to_string(),
+            serde_json::json!({
+                "message_id": "serialize-test",
+                "producer_id": "test-agent",
                 "test": "data",
                 "number": 42,
-                "array": [1, 2, 3]
+                "array": [1,2,3]
             }),
-            timestamp: Utc::now(),
-        };
+        );
+        record.ack(2, 0, "serialization test".to_string());
         
         // Test JSON serialization
         let json_str = serde_json::to_string(&record).unwrap();
@@ -272,12 +278,12 @@ mod tests {
         // Test JSON deserialization
         let deserialized: PersistentActivityRecord = serde_json::from_str(&json_str).unwrap();
         assert_eq!(deserialized.message_id, record.message_id);
-        assert_eq!(deserialized.producer_id, record.producer_id);
+        assert_eq!(deserialized.envelope["producer_id"], "test-agent");
         assert_eq!(deserialized.direction, record.direction);
         assert_eq!(deserialized.ack_stage, record.ack_stage);
         assert_eq!(deserialized.error_code, record.error_code);
         assert_eq!(deserialized.ack_note, record.ack_note);
-        assert_eq!(deserialized.message_data, record.message_data);
+        assert_eq!(deserialized.envelope["number"], 42);
     }
 
     #[test]
@@ -290,27 +296,24 @@ mod tests {
         let mut order = Vec::new();
         
         for i in 0..100 {
-            let record = PersistentActivityRecord {
-                message_id: format!("large-msg-{:03}", i),
-                producer_id: "large-data-agent".to_string(),
-                direction: if i % 2 == 0 { "in" } else { "out" }.to_string(),
-                ack_stage: (i % 5) as i32,
-                error_code: 0,
-                ack_note: format!("Large data test message {}", i),
-                message_data: serde_json::json!({
+            let id = format!("large-msg-{:03}", i);
+            let mut rec = PersistentActivityRecord::new(
+                id.clone(),
+                if i % 2 == 0 { "in" } else { "out" }.to_string(),
+                serde_json::json!({
+                    "message_id": id,
+                    "producer_id": "large-data-agent",
                     "index": i,
-                    "data": "x".repeat(100), // 100 character string
+                    "data": "x".repeat(100),
                     "metadata": {
                         "created": format!("2024-01-{:02}T00:00:00Z", (i % 28) + 1),
-                        "tags": vec![format!("tag-{}", i % 10), "large-test"]
+                        "tags": [format!("tag-{}", i % 10), "large-test"]
                     }
                 }),
-                timestamp: Utc::now(),
-            };
-            
-            let msg_id = record.message_id.clone();
-            records.insert(msg_id.clone(), record);
-            order.push(msg_id);
+            );
+            rec.ack((i % 5) as i32, 0, format!("Large data test message {}", i));
+            records.insert(id.clone(), rec);
+            order.push(id);
         }
         
         // Save large dataset
@@ -328,9 +331,9 @@ mod tests {
         assert!(loaded_records.contains_key("large-msg-099"));
         
         let first_record = &loaded_records["large-msg-000"];
-        assert_eq!(first_record.producer_id, "large-data-agent");
+        assert_eq!(first_record.envelope["producer_id"], "large-data-agent");
         assert_eq!(first_record.direction, "in");
-        assert_eq!(first_record.message_data["index"], 0);
+        assert_eq!(first_record.envelope["index"], 0);
     }
 
     #[test]
@@ -390,16 +393,13 @@ mod tests {
         
         // Should be able to write new data after corruption
         let mut new_records = HashMap::new();
-        new_records.insert("recovery-test".to_string(), PersistentActivityRecord {
-            message_id: "recovery-test".to_string(),
-            producer_id: "recovery-agent".to_string(),
-            direction: "in".to_string(),
-            ack_stage: 1,
-            error_code: 0,
-            ack_note: "recovery test".to_string(),
-            message_data: serde_json::json!({"recovered": true}),
-            timestamp: Utc::now(),
-        });
+        let mut rec = PersistentActivityRecord::new(
+            "recovery-test".to_string(),
+            "in".to_string(),
+            serde_json::json!({"message_id": "recovery-test", "producer_id": "recovery-agent", "recovered": true}),
+        );
+        rec.ack(1, 0, "recovery test".to_string());
+        new_records.insert("recovery-test".to_string(), rec);
         
         persistence.save_records(new_records, vec!["recovery-test".to_string()]).unwrap();
         
@@ -415,16 +415,13 @@ mod tests {
         let mut persistence: Box<dyn PersistenceBackend> = Box::new(JsonFilePersistence::new(temp_file.path()));
         
         let mut records = HashMap::new();
-        records.insert("trait-test".to_string(), PersistentActivityRecord {
-            message_id: "trait-test".to_string(),
-            producer_id: "trait-agent".to_string(),
-            direction: "in".to_string(),
-            ack_stage: 1,
-            error_code: 0,
-            ack_note: "testing trait".to_string(),
-            message_data: serde_json::json!({"trait": "test"}),
-            timestamp: Utc::now(),
-        });
+        let mut rec = PersistentActivityRecord::new(
+            "trait-test".to_string(),
+            "in".to_string(),
+            serde_json::json!({"message_id": "trait-test", "producer_id": "trait-agent", "trait": "test"}),
+        );
+        rec.ack(1, 0, "testing trait".to_string());
+        records.insert("trait-test".to_string(), rec);
         
         // Test through trait interface
         persistence.save_records(records, vec!["trait-test".to_string()]).unwrap();

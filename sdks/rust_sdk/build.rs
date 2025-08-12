@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::env;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -11,7 +11,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let out_dir = env::var("OUT_DIR").unwrap();
-    let proto_dir = Path::new("../");
+
+    // Determine the proto directory robustly
+    // Priority:
+    // 1) PROTO_DIR env var (absolute or relative)
+    // 2) workspace root `protos/` (two levels up from this crate)
+    // 3) project root `protos/` computed from CARGO_MANIFEST_DIR
+    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let proto_dir: PathBuf = if let Ok(dir) = env::var("PROTO_DIR") {
+        PathBuf::from(dir)
+    } else {
+        // sdks/rust_sdk -> workspace root
+        let candidate = manifest_dir.join("..").join("..").join("protos");
+        if candidate.exists() {
+            candidate
+        } else {
+            // fallback: try workspace/sdks/rust_sdk/../../protos
+            manifest_dir.join("../../protos")
+        }
+    };
     
     // Check if proto files exist
     let proto_files = [
@@ -33,7 +51,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let path = proto_dir.join(file);
         if path.exists() {
             existing_files.push(path);
-            println!("cargo:rerun-if-changed=../{}", file);
+            // Re-run if either proto file or included google protos change
+            println!("cargo:rerun-if-changed={}", proto_dir.join(file).display());
         } else {
             println!("cargo:warning=Proto file not found: {}", path.display());
         }
@@ -46,8 +65,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Configure tonic-build with proper settings
-    let mut config = tonic_build::configure()
-        .build_server(false)
+    let config = tonic_build::configure()
+        .build_server(true)
         .build_client(true)
         .out_dir(&out_dir)
         .include_file("mod.rs"); // Generate a mod.rs file
@@ -55,7 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // No additional type attributes needed - prost handles derives
 
     // Generate protobuf files
-    config.compile(&existing_files, &[proto_dir])?;
+    config.compile_protos(&existing_files, &[proto_dir.clone()])?;
 
     println!("cargo:rustc-env=PROTO_GENERATED=true");
     println!("cargo:rustc-cfg=feature=\"proto\"");
