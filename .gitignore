@@ -49,5 +49,5 @@ logs/
 
 bee/target/
 
-# Worktree-specific contexts
-/contexts/
+# Worktree-specific contexts (no longer ignored)
+# /contexts/
