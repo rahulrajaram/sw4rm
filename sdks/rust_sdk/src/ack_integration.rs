@@ -1,6 +1,7 @@
 use crate::activity_buffer::PersistentActivityBuffer;
 use crate::acks::{build_ack_envelope, map_error_to_error_code};
 use crate::clients::RouterClient;
+use crate::clients::router::RouterLike;
 use crate::constants::*;
 use crate::envelope::EnvelopeData;
 use crate::persistence::PersistentActivityRecord;
@@ -23,7 +24,7 @@ pub struct SendResult {
 
 /// ACK lifecycle manager for message tracking and automatic acknowledgments
 pub struct AckLifecycleManager {
-    router: Arc<RwLock<RouterClient>>,
+    router: Arc<RwLock<Box<dyn RouterLike>>>,
     buffer: Arc<PersistentActivityBuffer>,
     agent_id: String,
     auto_ack: bool,
@@ -33,6 +34,23 @@ pub struct AckLifecycleManager {
 impl AckLifecycleManager {
     pub fn new(
         router: RouterClient,
+        buffer: PersistentActivityBuffer,
+        agent_id: String,
+        auto_ack: bool,
+        ack_timeout_seconds: u64,
+    ) -> Self {
+        Self {
+            router: Arc::new(RwLock::new(Box::new(router))),
+            buffer: Arc::new(buffer),
+            agent_id,
+            auto_ack,
+            ack_timeout: Duration::from_secs(ack_timeout_seconds),
+        }
+    }
+
+    #[cfg(test)]
+    fn new_for_test(
+        router: Box<dyn RouterLike>,
         buffer: PersistentActivityBuffer,
         agent_id: String,
         auto_ack: bool,
@@ -118,13 +136,8 @@ impl AckLifecycleManager {
 
     async fn _send_message_internal(&self, envelope: &EnvelopeData) -> Result<(bool, String)> {
         let mut router = self.router.write().await;
-        
-        // Convert our envelope to the format expected by RouterClient
-        router.send_message(envelope).await?;
-        
-        // For now, assume success since RouterClient.send_message doesn't return acceptance info
-        // In a real implementation, this would parse the actual router response
-        Ok((true, "Message sent successfully".to_string()))
+        let send_result = router.route_send(envelope).await?;
+        Ok((send_result.accepted, send_result.reason))
     }
 
     /// Process an incoming ACK message
@@ -348,6 +361,9 @@ mod tests {
     use super::*;
     use crate::persistence::JsonFilePersistence;
     use tempfile::NamedTempFile;
+    use async_trait::async_trait;
+    use crate::constants;
+    use crate::envelope::EnvelopeBuilder;
 
     #[tokio::test]
     async fn test_ack_lifecycle_manager() {
@@ -359,5 +375,43 @@ mod tests {
         // This is a placeholder for the pattern
         // let router = RouterClient::new("http://localhost:50052").await.unwrap();
         // let manager = AckLifecycleManager::new(router, buffer, "test-agent".to_string(), true, 30);
+    }
+
+    // Fake router implementing RouterLike to validate pass-through of accepted/reason
+    struct FakeRouter {
+        accepted: bool,
+        reason: String,
+    }
+
+    #[async_trait]
+    impl crate::clients::router::RouterLike for FakeRouter {
+        async fn route_send(&mut self, _envelope: &EnvelopeData) -> Result<crate::clients::router::SendResult> {
+            Ok(crate::clients::router::SendResult { accepted: self.accepted, reason: self.reason.clone() })
+        }
+    }
+
+    #[tokio::test]
+    async fn test_ack_manager_passes_router_result_and_updates_buffer() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let persistence = Box::new(JsonFilePersistence::new(temp_file.path()));
+        let buffer = PersistentActivityBuffer::new(100, Some(persistence)).unwrap();
+
+        let fake = FakeRouter { accepted: false, reason: "validation failed".to_string() };
+        let manager = AckLifecycleManager::new_for_test(Box::new(fake), buffer, "agent-1".to_string(), true, 5);
+
+        let envelope = EnvelopeBuilder::new("agent-1".to_string(), constants::message_type::DATA)
+            .with_json_payload(&serde_json::json!({"hello": "world"}))
+            .unwrap()
+            .build();
+
+        let msg_id = envelope.message_id.clone();
+        let res = manager.send_message_with_ack(envelope).await.unwrap();
+        assert!(!res.accepted);
+        assert_eq!(res.reason, "validation failed");
+
+        // Verify activity in buffer updated to REJECTED
+        let rec = manager.buffer.get(&msg_id).unwrap().unwrap();
+        assert_eq!(rec.ack_stage, constants::ack_stage::REJECTED);
+        assert_eq!(rec.ack_note, "validation failed");
     }
 }

@@ -62,10 +62,10 @@ impl RegistryClient {
             name: agent.name.clone(),
             description: agent.description.clone(),
             capabilities: agent.capabilities.clone(),
-            communication_class: CommunicationClass::Standard as i32,
-            modalities_supported: vec!["application/json".to_string()],
-            reasoning_connectors: Vec::new(),
-            public_key: Vec::new(),
+            communication_class: agent.communication_class,
+            modalities_supported: agent.modalities_supported.clone(),
+            reasoning_connectors: agent.reasoning_connectors.clone(),
+            public_key: agent.public_key.clone(),
         };
 
         let request = tonic::Request::new(RegisterAgentRequest {

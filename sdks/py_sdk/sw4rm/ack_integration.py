@@ -40,7 +40,8 @@ class ACKLifecycleManager:
         self.buffer = activity_buffer
         self.agent_id = agent_id
         self.auto_ack = auto_ack
-        self.ack_timeout_seconds = ack_timeout_seconds or 30  # Protocol default is 10s, but we use 30s for safety
+        # Spec default ACK timeout is 10s; align with spec for symmetry
+        self.ack_timeout_seconds = ack_timeout_seconds or 10
         self.error_mapper = error_mapper or DEFAULT_MAPPER
 
     def send_message_with_ack(self, envelope: Dict[str, Any]) -> SendResult:

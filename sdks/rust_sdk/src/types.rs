@@ -47,6 +47,11 @@ pub struct AgentDescriptor {
     pub version: String,
     pub capabilities: Vec<String>,
     pub metadata: HashMap<String, String>,
+    // Spec-aligned registration fields
+    pub communication_class: i32,
+    pub modalities_supported: Vec<String>,
+    pub reasoning_connectors: Vec<String>,
+    pub public_key: Vec<u8>,
 }
 
 impl AgentDescriptor {
@@ -58,6 +63,10 @@ impl AgentDescriptor {
             version: "0.1.0".to_string(),
             capabilities: Vec::new(),
             metadata: HashMap::new(),
+            communication_class: crate::constants::communication_class::STANDARD,
+            modalities_supported: vec!["application/json".to_string()],
+            reasoning_connectors: Vec::new(),
+            public_key: Vec::new(),
         }
     }
 
@@ -68,6 +77,26 @@ impl AgentDescriptor {
 
     pub fn with_capabilities(mut self, capabilities: Vec<String>) -> Self {
         self.capabilities = capabilities;
+        self
+    }
+
+    pub fn with_communication_class(mut self, cls: i32) -> Self {
+        self.communication_class = cls;
+        self
+    }
+
+    pub fn with_modalities(mut self, modalities: Vec<String>) -> Self {
+        self.modalities_supported = modalities;
+        self
+    }
+
+    pub fn with_reasoning_connectors(mut self, connectors: Vec<String>) -> Self {
+        self.reasoning_connectors = connectors;
+        self
+    }
+
+    pub fn with_public_key(mut self, pk: Vec<u8>) -> Self {
+        self.public_key = pk;
         self
     }
 }

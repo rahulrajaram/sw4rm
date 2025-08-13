@@ -46,6 +46,11 @@ pub struct AgentConfig {
     pub timeout_ms: u64,
     pub retry_attempts: u32,
     pub heartbeat_interval_ms: u64,
+    // Spec registration fields (optional overrides)
+    pub communication_class: i32,
+    pub modalities_supported: Vec<String>,
+    pub reasoning_connectors: Vec<String>,
+    pub public_key: Vec<u8>,
 }
 
 impl AgentConfig {
@@ -61,6 +66,10 @@ impl AgentConfig {
             timeout_ms: 30000,
             retry_attempts: 3,
             heartbeat_interval_ms: 30000,
+            communication_class: crate::constants::communication_class::STANDARD,
+            modalities_supported: vec!["application/json".to_string()],
+            reasoning_connectors: Vec::new(),
+            public_key: Vec::new(),
         }
     }
 
@@ -81,6 +90,26 @@ impl AgentConfig {
 
     pub fn with_metadata(mut self, metadata: HashMap<String, String>) -> Self {
         self.metadata = metadata;
+        self
+    }
+
+    pub fn with_communication_class(mut self, cls: i32) -> Self {
+        self.communication_class = cls;
+        self
+    }
+
+    pub fn with_modalities(mut self, modalities: Vec<String>) -> Self {
+        self.modalities_supported = modalities;
+        self
+    }
+
+    pub fn with_reasoning_connectors(mut self, connectors: Vec<String>) -> Self {
+        self.reasoning_connectors = connectors;
+        self
+    }
+
+    pub fn with_public_key(mut self, pk: Vec<u8>) -> Self {
+        self.public_key = pk;
         self
     }
 }

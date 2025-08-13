@@ -10,12 +10,19 @@ use tonic::transport::{Channel, Endpoint};
 use tokio_stream::Stream;
 use std::pin::Pin;
 use tracing::{debug, error, info, warn};
+use async_trait::async_trait;
 
 /// Response from sending a message
 #[derive(Debug, Clone)]
 pub struct SendResult {
     pub accepted: bool,
     pub reason: String,
+}
+
+/// Minimal trait abstraction to allow testing and decouple ACK logic from the concrete client
+#[async_trait]
+pub trait RouterLike: Send + Sync {
+    async fn route_send(&mut self, envelope: &EnvelopeData) -> Result<SendResult>;
 }
 
 /// Client for interacting with the SW4RM Router service
@@ -204,6 +211,13 @@ impl RouterClient {
                 Err(e)
             }
         }
+    }
+}
+
+#[async_trait]
+impl RouterLike for RouterClient {
+    async fn route_send(&mut self, envelope: &EnvelopeData) -> Result<SendResult> {
+        Self::send_message(self, envelope).await
     }
 }
 

@@ -2,14 +2,6 @@ use std::path::{Path, PathBuf};
 use std::env;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Check if proto building should be skipped (for environments without protoc)
-    if env::var("SKIP_PROTO_BUILD").is_ok() {
-        let out_dir = env::var("OUT_DIR").unwrap();
-        println!("cargo:warning=SKIP_PROTO_BUILD set, generating minimal stubs");
-        generate_minimal_stubs(&out_dir)?;
-        return Ok(());
-    }
-
     let out_dir = env::var("OUT_DIR").unwrap();
 
     // Determine the proto directory robustly
@@ -23,62 +15,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         // sdks/rust_sdk -> workspace root
         let candidate = manifest_dir.join("..").join("..").join("protos");
-        if candidate.exists() {
-            candidate
-        } else {
-            // fallback: try workspace/sdks/rust_sdk/../../protos
-            manifest_dir.join("../../protos")
-        }
+        if candidate.exists() { candidate } else { manifest_dir.join("../../protos") }
     };
-    
-    // Check if proto files exist
-    let proto_files = [
-        "common.proto",
-        "registry.proto", 
-        "router.proto",
-        "scheduler.proto",
-        "hitl.proto",
-        "worktree.proto",
-        "tool.proto",
-        "connector.proto",
-        "negotiation.proto",
-        "reasoning.proto",
-        "logging.proto",
-    ];
 
+    // Check if proto files exist
+    let wanted = [
+        "common.proto","registry.proto","router.proto","scheduler.proto","hitl.proto",
+        "worktree.proto","tool.proto","connector.proto","negotiation.proto","reasoning.proto","logging.proto",
+    ];
     let mut existing_files = Vec::new();
-    for file in &proto_files {
+    for file in &wanted {
         let path = proto_dir.join(file);
         if path.exists() {
+            println!("cargo:rerun-if-changed={}", path.display());
             existing_files.push(path);
-            // Re-run if either proto file or included google protos change
-            println!("cargo:rerun-if-changed={}", proto_dir.join(file).display());
-        } else {
-            println!("cargo:warning=Proto file not found: {}", path.display());
         }
     }
 
-    if existing_files.is_empty() {
-        println!("cargo:warning=No proto files found, generating minimal stubs");
-        generate_minimal_stubs(&out_dir)?;
+    // If we have proto files, always build them (even if SKIP_PROTO_BUILD is set),
+    // since they’re authoritative and improve symmetry with the spec.
+    if !existing_files.is_empty() {
+        let config = tonic_build::configure()
+            .build_server(true)
+            .build_client(true)
+            .out_dir(&out_dir)
+            .include_file("mod.rs");
+
+        config.compile_protos(&existing_files, &[proto_dir.clone()])?;
+        println!("cargo:rustc-env=PROTO_GENERATED=true");
+        println!("cargo:rustc-cfg=feature=\"proto\"");
         return Ok(());
     }
 
-    // Configure tonic-build with proper settings
-    let config = tonic_build::configure()
-        .build_server(true)
-        .build_client(true)
-        .out_dir(&out_dir)
-        .include_file("mod.rs"); // Generate a mod.rs file
-
-    // No additional type attributes needed - prost handles derives
-
-    // Generate protobuf files
-    config.compile_protos(&existing_files, &[proto_dir.clone()])?;
-
-    println!("cargo:rustc-env=PROTO_GENERATED=true");
-    println!("cargo:rustc-cfg=feature=\"proto\"");
-
+    // Fallback: generate minimal stubs when protos are absent
+    println!("cargo:warning=No proto files found, generating minimal stubs");
+    generate_minimal_stubs(&out_dir)?;
     Ok(())
 }
 
