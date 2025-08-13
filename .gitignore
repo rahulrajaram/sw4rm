@@ -48,3 +48,6 @@ DECISIONS_LOG.txt
 logs/
 
 bee/target/
+
+# Worktree-specific contexts
+/contexts/
