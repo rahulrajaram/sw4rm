@@ -153,3 +153,4 @@ smoke: dev-deps
 .PHONY: clean
 clean:
 	rm -rf dist build site sdks/py_sdk/sw4rm_sdk.egg-info
+

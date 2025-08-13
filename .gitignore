@@ -46,3 +46,5 @@ DECISIONS_LOG.txt
 
 # Project logs (ignore all runtime logs)
 logs/
+
+bee/target/
