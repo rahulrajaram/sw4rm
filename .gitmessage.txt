@@ -1,0 +1,16 @@
+<type>(scope): <subject in imperative, <=50 chars>
+
+<Body wrapped at 72 chars explaining the what and why>
+
+Breaking changes:
+- <optional>
+
+Refs: <issues/links>
+
+# Guidelines
+# - Subject: <=50 chars, imperative mood, no period at end
+# - Blank line between subject and body
+# - Body: wrap at 72 chars; explain motivation and context
+# - Use lists for changes; mention side effects and follow-ups
+# - Common types: feat, fix, docs, refactor, test, chore, build, ci
+
