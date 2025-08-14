@@ -125,3 +125,137 @@ class PersistentActivityRecord:
     def from_dict(cls, data: Dict[str, Any]) -> PersistentActivityRecord:
         """Create from dictionary."""
         return cls(**data)
+class SQLitePersistence:
+    """SQLite-backed persistence for activity buffer.
+
+    Stores one row per activity record, preserving insertion order via an
+    auto-increment sequence. This implementation snapshots the full dataset
+    on save (delete + bulk insert), which is acceptable for low write rates.
+
+    Schema:
+      activity_records(
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        message_id TEXT UNIQUE NOT NULL,
+        ts_ms INTEGER NOT NULL,
+        direction TEXT NOT NULL,
+        envelope_json TEXT NOT NULL,
+        ack_stage INTEGER NOT NULL,
+        error_code INTEGER NOT NULL,
+        ack_note TEXT NOT NULL
+      )
+    """
+
+    def __init__(self, db_path: str = "sw4rm_activity.sqlite3") -> None:
+        self.db_path = db_path
+        self._ensure_db()
+
+    def _connect(self):
+        import sqlite3  # Local import to avoid hard dependency where unavailable
+        con = sqlite3.connect(self.db_path)
+        # Safer defaults for durability and responsiveness in low-throughput use
+        con.execute("PRAGMA journal_mode=WAL;")
+        con.execute("PRAGMA synchronous=FULL;")
+        con.execute("PRAGMA foreign_keys=ON;")
+        con.execute("PRAGMA busy_timeout=5000;")
+        return con
+
+    def _ensure_db(self) -> None:
+        con = self._connect()
+        try:
+            con.execute(
+                """
+                CREATE TABLE IF NOT EXISTS activity_records (
+                  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                  message_id TEXT UNIQUE NOT NULL,
+                  ts_ms INTEGER NOT NULL,
+                  direction TEXT NOT NULL,
+                  envelope_json TEXT NOT NULL,
+                  ack_stage INTEGER NOT NULL,
+                  error_code INTEGER NOT NULL,
+                  ack_note TEXT NOT NULL
+                );
+                """
+            )
+            con.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_message_id ON activity_records(message_id);"
+            )
+            con.commit()
+        finally:
+            con.close()
+
+    def save_records(self, records: Dict[str, Dict[str, Any]], order: List[str]) -> None:
+        """Persist the provided snapshot using a simple replace-all approach.
+
+        For low write rates this favors simplicity and correctness. Order is
+        preserved by inserting rows following the provided order list.
+        """
+        con = self._connect()
+        try:
+            cur = con.cursor()
+            cur.execute("BEGIN IMMEDIATE;")
+            cur.execute("DELETE FROM activity_records;")
+
+            for mid in order:
+                rec = records.get(mid)
+                if not rec:
+                    continue
+                cur.execute(
+                    """
+                    INSERT INTO activity_records (
+                        message_id, ts_ms, direction, envelope_json,
+                        ack_stage, error_code, ack_note
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (
+                        str(rec.get("message_id", mid)),
+                        int(rec.get("ts_ms", 0)),
+                        str(rec.get("direction", "")),
+                        json.dumps(rec.get("envelope", {})),
+                        int(rec.get("ack_stage", 0)),
+                        int(rec.get("error_code", 0)),
+                        str(rec.get("ack_note", "")),
+                    ),
+                )
+            con.commit()
+        finally:
+            con.close()
+
+    def load_records(self) -> tuple[Dict[str, Dict[str, Any]], List[str]]:
+        """Load records ordered by insertion sequence."""
+        con = self._connect()
+        try:
+            cur = con.cursor()
+            cur.execute(
+                "SELECT message_id, ts_ms, direction, envelope_json, ack_stage, error_code, ack_note\n                 FROM activity_records ORDER BY seq ASC;"
+            )
+            rows = cur.fetchall()
+        finally:
+            con.close()
+
+        records: Dict[str, Dict[str, Any]] = {}
+        order: List[str] = []
+        for (mid, ts_ms, direction, envelope_json, ack_stage, error_code, ack_note) in rows:
+            try:
+                envelope = json.loads(envelope_json) if envelope_json else {}
+            except Exception:
+                envelope = {}
+            data = {
+                "message_id": mid,
+                "ts_ms": int(ts_ms),
+                "direction": direction,
+                "envelope": envelope,
+                "ack_stage": int(ack_stage),
+                "error_code": int(error_code),
+                "ack_note": ack_note,
+            }
+            records[mid] = data
+            order.append(mid)
+        return records, order
+
+    def clear(self) -> None:
+        con = self._connect()
+        try:
+            con.execute("DELETE FROM activity_records;")
+            con.commit()
+        finally:
+            con.close()

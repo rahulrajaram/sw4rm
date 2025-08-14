@@ -33,3 +33,28 @@ The schema version is tracked in a meta table. Migrations are forward-only and m
 2.11. Operational Considerations
 The store enforces size and age limits via a periodic compaction task. Telemetry records append rates, replay latencies, and summarization costs. Configuration accepts paths, limits, and summarizer parameters from environment variables.
 
+2.12. Phase 1 Implementation Details
+This phase introduces production-hardening features in the Bee-local implementation without altering the SDK surface beyond what is already specified for summarization. All capabilities are additive, forward-only, and gated by explicit CLI commands and environment variables.
+
+2.12.1. Schema Versioning and Migrations
+The database maintains a `meta(schema_version)` integer. On open, the store executes a forward-only migration routine that creates the `meta` table if missing and initializes or updates `schema_version` to the current value. Migrations MUST run in a single transaction and MUST be idempotent. A new CLI command, `bee activity migrate`, opens the store and applies any pending migrations, printing an explicit status.
+
+2.12.2. Limits and Configuration Enforcement
+The append path enforces a maximum payload size and, optionally, a per-session event cap before writing a new row, rejecting non-conforming writes with actionable errors. The following environment variables are recognized:
+- `BEE_ACTIVITY_MAX_PAYLOAD` (bytes; default 262144): maximum serialized JSON payload length per event.
+- `BEE_ACTIVITY_MAX_EVENTS_PER_SESSION` (integer; optional): hard ceiling on the number of events per session.
+- `BEE_ACTIVITY_MAX_BYTES` (bytes; optional): default maximum database file size for compaction commands.
+- `BEE_ACTIVITY_MAX_AGE_DAYS` (integer; optional): default age threshold for compaction commands.
+Compaction commands accept explicit flags which override environment defaults.
+
+2.12.3. Integrity and Maintenance Commands
+The CLI exposes `bee activity check` to run `PRAGMA integrity_check` and print the result, and `bee activity vacuum` to perform a VACUUM to reclaim free pages, intended for maintenance windows following deletions. These commands MUST be read-only apart from the VACUUM operation and MUST return non-zero exit codes on failure.
+
+2.12.4. Inspection and UX Enhancements
+The CLI adds `bee activity summaries --session <id>` to list summary coverage with `upto_seq`, timestamp, token usage, and cost accounting, enabling quick verification of summarization progress. The CLI adds `bee activity show --session <id> --seq <n>` to retrieve and pretty-print a single event for targeted inspection during incident response or test triage. Existing commands (`init`, `sessions`, `events`, `replay`, `append`, `compact`, `summarize`) remain unchanged in semantics.
+
+2.12.5. Determinism and Safety Guarantees
+All new enforcement occurs before event insertion, inside the same transaction that assigns sequence numbers, so rejected writes leave no partial state and do not consume a sequence number. `compact` continues to respect the per-session safety boundary derived from `summaries.upto_seq`, and will not delete beyond coverage unless the operator supplies an override in a future phase. `check` and `vacuum` MUST NOT mutate event content or sequence ordering.
+
+2.12.6. Testing Additions
+Unit tests SHALL cover: (a) schema version initialization and idempotent migration, (b) payload size enforcement with boundary conditions, (c) optional per-session caps with clear error messages, (d) integrity check happy-path and failure surfacing (using a corrupted fixture), and (e) CLI output for `summaries` and `show` on an ephemeral database. Concurrency tests for appenders remain as defined in §2.7 and MUST pass with the added limit checks.

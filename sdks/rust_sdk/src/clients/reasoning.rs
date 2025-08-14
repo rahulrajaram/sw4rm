@@ -1,7 +1,8 @@
 use crate::proto::sw4rm::reasoning::reasoning_proxy_client::ReasoningProxyClient;
 use crate::proto::sw4rm::reasoning::{
     ParallelismCheckRequest, ParallelismCheckResponse as ProtoParallelismResponse,
-    DebateEvaluateRequest, DebateEvaluateResponse as ProtoDebateResponse
+    DebateEvaluateRequest, DebateEvaluateResponse as ProtoDebateResponse,
+    SummarizeRequest, SummarizeResponse, TextSegment
 };
 use crate::{Error, Result};
 use tonic::transport::{Channel, Endpoint};
@@ -45,6 +46,33 @@ impl ReasoningClient {
         })
     }
 
+    /// Summarize a sequence of text segments with a token budget
+    pub async fn summarize(
+        &mut self,
+        session_id: &str,
+        segments: Vec<(String, String, i64, String)>, // (kind, content, seq, at)
+        max_tokens: u32,
+        mode: &str,
+) -> Result<RemoteSummary> {
+        let request = tonic::Request::new(SummarizeRequest {
+            session_id: session_id.to_string(),
+            segments: segments
+                .into_iter()
+                .map(|(kind, content, seq, at)| TextSegment { kind, content, seq, at })
+                .collect(),
+            max_tokens,
+            mode: mode.to_string(),
+        });
+        let response = self.client.summarize(request).await?;
+        let inner = response.into_inner();
+        Ok(RemoteSummary {
+            summary: inner.summary,
+            tokens: inner.tokens,
+            cost_cents: inner.cost_cents,
+            model: inner.model,
+        })
+    }
+
     /// Evaluate a debate between two proposals
     pub async fn evaluate_debate(
         &mut self,
@@ -82,4 +110,11 @@ pub struct ParallelismCheckResponse {
 pub struct DebateEvaluationResponse {
     pub confidence_score: f64,
     pub notes: String,
+}
+#[derive(Debug, Clone)]
+pub struct RemoteSummary {
+    pub summary: String,
+    pub tokens: u32,
+    pub cost_cents: f64,
+    pub model: String,
 }
