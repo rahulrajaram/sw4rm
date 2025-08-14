@@ -18,8 +18,8 @@
     "example": "tsx",
     "build:proto": "npm run proto:js && npm run proto:ts",
     "build:lib": "npm run build:esm && npm run build:cjs && npm run build:types",
-    "build:esm": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/esm/index.js --external:@grpc/grpc-js",
-    "build:cjs": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/cjs/index.cjs --external:@grpc/grpc-js",
+    "build:esm": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/esm/index.js --external:@grpc/grpc-js --external:keytar",
+    "build:cjs": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/cjs/index.cjs --external:@grpc/grpc-js --external:keytar",
     "build:types": "tsc --emitDeclarationOnly --project tsconfig.json --outDir dist/types",
     "proto:js": "grpc_tools_node_protoc --js_out=import_style=commonjs,binary:src/types/generated --grpc_out=grpc_js:src/types/generated --proto_path=../../protos ../../protos/*.proto",
     "proto:ts": "grpc_tools_node_protoc --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts --ts_out=grpc_js:src/types/generated --proto_path=../../protos ../../protos/*.proto",
@@ -28,7 +28,14 @@
     "lint": "eslint src --ext .ts,.js",
     "format": "prettier --write src"
   },
-  "keywords": ["sw4rm", "agent", "protocol", "grpc", "typescript", "javascript"],
+  "keywords": [
+    "sw4rm",
+    "agent",
+    "protocol",
+    "grpc",
+    "typescript",
+    "javascript"
+  ],
   "author": "SW4RM Team",
   "license": "MIT",
   "devDependencies": {
