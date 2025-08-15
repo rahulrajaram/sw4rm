@@ -9,6 +9,13 @@ This document provides an accurate assessment of SW4RM SDK implementations again
 - **Rust SDK**: ⚠️ **COMPILES; CLIENTS WIRED, TESTS NEED ALIGNMENT**
 - **JavaScript SDK**: 🚧 **INITIAL IMPLEMENTATION** (1/10 clients implemented)
 
+### Updates (2025-08)
+- Protocol: Added `Summarize` RPC to `protos/reasoning.proto` (segments + budget).
+- Rust SDK: Added ReasoningClient.summarize() wrapper; protos regenerate via build.rs.
+- JS SDK: Reasoning client exposes summarize(); npm build regenerates stubs.
+- Python SDK: Reasoning client targets ReasoningProxyStub; added summarize().
+- Bee CLI: Activity buffer now supports local and remote summarization with retention safeguards.
+
 ---
 
 ## Implementation Status by SDK
@@ -39,6 +46,8 @@ This document provides an accurate assessment of SW4RM SDK implementations again
 - Separated policy enforcement from core SDK
 
 ### Rust SDK: ⚠️ **Compiles; aligning tests**
+
+Note: Summarization client added; compatible with updated protos.
 
 **Status**: Crate compiles and gRPC clients (10/10) build against the protocol. Server stubs are generated for testing. Several tests assume older record shapes and need updates.
 

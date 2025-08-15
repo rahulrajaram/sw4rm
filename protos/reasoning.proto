@@ -16,4 +16,26 @@ message DebateEvaluateResponse { double confidence_score = 1; string notes = 2; 
 service ReasoningProxy {
   rpc CheckParallelism(ParallelismCheckRequest) returns (ParallelismCheckResponse);
   rpc EvaluateDebate(DebateEvaluateRequest) returns (DebateEvaluateResponse);
+  rpc Summarize(SummarizeRequest) returns (SummarizeResponse);
+}
+
+message TextSegment {
+  string kind = 1;
+  string content = 2;
+  int64  seq = 3;
+  string at = 4;
+}
+
+message SummarizeRequest {
+  string session_id = 1;
+  repeated TextSegment segments = 2;
+  uint32 max_tokens = 3;
+  string mode = 4;
+}
+
+message SummarizeResponse {
+  string summary = 1;
+  uint32 tokens = 2;
+  double cost_cents = 3;
+  string model = 4;
 }
