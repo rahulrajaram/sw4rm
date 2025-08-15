@@ -33,3 +33,29 @@ The CLI ships with secrets commands disabled only on unsupported platforms. On L
 7.11. Operational Considerations
 Secret access is audited via logs without values. Users can export and import secrets between hives using an encrypted archive format in a future milestone.
 
+
+7.12. Action Items Checklist
+
+- [ ] Core API: Define `Secrets` trait, `Scope`, `SecretKey`, `SecretValue`, and typed errors.
+- [ ] Backends: Implement OS keyring backend; add file backend fallback with mode 0600.
+- [ ] Scoping: Establish scope model (global | hive) and key schema `provider.<name>.<field>` with validation.
+- [ ] Resolution: Implement precedence resolver (CLI > env > scoped > global) that returns value and source.
+- [ ] CLI Basics: Add `bee secret set|get|list` with `--scope`, `--key`, `--json`, `--from-stdin`, and interactive prompts.
+- [ ] Errors: Provide precise remediation messages for missing backend, permissions, and wrong-scope reads.
+- [ ] Env Overrides: Detect and warn when environment variables shadow stored secrets; include `--no-warn` escape hatch.
+- [ ] Limits: Enforce max size (e.g., 8KB) and reject binary/unsafe inputs; redact echoes.
+- [ ] Permissions: Ensure secure file creation (umask, 0600), fsync, and directory permission checks.
+- [ ] Audit Logs: Log operations without values; include scope/key and outcome only.
+- [ ] CI Behavior: Prefer file backend in CI; add `--backend` override and clear warnings.
+- [ ] Tests: Unit tests for precedence/scoping/backends; integration tests with mocked keyring; permission and env override tests.
+- [ ] LLM Hooks: Provide helper to fetch `provider.*.api_key` by scope for adapters.
+- [ ] Telemetry: Emit counters for set/get/list, override events, and backend selection (no values).
+- [ ] Migration: Add `bee secret import --from .env --scope <hive>` with dry-run/confirm.
+- [ ] Docs: Update CLI help, examples, troubleshooting (permissions, keyring availability, CI), and security notes.
+- [ ] Packaging: Platform feature flags to toggle keyring; graceful disable on unsupported OS.
+
+
+7.13. Documentation Constraints
+- Do not modify the mkdocs configuration (`mkdocs.yml`).
+- Place Bee/Secrets docs under `docs/bee/architecture/` when updating documentation for this milestone.
+- The mkdocs site currently renders from `documentation/`; secrets docs under `docs/` are intentionally out-of-band and must not be wired into mkdocs navigation.

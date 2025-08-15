@@ -24,6 +24,9 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 async-trait = "0.1"
 dashmap = "6.0"
+directories = "5.0"
+# Optional OS keyring support
+keyring = { version = "2.3", optional = true }
 
 # Additional dependencies for new features
 tower = "0.4"
@@ -47,6 +50,7 @@ futures = "0.3"
 default = ["proto"]
 proto = []
 testing = ["mockall"]
+keyring = ["dep:keyring"]
 
 [[bench]]
 name = "performance_benchmarks"

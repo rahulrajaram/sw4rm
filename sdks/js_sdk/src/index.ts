@@ -33,3 +33,12 @@ export * from './internal/idempotency.js';
 export * from './runtime/persistenceAdapter.js';
 export * from './internal/errorMapper.js';
 export * from './internal/ack.js';
+
+// Secrets (experimental)
+export * from './secrets/types.js'
+export * from './secrets/errors.js'
+export * from './secrets/backend.js'
+export * from './secrets/resolver.js'
+export * from './secrets/backends/file.js'
+export * from './secrets/backends/keyring.js'
+export * from './secrets/factory.js'
