@@ -33,3 +33,43 @@ Lane configuration ships with sensible defaults and is editable via a config fil
 3.11. Operational Considerations
 Operators can inspect lane depths and preemption rates via metrics. Alerts trigger on repeated failed resumes or excessive preemption churn.
 
+
+3.12. Prioritized Action Items (Decreasing Priority)
+
+1) Lane configuration and defaults: Define lane names, numeric priorities, feature flags; load from configuration with validation.
+
+2) Core queues and task state: Implement per-lane run queues and a persistent task state machine (queued → running → preempted → completed/failed) with timestamps.
+
+3) Preemption policy: Enforce strict priority with deterministic tie-breakers; serialize concurrent preemptions via a control loop.
+
+4) Preemption monitor: Add worker checkpoint handshake with deadlines, fail on timeout, and idempotent preempt-by-id/above-priority operations.
+
+5) Resume flow: Implement resume-from-checkpoint with validation, idempotency key deduplication, and fallbacks when checkpoints are missing.
+
+6) Aging logic: Add within-lane aging to prevent starvation; cap effective priority and decay on run.
+
+7) Shell controls: Expose `/submit`, `/preempt`, `/bind`, `/switch` with contextual help and argument parsing; route to scheduler API.
+
+8) Telemetry: Emit lane depths, preemption events, resume success/failure, checkpoint latency, and churn rates; trace scheduling decisions.
+
+9) Failure policies: Quarantine lane for repeated failed resumes; clear retry limits and operator-visible reasons.
+
+10) Unit tests: Queue ordering, aging, state transitions, preemption serialization, checkpoint deadlines, and idempotency.
+
+11) Integration tests: Multi-lane workloads exercising preempt/resume correctness and throughput under load.
+
+12) Operator UX: Autocomplete for lanes/task IDs, precise error surfacing, and readable `/help` with examples.
+
+13) Rollout: Feature-flag the scheduler lanes, ship sane defaults, forward-only migration for config/state.
+
+14) Alerts and SLOs: Alerts on repeated failed resumes, excessive churn, or stalled checkpoints; target preempt-to-yield latency.
+
+15) Documentation: Operational guide for preempt/resume, quarantine handling, configuration examples, and troubleshooting.
+
+3.13. Current Progress and Agent Context
+
+The Bee CLI already provides non-interactive scheduler subcommands for submitting tasks, requesting preemption, graceful shutdown, and inspecting or purging activity. These exist under `bee scheduler` and operate against the configured Scheduler endpoint with idempotency where applicable.
+
+Interactive shell slash verbs for scheduler control (`/submit`, `/preempt`, `/bind`, `/switch`) are planned. The design uses a session-level default lane binding and resolves an effective scope for submissions using explicit `scope`, explicit `lane`, or the session default lane in that order. A helper that computes this precedence is implemented and unit-tested to ensure consistent behavior. The shell will surface precise usage diagnostics and will reuse the scheduler client API used by the non-interactive subcommands.
+
+The architecture and invariants described in this context remain the source of truth. The implementation proceeds incrementally: first by exposing consistent CLI controls and deterministic argument handling, then by layering lane-aware scheduling semantics and persistent state transitions with preemption and resume guarantees.
