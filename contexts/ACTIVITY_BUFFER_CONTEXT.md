@@ -58,3 +58,14 @@ All new enforcement occurs before event insertion, inside the same transaction t
 
 2.12.6. Testing Additions
 Unit tests SHALL cover: (a) schema version initialization and idempotent migration, (b) payload size enforcement with boundary conditions, (c) optional per-session caps with clear error messages, (d) integrity check happy-path and failure surfacing (using a corrupted fixture), and (e) CLI output for `summaries` and `show` on an ephemeral database. Concurrency tests for appenders remain as defined in §2.7 and MUST pass with the added limit checks.
+
+2.13. Action Items (Next Steps)
+
+- [ ] Implement SQLite schema and forward-only migrations with `meta(schema_version)`; add `bee activity migrate`.
+- [ ] Enforce limits (payload size, optional per-session cap) and validate event payloads against JSON Schemas on append.
+- [ ] Enable WAL and `PRAGMA foreign_keys=ON`; use `BEGIN IMMEDIATE` for transactional sequencing.
+- [ ] Implement CLI: `init`, `sessions`, `events`, `show --session --seq`, `replay`, `summaries`, `compact`, `summarize`.
+- [ ] Add `bee activity check` (PRAGMA integrity_check) and `bee activity vacuum` maintenance commands.
+- [ ] Implement rolling summarizer (local deterministic mode) and optional remote Reasoning gRPC summarizer; persist tokens/cost.
+- [ ] Implement retention safety boundary based on `summaries.upto_seq`; support age/size compaction with guardrails.
+- [ ] Tests: migrations idempotence, limit enforcement, concurrency sequencing, deterministic replay, summarizer stubs, CLI outputs.

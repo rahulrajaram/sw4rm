@@ -33,3 +33,14 @@ The bus adapter is introduced behind a feature flag. Existing direct in-process 
 4.11. Operational Considerations
 Metrics expose stream lengths, consumer lag, and DLQ rates. Alerting thresholds are configurable. Health checks validate connectivity and basic XADD/XREAD operations at startup.
 
+
+4.12. Action Items (Next Steps)
+
+- [ ] Implement idempotent publish via Lua (SET NX → XADD → SET; TTL configurable); store stream ID in idem key.
+- [ ] Implement processing idempotency with `SET NX` proc keys (PX TTL); `XACK` on success; delete proc key on failure.
+- [ ] Add `XAUTOCLAIM` reclaim path with backoff using min-idle windows; ensure idempotent group creation.
+- [ ] Implement DLQ routing with reason codes and context; acknowledge original after DLQ write.
+- [ ] Validate envelopes against per-topic JSON Schemas; finalize header fields (`ct`, `sv`, `cid`, `ccid`, `ts`, `idem`, `attempt`).
+- [ ] Expose minimal metrics (depth via `XLEN`, lag/pending via `XINFO`/`XPENDING`) and health commands in CLI.
+- [ ] Add integration tests with ephemeral Redis or mock: publish/consume/ack/nack, idempotency, DLQ, and fault injection.
+- [ ] Document configuration (`BEE_REDIS_URL`, `BEE_BUS_ENV`) and operational runbooks (lag diagnosis, DLQ replay).

@@ -36,3 +36,12 @@ Dashboards should be versioned and included in release artifacts. Sampling rates
 
 6.12. Bee/Hive Implementation Details
 Bee integrates a telemetry module comprising `config.rs`, `init.rs`, and `metrics.rs` under `bee/src/telemetry`. The process installs a `tracing_subscriber::fmt` layer unconditionally. When `BEE_OTEL_EXPORTER=otlp` is present, an OTLP tracer is installed using `opentelemetry_otlp` with a `ParentBased(TraceIdRatioBased)` sampler. There is no dedicated stdout exporter; `stdout` selection results in fmt logging only. The Prometheus exporter uses `metrics-exporter-prometheus` with the `http-listener` feature to expose `/metrics` on `BEE_METRICS_ADDR`.
+
+6.13. Action Items (Next Steps)
+
+- [ ] Implement `bee/src/telemetry/{config,init,metrics}.rs` and wire initialization in `bee/src/main.rs`.
+- [ ] Support `BEE_OTEL_EXPORTER` (`none|stdout|otlp`), `OTEL_EXPORTER_OTLP_ENDPOINT`, `BEE_OTEL_SAMPLING`, and `BEE_METRICS_ADDR`.
+- [ ] Add spans for LLM requests, tool executions, scheduler enqueue/dequeue/preempt, and bus publish/consume with standard attributes.
+- [ ] Expose Prometheus `/metrics` endpoint; register counters/histograms; avoid high-cardinality labels by hashing large IDs.
+- [ ] Provide `docs/dashboards/bee_telemetry.json` and a short operator guide to enable exporters and scrape metrics.
+- [ ] Add tests: initialization without exporters, metrics endpoint bind failure handling, and basic counter/histogram emission.

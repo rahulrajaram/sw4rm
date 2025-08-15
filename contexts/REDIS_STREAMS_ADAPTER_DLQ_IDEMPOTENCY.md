@@ -18,7 +18,7 @@ This document tracks the worktree’s purpose, key links, and the prioritized de
 
 ## Implementation Snapshot
 
-- Updated: ${now}
+- Updated: 2025-08-15
 - Code location (bee specialization):
   - `bee/src/bus/redis_streams/` (models, adapter, health, Lua placeholder)
   - `bee/src/main.rs` (CLI `bee bus health|publish|consume`)
@@ -30,6 +30,14 @@ This document tracks the worktree’s purpose, key links, and the prioritized de
   - Publish idempotency (Lua script) and processing idempotency keys.
   - `XAUTOCLAIM` reclaim, retry/backoff, and DLQ routing.
   - Metrics surface and admin ops (pending, dlq replay).
+
+### Immediate Next Steps
+
+- [ ] Implement `bee/src/bus/redis_streams/lua/publish_idem.lua` and wire to publish path (SET NX → XADD → SET; TTL).
+- [ ] Add processing idempotency keys (SET NX PX TTL) and acknowledge on success; delete key on failure.
+- [ ] Implement `XAUTOCLAIM` reclaim loop with min-idle backoff and group/consumer naming conventions.
+- [ ] Implement DLQ routing with reason codes and context; `XACK` original after DLQ write.
+- [ ] Expose minimal metrics: depth (`XLEN`), lag/pending (`XINFO`/`XPENDING`); add health CLI smoke tests.
 
 ## Configuration
 

@@ -33,3 +33,11 @@ Artifacts are uploaded to the project’s release page. Documentation links to t
 8.11. Operational Considerations
 Release workflows are versioned and support dry runs. Artifact retention policies are configured to preserve recent releases.
 
+8.12. Action Items (Next Steps)
+
+- [ ] Implement CI matrix builds for Linux/macOS/Windows with Rust caching; produce versioned artifacts with checksums.
+- [ ] Add minimal install script; verify `bee --version` and `bee --help` in CI.
+- [ ] Wire examples under `examples/` to `make` targets; run examples in CI and assert expected console output.
+- [ ] Upload artifacts to release pages; document install and verification steps per OS.
+- [ ] Document platform caveats: macOS codesigning (unsigned for now) and Windows SmartScreen guidance.
+- [ ] Configure artifact retention policy and optional dry-run release mode.

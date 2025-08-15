@@ -73,3 +73,10 @@ The Bee CLI already provides non-interactive scheduler subcommands for submittin
 Interactive shell slash verbs for scheduler control (`/submit`, `/preempt`, `/bind`, `/switch`) are planned. The design uses a session-level default lane binding and resolves an effective scope for submissions using explicit `scope`, explicit `lane`, or the session default lane in that order. A helper that computes this precedence is implemented and unit-tested to ensure consistent behavior. The shell will surface precise usage diagnostics and will reuse the scheduler client API used by the non-interactive subcommands.
 
 The architecture and invariants described in this context remain the source of truth. The implementation proceeds incrementally: first by exposing consistent CLI controls and deterministic argument handling, then by layering lane-aware scheduling semantics and persistent state transitions with preemption and resume guarantees.
+
+3.14. Immediate Next Steps
+
+- [ ] Define lane configuration and defaults; load/validate from config behind a feature flag.
+- [ ] Implement per-lane run queues and persistent task state machine (queued → running → preempted → completed/failed).
+- [ ] Add preemption monitor with checkpoint handshake and deadlines; implement resume-from-checkpoint with idempotency.
+- [ ] Wire shell verbs `/submit`, `/preempt`, `/bind`, `/switch` with contextual help and argument precedence; add unit/integration tests.

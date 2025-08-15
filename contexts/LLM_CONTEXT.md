@@ -33,3 +33,13 @@ The milestone introduces new modules behind feature flags to avoid breaking down
 1.11. Operational Considerations
 Telemetry must record model, latency, token usage, and error category. Logs must avoid leaking secrets. Rate limits must be adjustable via environment variables. The adapters must degrade gracefully to non-streaming when terminals cannot handle incremental rendering.
 
+
+1.12. Action Items (Next Steps)
+
+- [ ] Finalize `ModelProvider` trait, request/response schemas, and streaming event model with tool-call protocol.
+- [ ] Implement Anthropic and OpenAI adapters with strict JSON Schema validation and normalized error taxonomy.
+- [ ] Add retry policy with idempotency keys and basic rate limiting; integrate optional exact-match cache.
+- [ ] Create provider-recorded fixtures; implement streaming assembly parity tests and tool schema round-trips.
+- [ ] Wire CLI flags to select provider/model, enable streaming and tools; add smoke tests using fixtures (no network).
+- [ ] Integrate secrets resolver for `provider.*.api_key` by scope with clear override warnings.
+- [ ] Emit telemetry (model, latency, tokens, error category) and document configuration/env knobs.
