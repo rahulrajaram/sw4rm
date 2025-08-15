@@ -2,9 +2,9 @@ use crate::secrets::errors::{Result, SecretError};
 use crate::secrets::types::{Scope, SecretKey, SecretSource};
 use crate::secrets::backend::SecretsBackend;
 
-pub struct Resolver<'a, B: SecretsBackend> { backend: &'a B }
+pub struct Resolver<'a, B: SecretsBackend + ?Sized> { backend: &'a B }
 
-impl<'a, B: SecretsBackend> Resolver<'a, B> {
+impl<'a, B: SecretsBackend + ?Sized> Resolver<'a, B> {
     pub fn new(backend: &'a B) -> Self { Self { backend } }
 
     pub fn resolve(&self, key: &SecretKey, scope: &Scope, explicit: Option<&str>, env_var: Option<&str>) -> Result<(String, SecretSource)> {

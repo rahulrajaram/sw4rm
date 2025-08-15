@@ -33,15 +33,18 @@ fn default_path() -> PathBuf {
     base.join("sw4rm").join("secrets.json")
 }
 
-
+// Fallback for when `directories::BaseDirs::new()` returns None.
+// Attempts common config locations before defaulting to current directory.
 fn dirs_fallback() -> PathBuf {
-    // Prefer HOME/.config if HOME is set; else use system temp dir
-    if let Ok(home) = std::env::var("HOME") {
+    if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
+        return PathBuf::from(xdg);
+    }
+    if let Some(home) = std::env::var_os("HOME") {
         return PathBuf::from(home).join(".config");
     }
-    std::env::temp_dir()
+    // As a last resort, use the current working directory
+    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
-
 
 #[cfg(unix)]
 fn enforce_file_perms(path: &PathBuf) -> Result<()> {
