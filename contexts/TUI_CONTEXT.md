@@ -33,3 +33,18 @@ The features are enabled by default with configuration knobs. Backwards compatib
 5.11. Operational Considerations
 History files may include sensitive commands; permissions are set to user-only. Status line emits minimal overhead by sampling metrics at a controlled cadence.
 
+
+5.12. Prioritized Checklist
+
+- [x] Persistent history store: File-backed command history under Bee home with file locks, rotation by size/date, and `0600` perms; config for retention path/limits.
+- [x] Scheduler slash commands (MVP): Implement `/submit`, `/preempt`, `/bind`, `/switch` in shell/TUI wired to CLI; idempotency key per request; clear, actionable errors.
+- [x] Status line (minimal): Display active model, lane, and events state; subscribe to session state; degrade to static fields without telemetry.
+- [x] Non-TUI `/events` parity: Support `/events on|off` in the non-TUI shell with confirmation and persisted preference.
+- [x] Incremental history search: Ctrl-R fuzzy/incremental search across persisted history; navigate next/prev match; preserve multiline entries.
+- [ ] Cost estimate integration: Aggregate recent token usage to show rolling cost in status line; fallback to `—` when telemetry unavailable.
+- [ ] Arguments, help, and autocomplete: Contextual help for slash commands; tab-complete lanes, task ids, and flags; inline usage hints on errors.
+- [ ] Keybindings + config: Dotfile-driven bindings for history search, status toggle, lane switch; documented defaults and overrides.
+- [ ] Robust preemption UX: Preempt by id or lane/priority; show checkpoint progress and resume hints; warn on risky mass-preempt.
+- [ ] Testing coverage: Unit tests for history read/write/rotation and keybinding map; snapshots for status line widths; integration tests for slash commands and `/events`.
+- [ ] Observability and metrics: Emit scheduler command outcomes, lane depths, and preemption rates; basic alerts on repeated failed resumes.
+- [x] Docs and examples: Update QUICKSTART, add slash command reference, status line legend, config samples, and troubleshooting for history/telemetry.

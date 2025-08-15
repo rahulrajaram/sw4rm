@@ -4,16 +4,16 @@ use std::collections::HashMap;
 /// Configuration for SW4RM service endpoints
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Endpoints {
-    pub registry: String,
-    pub router: String,
-    pub scheduler: String,
-    pub hitl: String,
-    pub worktree: String,
-    pub tool: String,
-    pub connector: String,
-    pub negotiation: String,
-    pub reasoning: String,
-    pub logging: String,
+    #[serde(default)] pub registry: String,
+    #[serde(default)] pub router: String,
+    #[serde(default)] pub scheduler: String,
+    #[serde(default)] pub hitl: String,
+    #[serde(default)] pub worktree: String,
+    #[serde(default)] pub tool: String,
+    #[serde(default)] pub connector: String,
+    #[serde(default)] pub negotiation: String,
+    #[serde(default)] pub reasoning: String,
+    #[serde(default)] pub logging: String,
 }
 
 impl Default for Endpoints {
