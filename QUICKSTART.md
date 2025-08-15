@@ -498,3 +498,23 @@ You can override CLI defaults by exporting these before running your agent:
 export SW4RM_ROUTER_ADDR=router.example.com:50051
 export SW4RM_REGISTRY_ADDR=registry.example.com:50052
 ```
+
+
+## Bee Shell and TUI
+
+### New Slash Commands and Shortcuts
+
+- `/from <agent_id>`: Set default agent (affects scheduler commands and events).
+- `/use <negotiation_id>`: Select active negotiation.
+- `/bind <lane>` or `/switch <lane>`: Set the current scheduler lane.
+- `/submit <task_id> [priority=N] [scope=<lane>] [json <payload>] [ct=<type>] [agent=<id>]`: Submit a task via scheduler.
+- `/preempt <task_id> [reason=txt] [agent=<id>]`: Request preemption for a task.
+- `/events on|off` (non-TUI): Tail incoming events for the selected agent.
+- `/history [N]` (non-TUI): Show the last N commands (persisted across sessions).
+- `/search <term>` (non-TUI): Search recent history.
+
+TUI enhancements:
+- Status line shows `model:- lane:<lane> events:on|off from:<agent> cost:—`.
+- Ctrl-R: Toggle incremental history search; type to filter, Enter to accept.
+
+History is persisted to `BEE_HOME/history.jsonl` (rotated); content may include sensitive commands. Ensure `BEE_HOME` is secured.

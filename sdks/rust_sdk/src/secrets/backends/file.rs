@@ -33,6 +33,16 @@ fn default_path() -> PathBuf {
     base.join("sw4rm").join("secrets.json")
 }
 
+
+fn dirs_fallback() -> PathBuf {
+    // Prefer HOME/.config if HOME is set; else use system temp dir
+    if let Ok(home) = std::env::var("HOME") {
+        return PathBuf::from(home).join(".config");
+    }
+    std::env::temp_dir()
+}
+
+
 #[cfg(unix)]
 fn enforce_file_perms(path: &PathBuf) -> Result<()> {
     use std::os::unix::fs::PermissionsExt;
