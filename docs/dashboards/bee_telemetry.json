@@ -1,0 +1,206 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Prometheus data source",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+    
+  ],
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": "10.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": "10.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "bargauge",
+      "name": "Bar gauge",
+      "version": "10.0.0"
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "-- Grafana --",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "iteration": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Request Rate (by component, operation)",
+      "datasource": "${DS_PROMETHEUS}",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (component, operation) (rate(bee_requests_total[5m]))",
+          "legendFormat": "{{component}}.{{operation}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Error Rate (by category)",
+      "datasource": "${DS_PROMETHEUS}",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (error_category) (rate(bee_errors_total[5m]))",
+          "legendFormat": "{{error_category}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Request Duration p50/p95/p99 (ms)",
+      "datasource": "${DS_PROMETHEUS}",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, component, operation) (rate(bee_request_duration_ms_bucket[5m])))",
+          "legendFormat": "p50 {{component}}.{{operation}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, component, operation) (rate(bee_request_duration_ms_bucket[5m])))",
+          "legendFormat": "p95 {{component}}.{{operation}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, component, operation) (rate(bee_request_duration_ms_bucket[5m])))",
+          "legendFormat": "p99 {{component}}.{{operation}}",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Task Duration p50/p95/p99 (ms)",
+      "datasource": "${DS_PROMETHEUS}",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(bee_task_duration_ms_bucket[5m])))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(bee_task_duration_ms_bucket[5m])))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(bee_task_duration_ms_bucket[5m])))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Error Percentage",
+      "datasource": "${DS_PROMETHEUS}",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 18 },
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2 } },
+      "targets": [
+        {
+          "expr": "(sum(rate(bee_errors_total[5m])) / sum(rate(bee_requests_total[5m]))) * 100",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Scheduler Queue Depth",
+      "datasource": "${DS_PROMETHEUS}",
+      "gridPos": { "h": 6, "w": 9, "x": 6, "y": 18 },
+      "targets": [
+        {
+          "expr": "avg by (hive, lane) (bee_scheduler_queue_depth)",
+          "legendFormat": "{{hive}}/{{lane}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Active Tasks",
+      "datasource": "${DS_PROMETHEUS}",
+      "gridPos": { "h": 6, "w": 9, "x": 15, "y": 18 },
+      "targets": [
+        {
+          "expr": "sum by (hive, lane) (bee_tasks_active)",
+          "legendFormat": "{{hive}}/{{lane}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["bee", "telemetry"],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "label": "Prometheus",
+        "query": "prometheus",
+        "current": {
+          "text": "Prometheus",
+          "value": "${DS_PROMETHEUS}"
+        }
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Bee Telemetry",
+  "uid": "bee-telemetry",
+  "version": 1,
+  "weekStart": ""
+}
