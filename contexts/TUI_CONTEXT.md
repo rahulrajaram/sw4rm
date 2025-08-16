@@ -43,7 +43,7 @@ History files may include sensitive commands; permissions are set to user-only. 
 - [x] Incremental history search: Ctrl-R fuzzy/incremental search across persisted history; navigate next/prev match; preserve multiline entries.
 - [ ] Cost estimate integration: Aggregate recent token usage to show rolling cost in status line; fallback to `—` when telemetry unavailable.
 - [ ] Arguments, help, and autocomplete: Contextual help for slash commands; tab-complete lanes, task ids, and flags; inline usage hints on errors.
-- [ ] Keybindings + config: Dotfile-driven bindings for history search, status toggle, lane switch; documented defaults and overrides.
+- [x] Keybindings + config: Dotfile-driven bindings for history search, status toggle, lane switch; documented defaults and overrides.
 - [ ] Robust preemption UX: Preempt by id or lane/priority; show checkpoint progress and resume hints; warn on risky mass-preempt.
 - [ ] Testing coverage: Unit tests for history read/write/rotation and keybinding map; snapshots for status line widths; integration tests for slash commands and `/events`.
 - [ ] Observability and metrics: Emit scheduler command outcomes, lane depths, and preemption rates; basic alerts on repeated failed resumes.
