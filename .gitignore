@@ -49,5 +49,4 @@ logs/
 
 bee/target/
 
-# Worktree-specific contexts (no longer ignored)
-# /contexts/
+.workmerge/
