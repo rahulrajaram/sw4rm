@@ -39,6 +39,7 @@ Commands are provided via the Rust `bee` binary:
 - Set: `bee secret set --key <key> [--value <val> | --stdin] [--scope <hive> | --global] [--backend auto|file|keyring]`
 - Get: `bee secret get --key <key> [--env-var <NAME>] [--no-warn] [--scope <hive> | --global] [--backend …]`
 - List: `bee secret list [--all-scopes | --scope <hive> | --global] [--include-values] [--backend …]`
+- Import: `bee secret import [--from .env] [--scope <hive> | --global] [--dry-run] [--confirm] [--backend …]`
 
 Notes:
 - `--stdin` reads the secret value from standard input.
@@ -72,7 +73,7 @@ let (value, source) = resolver.resolve(&SecretKey::new("provider.anthropic.api_k
 ## Limits and Validation
 - Max secret size: 8KB (configurable in code). Larger values are rejected.
 - Keys must be dotted identifiers with no empty segments.
-- Values are never logged; audit logs should capture only scope/key and outcome (future work).
+- Values are never logged; audit logs capture only scope/key and outcome (no values).
 
 ## CI and Headless Environments
 - Auto mode selects file backend when `CI` env var is set.
@@ -82,8 +83,17 @@ let (value, source) = resolver.resolve(&SecretKey::new("provider.anthropic.api_k
 - No cloud secret manager integrations; no automatic rotation.
 - Keyring backends do not support listing.
 
+## Observability
+- Tracing audit logs for `secret_set`, `secret_get`, `secret_list`, and `secret_import` (no values).
+- Prometheus counters exposed on Bee metrics endpoint (`/metrics` at `BEE_METRICS_ADDR`):
+  - `bee_secrets_set_total{backend,scope_type,result}`
+  - `bee_secrets_get_total{backend,scope_type,result}`
+  - `bee_secrets_env_override_total{backend}`
+  - `bee_secrets_list_total{backend}`
+  - `bee_secrets_import_dry_run_total{backend}`
+  - `bee_secrets_import_applied_total{backend}`
+
 ## Roadmap
-- Audit logging without values.
-- Optional import/export (`bee secret import`) for scoped archives.
-- Telemetry counters for set/get/list and backend selection (no values).
 - Provider helpers: convenience methods to fetch `provider.*.api_key` by scope across SDKs.
+- Expanded error taxonomy with remediation messages.
+- Optional export command for scoped bundles.
