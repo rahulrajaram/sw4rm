@@ -45,3 +45,7 @@ Bee integrates a telemetry module comprising `config.rs`, `init.rs`, and `metric
 - [ ] Expose Prometheus `/metrics` endpoint; register counters/histograms; avoid high-cardinality labels by hashing large IDs.
 - [ ] Provide `docs/dashboards/bee_telemetry.json` and a short operator guide to enable exporters and scrape metrics.
 - [ ] Add tests: initialization without exporters, metrics endpoint bind failure handling, and basic counter/histogram emission.
+
+6.14. Documentation Navigation Constraint
+
+- Do not modify `mkdocs.yml` as part of this milestone. Navigation or site structure changes are handled separately; documentation updates should avoid touching `mkdocs.yml`.
