@@ -37,7 +37,7 @@ pub fn select_backend(mode: Option<BackendMode>) -> Result<(Box<dyn SecretsBacke
             #[cfg(feature = "keyring")]
             {
                 use crate::secrets::backends::keyring::KeyringBackend;
-                return Ok((Box::new(KeyringBackend::new("sw4rm")), "keyring"));
+                Ok((Box::new(KeyringBackend::new("sw4rm")), "keyring"))
             }
             #[cfg(not(feature = "keyring"))]
             {

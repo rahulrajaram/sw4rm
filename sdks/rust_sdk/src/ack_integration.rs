@@ -9,8 +9,11 @@ use crate::{Error, Result};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::RwLock;
+
+// Type aliases to reduce complexity
+type MessageHandler = Box<dyn Fn(&EnvelopeData) -> Result<Value> + Send + Sync>;
 
 /// Result of sending a message with ACK tracking
 #[derive(Debug, Clone)]
@@ -275,8 +278,8 @@ impl AckLifecycleManager {
 /// High-level message processor with automatic ACK handling
 pub struct MessageProcessor {
     ack_manager: AckLifecycleManager,
-    message_handlers: HashMap<i32, Box<dyn Fn(&EnvelopeData) -> Result<Value> + Send + Sync>>,
-    default_handler: Option<Box<dyn Fn(&EnvelopeData) -> Result<Value> + Send + Sync>>,
+    message_handlers: HashMap<i32, MessageHandler>,
+    default_handler: Option<MessageHandler>,
 }
 
 impl MessageProcessor {
@@ -369,7 +372,7 @@ mod tests {
     async fn test_ack_lifecycle_manager() {
         let temp_file = NamedTempFile::new().unwrap();
         let persistence = Box::new(JsonFilePersistence::new(temp_file.path()));
-        let buffer = PersistentActivityBuffer::new(1000, Some(persistence)).unwrap();
+        let _buffer = PersistentActivityBuffer::new(1000, Some(persistence)).unwrap();
         
         // Note: We can't easily test with a real RouterClient without a running server
         // This is a placeholder for the pattern

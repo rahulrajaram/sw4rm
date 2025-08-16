@@ -8,6 +8,46 @@ use prost_types;
 use std::time::Duration;
 use tracing::{debug, error, info};
 
+/// Configuration for tool execution policy
+#[derive(Debug, Clone)]
+pub struct ExecutionPolicyConfig {
+    pub timeout: Option<Duration>,
+    pub max_retries: u32,
+    pub backoff: String,
+    pub worktree_required: bool,
+    pub network_policy: String,
+    pub privilege_level: String,
+    pub budget_cpu_ms: u64,
+    pub budget_wall_ms: u64,
+}
+
+impl Default for ExecutionPolicyConfig {
+    fn default() -> Self {
+        Self {
+            timeout: Some(Duration::from_secs(30)),
+            max_retries: 3,
+            backoff: "exponential".to_string(),
+            worktree_required: false,
+            network_policy: "restricted".to_string(),
+            privilege_level: "default".to_string(),
+            budget_cpu_ms: 30000,
+            budget_wall_ms: 30000,
+        }
+    }
+}
+
+/// Parameters for a tool call
+#[derive(Debug)]
+pub struct ToolCallParams<'a> {
+    pub call_id: &'a str,
+    pub tool_name: &'a str,
+    pub provider_id: &'a str,
+    pub content_type: &'a str,
+    pub args: Vec<u8>,
+    pub policy: Option<ExecutionPolicyConfig>,
+    pub stream: bool,
+}
+
 /// Client for interacting with the SW4RM Tool service
 #[derive(Debug, Clone)]
 pub struct ToolClient {
@@ -39,17 +79,8 @@ impl ToolClient {
 
 
     /// Execute a tool call
-    pub async fn call_tool(
-        &mut self,
-        call_id: &str,
-        tool_name: &str,
-        provider_id: &str,
-        content_type: &str,
-        args: Vec<u8>,
-        policy: Option<ExecutionPolicyConfig>,
-        stream: bool,
-    ) -> Result<ToolFrame> {
-        let execution_policy = policy.map(|p| ExecutionPolicy {
+    pub async fn call_tool(&mut self, params: ToolCallParams<'_>) -> Result<ToolFrame> {
+        let execution_policy = params.policy.map(|p| ExecutionPolicy {
             timeout: p.timeout.map(|t| prost_types::Duration {
                 seconds: t.as_secs() as i64,
                 nanos: t.subsec_nanos() as i32,
@@ -64,13 +95,13 @@ impl ToolClient {
         });
 
         let tool_call = ToolCall {
-            call_id: call_id.to_string(),
-            tool_name: tool_name.to_string(),
-            provider_id: provider_id.to_string(),
-            content_type: content_type.to_string(),
-            args,
+            call_id: params.call_id.to_string(),
+            tool_name: params.tool_name.to_string(),
+            provider_id: params.provider_id.to_string(),
+            content_type: params.content_type.to_string(),
+            args: params.args,
             policy: execution_policy,
-            stream,
+            stream: params.stream,
         };
 
         let request = tonic::Request::new(tool_call);
@@ -173,31 +204,4 @@ impl ToolClient {
     }
 }
 
-/// Configuration for tool execution policy
-#[derive(Debug, Clone)]
-pub struct ExecutionPolicyConfig {
-    pub timeout: Option<Duration>,
-    pub max_retries: u32,
-    pub backoff: String,
-    pub worktree_required: bool,
-    pub network_policy: String,
-    pub privilege_level: String,
-    pub budget_cpu_ms: u64,
-    pub budget_wall_ms: u64,
-}
-
-impl Default for ExecutionPolicyConfig {
-    fn default() -> Self {
-        Self {
-            timeout: Some(Duration::from_secs(30)),
-            max_retries: 3,
-            backoff: "exponential".to_string(),
-            worktree_required: false,
-            network_policy: "restricted".to_string(),
-            privilege_level: "default".to_string(),
-            budget_cpu_ms: 30000,
-            budget_wall_ms: 30000,
-        }
-    }
-}
 

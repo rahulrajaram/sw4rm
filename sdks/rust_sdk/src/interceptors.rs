@@ -12,6 +12,12 @@ pub struct CorrelationIdLayer {
     user_agent: String,
 }
 
+impl Default for CorrelationIdLayer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CorrelationIdLayer {
     pub fn new() -> Self {
         Self {
@@ -169,6 +175,12 @@ pub struct RetryLayer {
     max_delay: Duration,
 }
 
+impl Default for RetryLayer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RetryLayer {
     pub fn new() -> Self {
         Self {
@@ -208,6 +220,7 @@ impl<S> Layer<S> for RetryLayer {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct RetryService<S> {
     inner: S,
     max_attempts: usize,
@@ -242,6 +255,7 @@ where
 // Retry logic is simplified - full implementation would require more complex
 // request cloning and state management at the application level
 
+#[allow(dead_code)]
 fn is_retryable_error(status: &Status) -> bool {
     use tonic::Code;
     matches!(
@@ -254,6 +268,12 @@ fn is_retryable_error(status: &Status) -> bool {
 #[derive(Clone)]
 pub struct MetricsLayer {
     enable_histogram: bool,
+}
+
+impl Default for MetricsLayer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MetricsLayer {
@@ -425,7 +445,7 @@ impl InterceptedChannelBuilder {
 
     pub async fn connect(self) -> Result<Channel> {
         let channel = self.endpoint.connect().await
-            .map_err(|e| Error::Transport(e))?;
+            .map_err(Error::Transport)?;
 
         // Note: Interceptors are applied at the client level, not channel level
         // Each gRPC client service will apply interceptors when created

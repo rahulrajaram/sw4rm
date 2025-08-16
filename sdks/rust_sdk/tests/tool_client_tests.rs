@@ -1,6 +1,6 @@
 use sw4rm_sdk::clients::ToolClient;
 use sw4rm_sdk::proto::sw4rm;
-use sw4rm_sdk::clients::tool::ExecutionPolicyConfig;
+use sw4rm_sdk::clients::tool::{ExecutionPolicyConfig, ToolCallParams};
 use tokio::sync::mpsc;
 use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
 use tonic::{Request, Response, Status};
@@ -86,15 +86,15 @@ async fn test_tool_client_unary_and_streaming() {
 
     // Unary call
     let frame = client
-        .call_tool(
-            "call-1",
-            "echo",
-            "provider",
-            "application/octet-stream",
-            b"data".to_vec(),
-            Some(ExecutionPolicyConfig::default()),
-            false,
-        )
+        .call_tool(ToolCallParams {
+            call_id: "call-1",
+            tool_name: "echo",
+            provider_id: "provider",
+            content_type: "application/octet-stream",
+            args: b"data".to_vec(),
+            policy: Some(ExecutionPolicyConfig::default()),
+            stream: false,
+        })
         .await
         .unwrap();
 

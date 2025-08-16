@@ -5,7 +5,7 @@ use crate::proto::sw4rm::registry::{
     DeregisterAgentRequest, DeregisterAgentResponse,
     AgentDescriptor as ProtoAgentDescriptor,
 };
-use crate::proto::sw4rm::common::{AgentState, CommunicationClass};
+use crate::proto::sw4rm::common::AgentState;
 use crate::types::AgentDescriptor;
 use crate::{Error, Result};
 use tonic::transport::{Channel, Endpoint};
@@ -176,8 +176,7 @@ impl RegistryClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::proto::sw4rm::common::AgentState;
-    use std::collections::HashMap;
+    use crate::proto::sw4rm::common::CommunicationClass;
 
     #[tokio::test(flavor = "current_thread")]
     async fn test_registry_client_creation() {

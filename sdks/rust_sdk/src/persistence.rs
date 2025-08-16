@@ -50,13 +50,13 @@ impl PersistenceBackend for JsonFilePersistence {
         // Atomic write: write to temp file, then rename
         let temp_path = self.file_path.with_extension("tmp");
         let json_data = serde_json::to_string_pretty(&data)
-            .map_err(|e| Error::Serialization(e))?;
+            .map_err(Error::Serialization)?;
         
         fs::write(&temp_path, json_data)
-            .map_err(|e| Error::Io(e))?;
+            .map_err(Error::Io)?;
         
         fs::rename(temp_path, &self.file_path)
-            .map_err(|e| Error::Io(e))?;
+            .map_err(Error::Io)?;
 
         Ok(())
     }
@@ -67,7 +67,7 @@ impl PersistenceBackend for JsonFilePersistence {
         }
 
         let content = fs::read_to_string(&self.file_path)
-            .map_err(|e| Error::Io(e))?;
+            .map_err(Error::Io)?;
         
         if content.trim().is_empty() {
             return Ok((HashMap::new(), Vec::new()));
@@ -93,7 +93,7 @@ impl PersistenceBackend for JsonFilePersistence {
     fn clear(&mut self) -> Result<()> {
         if self.file_path.exists() {
             fs::remove_file(&self.file_path)
-                .map_err(|e| Error::Io(e))?;
+                .map_err(Error::Io)?;
         }
         Ok(())
     }
@@ -311,7 +311,7 @@ mod tests {
                     }
                 }),
             );
-            rec.ack((i % 5) as i32, 0, format!("Large data test message {}", i));
+            rec.ack(i % 5, 0, format!("Large data test message {}", i));
             records.insert(id.clone(), rec);
             order.push(id);
         }

@@ -4,8 +4,9 @@
 use sw4rm_sdk::prelude::*;
 use sw4rm_sdk::activity_buffer::{PersistentActivityBuffer, ActivityBuffer};
 use sw4rm_sdk::persistence::JsonFilePersistence;
-use sw4rm_sdk::ack_integration::{AckLifecycleManager, MessageProcessor};
-use sw4rm_sdk::clients::{RegistryClient, RouterClient};
+// TODO: Add back when implementing integration tests
+// use sw4rm_sdk::ack_integration::{AckLifecycleManager, MessageProcessor};
+// use sw4rm_sdk::clients::{RegistryClient, RouterClient};
 use serde_json::json;
 use tempfile::NamedTempFile;
 use tokio::time::{sleep, Duration};

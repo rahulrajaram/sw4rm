@@ -350,7 +350,6 @@ mod config_tests {
 
 #[cfg(test)]
 mod constants_tests {
-    use super::*;
     use sw4rm_sdk::constants::*;
 
     #[test]

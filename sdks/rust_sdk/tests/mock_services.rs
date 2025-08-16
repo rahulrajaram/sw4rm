@@ -84,7 +84,7 @@ impl sw4rm::registry::registry_service_server::RegistryService for MockRegistryS
 
         // Store heartbeat
         let mut heartbeats = self.heartbeats.lock().unwrap();
-        heartbeats.entry(req.agent_id.clone()).or_insert_with(Vec::new).push(req);
+        heartbeats.entry(req.agent_id.clone()).or_default().push(req);
 
         Ok(Response::new(sw4rm::registry::HeartbeatResponse { ok: true }))
     }
@@ -110,6 +110,12 @@ impl sw4rm::registry::registry_service_server::RegistryService for MockRegistryS
 pub struct MockRouterService {
     messages: Arc<Mutex<Vec<sw4rm::common::Envelope>>>,
     streams: Arc<Mutex<HashMap<String, mpsc::UnboundedSender<sw4rm::router::StreamItem>>>>,
+}
+
+impl Default for MockRouterService {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MockRouterService {

@@ -29,7 +29,7 @@ impl FileBackend {
 fn default_path() -> PathBuf {
     let base = directories::BaseDirs::new()
         .map(|b| b.config_dir().to_path_buf())
-        .unwrap_or_else(|| dirs_fallback());
+        .unwrap_or_else(dirs_fallback);
     base.join("sw4rm").join("secrets.json")
 }
 
@@ -71,7 +71,7 @@ fn write_atomic(path: &PathBuf, data: &Json) -> Result<()> {
         f.write_all(s.as_bytes()).map_err(|e| SecretError::Backend(e.to_string()))?;
         f.flush().map_err(|e| SecretError::Backend(e.to_string()))?;
     }
-    fs::rename(&tmp, &path).map_err(|e| SecretError::Backend(e.to_string()))?;
+    fs::rename(&tmp, path).map_err(|e| SecretError::Backend(e.to_string()))?;
     enforce_file_perms(path)?;
     Ok(())
 }

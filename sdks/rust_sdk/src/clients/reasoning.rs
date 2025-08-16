@@ -1,8 +1,8 @@
 use crate::proto::sw4rm::reasoning::reasoning_proxy_client::ReasoningProxyClient;
 use crate::proto::sw4rm::reasoning::{
-    ParallelismCheckRequest, ParallelismCheckResponse as ProtoParallelismResponse,
-    DebateEvaluateRequest, DebateEvaluateResponse as ProtoDebateResponse,
-    SummarizeRequest, SummarizeResponse, TextSegment
+    ParallelismCheckRequest,
+    DebateEvaluateRequest,
+    SummarizeRequest, TextSegment
 };
 use crate::{Error, Result};
 use tonic::transport::{Channel, Endpoint};

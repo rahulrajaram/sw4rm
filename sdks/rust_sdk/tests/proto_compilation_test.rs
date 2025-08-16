@@ -39,7 +39,7 @@ fn test_envelope_struct_exists() {
 #[tokio::test]
 async fn test_registry_client_creation() {
     // Test that we can create a registry client (even if we can't connect)
-    use tonic::transport::{Channel, Endpoint};
+    use tonic::transport::Endpoint;
     
     // This should compile but will fail at runtime due to no server
     let endpoint = Endpoint::from_static("http://localhost:50051");
@@ -87,5 +87,5 @@ fn test_proto_compilation_integration() {
     let _registry_exists = std::mem::size_of::<sw4rm::registry::RegisterAgentRequest>();
     
     // This test passing means protobuf compilation succeeded
-    assert!(true, "Protobuf compilation successful");
+    // Test would fail at compile-time if protos are broken
 }
