@@ -2,7 +2,7 @@
 
 This document consolidates milestone contexts into a single, actionable view: where the project stands and what to do next. It’s derived from the files in `contexts/` and serves as the living checklist for near‑term delivery.
 
-Updated: 2025-08-15
+Updated: 2025-08-16
 
 ## Project Positioning (Where We Are)
 
@@ -14,10 +14,20 @@ Updated: 2025-08-15
 - Telemetry: Integration plan defined (OpenTelemetry tracing + Prometheus metrics, dashboard JSON). Implementation hooks across LLM, tools, scheduler, and bus appear pending.
 - Shell/TUI: MVP features largely shipped (history, status line basics, scheduler slash commands, `/events` parity, incremental search). Remaining: cost estimates, autocomplete/help, keybindings config, stronger preemption UX, tests, and observability metrics.
 - Packaging & Examples: CI packaging strategy and examples described; workflows, checksums, and install docs need verification and wiring if not already present.
+- Packaging & Examples: CI packaging strategy and examples described; workflows, checksums, and install docs need verification and wiring if not already present.
+- DevCore (new): Context added for in-repo development servers (Registry, Router, Scheduler, Negotiation) to enable end-to-end local agent flows without external images. CLI stubs wired (`bee dev-core up|down`), implementation pending.
 
 ## Next Actions (Prioritized, Cross‑Component)
 
-1) Redis Streams Adapter (P0 readiness)
+1) DevCore MVP (Registry/Router/Scheduler/Negotiation)
+- [ ] Registry: tonic server + in-mem agents; `register/heartbeat/deregister` + health.
+- [ ] Router: per-agent streams; fanout for scheduler/negotiation; control messages.
+- [ ] Scheduler: per-agent queues; `submit`→deliver via Router; `preempt`/`shutdown` control.
+- [ ] Negotiation: rooms; `open/propose/counter/evaluate/decide/abort` emitting events.
+- [ ] Integrator: `bee dev-core up/down`, ports (50051..50054), health summary.
+
+
+2) Redis Streams Adapter (P0 readiness)
 - [ ] Implement publish idempotency via Lua (SET NX → XADD → SET; TTL configurable).
 - [ ] Add processing idempotency (SET NX proc_key PX TTL); `XACK` on success; delete on failure.
 - [ ] Add `XAUTOCLAIM` reclaim path with simple backoff using min‑idle windows.
