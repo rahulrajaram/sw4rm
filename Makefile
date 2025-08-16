@@ -154,3 +154,47 @@ smoke: dev-deps
 clean:
 	rm -rf dist build site sdks/py_sdk/sw4rm_sdk.egg-info
 
+# -----------------------
+# Swarm Core Orchestration
+# -----------------------
+
+.PHONY: swarm-core-up swarm-core-down swarm-core-restart swarm-core-status swarm-core-logs
+swarm-core-up:
+	@SWARM_REGISTRY_IMAGE=$${SWARM_REGISTRY_IMAGE} \
+	 SWARM_ROUTER_IMAGE=$${SWARM_ROUTER_IMAGE} \
+	 SWARM_SCHEDULER_IMAGE=$${SWARM_SCHEDULER_IMAGE} \
+	 SWARM_NEGOTIATION_IMAGE=$${SWARM_NEGOTIATION_IMAGE} \
+	 bash bee/scripts/swarmctl.sh up
+
+swarm-core-down:
+	bash bee/scripts/swarmctl.sh down
+
+swarm-core-restart:
+	@SWARM_REGISTRY_IMAGE=$${SWARM_REGISTRY_IMAGE} \
+	 SWARM_ROUTER_IMAGE=$${SWARM_ROUTER_IMAGE} \
+	 SWARM_SCHEDULER_IMAGE=$${SWARM_SCHEDULER_IMAGE} \
+	 SWARM_NEGOTIATION_IMAGE=$${SWARM_NEGOTIATION_IMAGE} \
+	 bash bee/scripts/swarmctl.sh restart
+
+swarm-core-status:
+	bash bee/scripts/swarmctl.sh status
+
+swarm-core-logs:
+	bash bee/scripts/swarmctl.sh logs
+
+.PHONY: swarm-hive-bootstrap swarm-hive-check
+swarm-hive-bootstrap:
+	@BEE_BIN=$${BEE_BIN:-./bee/target/debug/bee} HIVE=$${HIVE:-dev} bash bee/scripts/swarmctl.sh hive-bootstrap
+
+swarm-hive-check:
+	@BEE_BIN=$${BEE_BIN:-./bee/target/debug/bee} HIVE=$${HIVE:-dev} bash bee/scripts/swarmctl.sh hive-check
+
+.PHONY: swarm-agents-up swarm-agents-down swarm-demo-consult
+swarm-agents-up:
+	@BEE_BIN=$${BEE_BIN:-./bee/target/debug/bee} HIVE=$${HIVE:-dev} LOG_DIR=$${LOG_DIR:-logs} bash bee/scripts/swarmctl.sh agents-up
+
+swarm-agents-down:
+	@LOG_DIR=$${LOG_DIR:-logs} bash bee/scripts/swarmctl.sh agents-down
+
+swarm-demo-consult:
+	@BEE_BIN=$${BEE_BIN:-./bee/target/debug/bee} bash bee/scripts/swarmctl.sh demo-consult
