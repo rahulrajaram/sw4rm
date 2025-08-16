@@ -1,4 +1,50 @@
-# SW4RM Agentic Protocol — Quickstart (Python SDK)
+# SW4RM Agentic Protocol — Quickstart
+
+This Quickstart has two tracks:
+- Rust Bee CLI + DevCore (local services) — easiest way to run everything locally.
+- Python SDK — build a Python agent and interact with services.
+
+## DevCore (Rust) Quickstart
+
+Run local in-repo services for Registry, Router, Scheduler, and Negotiation.
+
+1. Build and start DevCore
+   ```bash
+   cd bee
+   cargo build
+   cargo run -- dev-core up
+   ```
+
+2. Probe health (new shell)
+   ```bash
+   bee dev-core health
+   ```
+
+3. Router ping
+   ```bash
+   BEE_ROUTER=http://127.0.0.1:50052 bee router ping
+   ```
+
+4. Submit a task and watch events
+   - Terminal A: `bee Shell` then type `/from my-agent-1`
+   - Terminal B:
+     ```bash
+     bee scheduler submit --endpoint http://127.0.0.1:50053 task-1 my-agent-1 --json '{}'
+     ```
+
+5. Negotiation fanout (DevCore uses 50054)
+   ```bash
+   export BEE_NEGOTIATION=http://127.0.0.1:50054
+   bee negotiate open demo-1 --topic demo --participants my-agent-1,other
+   ```
+
+Tips:
+- If you run multiple CLI processes, set `BEE_METRICS_ADDR=127.0.0.1:0` to avoid port clashes.
+- Default endpoints: registry 50051, router 50052, scheduler 50053, negotiation 50054.
+
+---
+
+## Python SDK Quickstart
 
 Get up and running with the SW4RM Agentic Protocol using the reference Python SDK. This guide walks you through creating your first production-ready agent with persistent state.
 

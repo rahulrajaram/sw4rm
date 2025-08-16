@@ -26,6 +26,11 @@ SW4RM is an open agentic protocol for building message-driven agents with guaran
 
 ## Quick Start
 
+Looking for a local all-in-one stack? See the DevCore Quickstart to run in-repo Registry, Router, Scheduler, and Negotiation services:
+
+- DevCore Quickstart: `QUICKSTART.md` (section "DevCore (Rust) Quickstart")
+- DevCore context and TODOs: `contexts/DEVCORE.md`
+
 ### Basic Agent
 ```python
 import grpc
