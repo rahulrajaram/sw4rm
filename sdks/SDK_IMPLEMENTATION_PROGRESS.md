@@ -288,12 +288,11 @@ OK (crate compiles)
 - Separated example policies from core implementation
 - Added missing protocol error codes
 
-<<<<<<< HEAD
 **Rust SDK Repairs:**
 - Fixed build to use repo protos and generate servers for tests
 - Brought clients in line with proto types; ensured basic envelope correctness
 - Provided minimal buffer conveniences; staged persistence/test alignment
-=======
+
 **JavaScript SDK Initial Implementation:**
 - ✅ Created modern TypeScript project foundation
 - ✅ Implemented comprehensive base gRPC client infrastructure  
@@ -302,7 +301,6 @@ OK (crate compiles)
 - ✅ Configured modern build system (esbuild, TypeScript, Vitest)
 - ✅ Created unit tests with 100% pass rate for implemented components
 - ✅ Established development workflow and testing infrastructure
->>>>>>> c070c86 (js-sdk: achieve spec parity, full clients/runtime, tests, examples)
 
 ### Planned Work
 
