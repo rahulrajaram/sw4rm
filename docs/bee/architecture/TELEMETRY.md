@@ -29,7 +29,13 @@ When `BEE_OTEL_EXPORTER=otlp` is set, Bee installs an OTLP tracer via `opentelem
 
 The process always installs a `tracing_subscriber::fmt` layer for human‑readable logs. When OTLP is enabled, a `tracing_opentelemetry` layer is added to bridge `tracing` spans and events to the OTLP exporter. If exporter initialization fails, Bee logs a warning and continues with fmt logging only.
 
-At this stage, tracing spans are emitted by code paths that already use the `tracing` crate. Additional span coverage for SW4RM SDK client calls and scheduler interactions is not yet implemented in this branch and will be added in subsequent commits. This document establishes the conventions those spans must follow:
+Current branch status: spans and metrics are implemented for key Bee operations. Specifically:
+
+- Router: `router.ping` span + request/error/duration metrics; incoming events from `stream_incoming` are counted.
+- Scheduler: `scheduler.submit`, `scheduler.preempt`, `scheduler.shutdown`, `scheduler.activity`, and `scheduler.purge` spans + request/error/duration metrics.
+- Bus (Redis Streams): `bus.publish` span + request/error/duration metrics; `PING` health call emits request/error/duration metrics.
+
+Further coverage can be added to additional SDK calls and runtime paths as needed. Conventions for any new spans should follow the guidance below:
 
 ## 3.1. Span Conventions
 
@@ -56,19 +62,28 @@ Tracing initialization is implemented in `bee/src/telemetry/init.rs`. Configurat
 
 Bee exposes Prometheus metrics via `metrics-exporter-prometheus` using an embedded HTTP listener bound to `BEE_METRICS_ADDR`. The exporter exposes a single path `/metrics` providing text exposition format. Listener startup failures are non‑fatal and generate a warning with the bind error.
 
-The following metric taxonomy is defined for Bee. Not all series are emitted yet; instrumentation will be rolled out across critical paths in the SDK and runtime using the `metrics` crate.
+The following metric taxonomy is defined for Bee. The series listed here are already emitted by the current implementation and align with the provided Grafana dashboard.
 
 ## 4.1. Counters
 
-Counters track event rates and error occurrences and must be strictly monotonic. Representative names include `bee_requests_total` (labeled by `component`, `operation`, `hive`, `lane`), and `bee_errors_total` (labeled by `component`, `operation`, `error_category`).
+Counters track event rates and error occurrences and must be strictly monotonic.
+
+- `bee_requests_total{component,operation}`: increments for each operation start/completion (e.g., `component="scheduler"`, `operation="submit"`).
+- `bee_errors_total{error_category}`: increments on failures with a coarse `error_category` label (e.g., `scheduler_submit`, `router_ping`, `redis_publish`).
 
 ## 4.2. Histograms
 
-Latency histograms use milliseconds as the unit, with buckets tuned for tail observability (for example, `[1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000]`). Representative names include `bee_request_duration_ms` and `bee_task_duration_ms`, labeled by `component`, `operation`, and task contextual labels where cardinality is controlled.
+Latency histograms use milliseconds as the unit. The current implementation records:
+
+- `bee_request_duration_ms{component,operation}`
+- `bee_task_duration_ms`
 
 ## 4.3. Gauges
 
-Gauges represent instantaneous values such as scheduler queue depth or active tasks. Representative names include `bee_scheduler_queue_depth` and `bee_tasks_active`.
+Gauges represent instantaneous values such as scheduler queue depth or active tasks.
+
+- `bee_scheduler_queue_depth{hive,lane}`
+- `bee_tasks_active{hive,lane}`
 
 ## 4.4. High‑Cardinality Management
 
@@ -86,12 +101,18 @@ The metrics listener binds to loopback by default to avoid inadvertent exposure.
 
 To enable OTLP tracing during development, set `BEE_OTEL_EXPORTER=otlp` and `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` before launching Bee. To expose metrics, set `BEE_METRICS_ADDR=127.0.0.1:9464` or another binding as appropriate. Verify the metrics endpoint locally with `curl http://127.0.0.1:9464/metrics` and confirm that the endpoint responds with Prometheus exposition text.
 
-Prometheus can scrape Bee using a static job definition. A minimal scrape configuration resembles the following:
+Prometheus can scrape Bee using a static job definition. A minimal scrape configuration:
 
-`job_name: bee` with `static_configs: targets: ['127.0.0.1:9464']`.
+scrape_configs:
+  - job_name: "bee"
+    static_configs:
+      - targets: ["127.0.0.1:9464"]
 
-Grafana dashboards should query the exported series to visualize request rate, p50/p95/p99 latencies, error rate by category, and active task gauges. Dashboard JSON should be versioned under the repository so that releases provide a reproducible visualization baseline.
+Grafana dashboards should query the exported series to visualize request rate, p50/p95/p99 latencies, error rate by category, and active task gauges. A ready-to-import dashboard is versioned at `docs/dashboards/bee_telemetry.json` (select your Prometheus datasource when importing).
 
 # 8. Future Work
 
-The following enhancements are prioritized for subsequent milestones: add spans and metrics around SW4RM SDK clients (router, registry, scheduler, negotiation) with standardized attributes; introduce gRPC metadata interceptors to propagate W3C TraceContext across service boundaries; attach exemplars to latency histograms and error counters using the active span `trace_id` to enable trace‑linked metric analysis; and provide a Grafana dashboard JSON with curated panels for latency, error rate, token usage, scheduler queue depth, and active tasks.
+- Registry and Negotiation client coverage (spans + metrics).
+- LLM tool/adapter instrumentation including token usage and cost counters.
+- gRPC interceptors for W3C TraceContext propagation across services.
+- Metrics exemplars with active `trace_id` for trace-linked analysis.
