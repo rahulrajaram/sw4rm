@@ -34,7 +34,14 @@ The scheduler persists tasks, events, checkpoints, and summaries. Tasks store id
 
 1.9. Control Interfaces
 
-Operators control the scheduler using two surfaces. The non-interactive Bee CLI exposes subcommands for submitting tasks, requesting preemption, initiating graceful shutdown, and querying or purging activity. The interactive Bee shell exposes slash commands that allow session-scoped defaults. The shell binds an agent identifier and an optional default lane to the session and resolves an effective scope for submissions. Scope resolution follows this precedence: explicit scope, explicit lane, then default lane, with a fallback to a literal default scope. All controls are idempotent and validate arguments deterministically.
+Operators control the scheduler using two surfaces. The non-interactive Bee CLI exposes subcommands for submitting tasks, requesting preemption, initiating graceful shutdown, and querying or purging activity. The interactive Bee shell exposes slash commands that allow session-scoped defaults. The shell binds an agent identifier and an optional default lane to the session and resolves an effective scope for submissions. Scope resolution follows this precedence: explicit `scope`, explicit `lane` (alias), then the bound lane, with a fallback to a literal `default` scope. All controls are idempotent and validate arguments deterministically.
+
+Command forms (shell):
+- `/bind <lane>`: Set session default lane; alias `/switch <lane>`.
+- `/submit <task_id> [priority=N] [lane=<lane>] [scope=<lane>] [json <payload>] [ct=<type>] [agent=<id>]` — precedence applies: `scope` > `lane` > bound lane > `default`.
+- `/preempt <task_id> [reason=txt] [agent=<id>]` — cooperative preemption request.
+
+Note: The terminal TUI is owned by a separate agent; it must mirror the REPL semantics above for argument precedence and help text.
 
 1.10. Observability and Telemetry
 
