@@ -1,5 +1,19 @@
 # RFC: Interruptible, Message-Driven CLI Agent Framework (Consolidated)
 
+Version: 0.2.0 (2025-08-17)
+
+## Versioning and Changelog
+
+- Versioning: Pre-1.0 SemVer. Normative/implementer-impacting changes = MINOR; editorial/format-only = PATCH; pure moves/renames = no bump.
+- Scope: Applies to this document and its canonical proto namespace guidance (`sw4rm.*`).
+- Stability: Until 1.0, MINOR may contain breaking changes; such cases are called out explicitly.
+
+Changelog
+
+- 0.2.0 (2025-08-17): Canonicalize `sw4rm.*` package; add negotiation event fanout (JSON), room semantics (`correlation_id=negotiation_id`), policy broadcast (WagglePolicy/EffectivePolicy), validation/diff/scoring guidance; add optional policy/activity proto stubs. No known wire breaks vs 0.1.x beyond namespace canonicalization.
+- 0.1.1 (2025-08-08): Editorial updates and proto formatting notes. No normative changes.
+- 0.1.0 (2025-08-08): Initial specification document.
+
 ## 1. Status of this Memo
 
 This document specifies a protocol and runtime architecture for a CLI framework that schedules, routes, and supervises interruptible, message-driven agents. Distribution is unlimited. Implementations that claim conformance MUST satisfy all normative requirements herein.
@@ -93,13 +107,93 @@ Agents register with name, ≤200-word description, capabilities, communication 
 
 Scheduler issues `HITL_INVOCATION` with `reason_type` in {CONFLICT, SECURITY\_APPROVAL, TASK\_ESCALATION, MANUAL\_OVERRIDE, WORKTREE\_OVERRIDE, DEBATE\_DEADLOCK, TOOL\_PRIVILEGE\_ESCALATION, CONNECTOR\_APPROVAL}. Context SHOULD include case facts and Reasoning metadata when present. HITL responds with `HITL_DECISION`; Scheduler applies immediately and logs.
 
+## 16. Inter-Agent Negotiation ("Debate")
+
+Negotiations are scheduler-mediated, identified by `negotiation_id`, and scoped by `correlation_id`. For room semantics the `correlation_id` MUST equal the `negotiation_id`. An `Open` includes topic, participants, and a `debate_intensity_factor ∈ {LOWEST,LOW,MEDIUM,HIGH,HIGHEST}` to select guardrails (round/time/threshold budgets). Scheduler enforces `debate_timeout`; on deadlock/timeout, apply tie-break or escalate with `DEBATE_DEADLOCK`. Negotiation does not mutate repos; subsequent CONTROL/DATA messages do.
+
+### 16.1 Negotiation Event Fanout (JSON over Envelopes)
+
+Negotiation events are carried as `NEGOTIATION` envelopes whose payload is a JSON object. Services MUST preserve raw payload bytes and `correlation_id`; unknown fields MUST be ignored.
+
+Defined event kinds:
+
+- `open`: `{ kind, ts, topic: string, corr: string }`
+- `policy`: `{ kind, ts, negotiation_id: string, profile?: string, policy: WagglePolicy }`
+- `propose`: `{ kind, ts, from: string, ct: string, payload_b64: string }`
+- `counter`: `{ kind, ts, from: string, ct: string, payload_b64: string }`
+- `evaluate`: `{ kind, ts, from: string, score: number, notes: string }`
+- `decide`: `{ kind, ts, by: string, ct: string, result_b64: string }`
+- `abort`: `{ kind, ts, reason: string }`
+
+Notes:
+
+- `payload_b64`/`result_b64` hold opaque bytes for proposals/results; `ct` declares content type. SDKs SHOULD offer helpers to decode on demand.
+- Services MUST NOT reorder events; stream ordering is authoritative.
+
+### 16.2 Waggle Policy and Effective Policy
+
+On `Open`, the Scheduler derives an `EffectivePolicy` from a base `WagglePolicy` and any clamped `AgentPreferences`, then broadcasts a `policy` event (see 16.1). A profile hint MAY select a base policy; the effective policy is authoritative and persisted per negotiation.
+
+### 16.3 Validation, Diff, and Scoring
+
+Implementations SHOULD validate proposals early (e.g., JSON Schema and runnable examples). Invalid drafts MUST be rejected without consuming a round. Per round, record a bounded structural diff summary and scores. Deterministic checks run first; optional LLM/Reasoning confidence in [0,1] MAY be blended per policy weight. Acceptance/stop decisions MUST follow `EffectivePolicy` (thresholds, oscillation/tokens/time budgets). Optional HITL pauses are enforced per policy.
+
+### 16.4 Reports and Artifacts
+
+Implementations SHOULD emit structured records per round (evaluation/decision reports) and artifacts (e.g., `contract_vN.json`, `diff_v{N-1}_to_vN.json`). See `activity.proto` for an API to persist artifacts.
+
+---
+
+## Appendix — Protobuf Package Namespace
+
+The canonical `.proto` package namespace for this specification is `sw4rm.*`. Earlier drafts may show other prefixes; use `sw4rm.*` for conformance and code generation. See the `protos/` directory and the stubs below.
+
 ## 16. Repository and Worktree Binding
 
 Agents operate from a single **home worktree** (`repo_id`, `worktree_id`). Enforce confinement: forbid path escapes, forbid device nodes, prefer `noexec,nodev,nosuid` mounts; on weaker platforms, enforce via in-process VFS and dirfd-relative opens with `O_NOFOLLOW`. Non-home worktree operation is forbidden by default; Scheduler MAY request switch with policy + HITL approval. Binding state machine: UNBOUND → BOUND\_HOME → SWITCH\_PENDING → BOUND\_NON\_HOME → …; log transitions. `WORKTREE_CONTROL` ops: BIND, UNBIND, SWITCH\_REQUEST, SWITCH\_APPROVE, SWITCH\_REJECT, SWITCH\_REVOKE, STATUS. Tools with `needs_worktree=true` MUST fail with `worktree_not_bound` if agent is unbound.
 
 ## 17. Inter-Agent Negotiation (“Debate”)
 
-Negotiations are scheduler-mediated, identified by `negotiation_id`, scoped by `correlation_id`. Open with topic, participants, `debate_intensity_factor ∈ {LOWEST,LOW,MEDIUM,HIGH,HIGHEST}`; map intensity to guardrails (rounds/time/thresholds). Participants exchange PROPOSAL/COUNTER/EVALUATION messages in `NEGOTIATION`. Scheduler enforces `debate_timeout`; on deadlock/timeout, apply tie-break or escalate with `DEBATE_DEADLOCK`. At minimum support two-party unanimity. Negotiation does not mutate repos; subsequent CONTROL/DATA does.
+Negotiations are scheduler-mediated, identified by `negotiation_id`, scoped by `correlation_id` (set equal to the `negotiation_id` for room semantics). Open with topic, participants, `debate_intensity_factor ∈ {LOWEST,LOW,MEDIUM,HIGH,HIGHEST}`; map intensity to guardrails (rounds/time/thresholds). Participants exchange PROPOSAL/COUNTER/EVALUATION messages in `NEGOTIATION`. Scheduler enforces `debate_timeout`; on deadlock/timeout, apply tie-break or escalate with `DEBATE_DEADLOCK`. At minimum support two-party unanimity. Negotiation does not mutate repos; subsequent CONTROL/DATA does.
+
+### 17.1 Negotiation Event Fanout (JSON over Envelopes)
+
+For interoperability with SDKs, negotiation events are carried as `NEGOTIATION` envelopes whose payload is a JSON object. Implementations MUST preserve raw payload bytes and `correlation_id`. Unknown fields MUST be ignored by receivers. The following event kinds are defined:
+
+- `open`: `{ kind, ts, topic: string, corr: string }`
+- `policy`: `{ kind, ts, negotiation_id: string, profile?: string, policy: WagglePolicy }`
+- `propose`: `{ kind, ts, from: string, ct: string, payload_b64: string }`
+- `counter`: `{ kind, ts, from: string, ct: string, payload_b64: string }`
+- `evaluate`: `{ kind, ts, from: string, score: number, notes: string }`
+- `decide`: `{ kind, ts, by: string, ct: string, result_b64: string }`
+- `abort`: `{ kind, ts, reason: string }`
+
+Notes:
+
+- `payload_b64` and `result_b64` hold the opaque bytes for proposals/results; `ct` is the content type. SDKs SHOULD provide convenience helpers to decode on demand.
+- Services MUST NOT reorder events; ordering is that of the service stream.
+
+SDK interop note:
+
+- SDKs may parse these negotiation event payloads as opaque JSON and expose lightweight helpers (e.g., base64 decode for `payload_b64`/`result_b64`). Implementations MAY additionally provide convenience types for policy-related fields (e.g., WagglePolicy/EffectivePolicy) without changing the over-the-wire JSON shapes.
+
+### 17.2 Waggle Policy and Effective Policy
+
+The Scheduler is the source of truth for negotiation policy. On `Open`, the Scheduler MUST derive an `EffectivePolicy` from a base `WagglePolicy` and any clamped `AgentPreferences`, then broadcast a `policy` event (see 17.1). Policy MAY be selected by a profile hint provided at `Open`; the authoritative policy remains in the Scheduler.
+
+The base `WagglePolicy` includes at least: `max_rounds: u32`, `score_threshold: f32 (0..1)`, `diff_tolerance: f32 (0..1)`, `round_timeout_ms: u64`, `token_budget_per_round: u64`, optional `total_token_budget: u64`, `oscillation_limit: u32`, `hitl` gate (`None|PauseBetweenRounds|PauseOnFinalAccept`), and `scoring` knobs (`require_schema_valid`, `require_examples_pass`, `llm_weight: f32`).
+
+The `EffectivePolicy` is the scheduler-owned, per-negotiation policy after clamping agent preferences to scheduler guardrails. Implementations MUST persist the effective policy per room and include it in the broadcast.
+
+### 17.3 Validation, Diff, and Scoring
+
+Implementations SHOULD support early validation of proposals using JSON Schema and executable examples. Invalid drafts MUST be rejected without consuming a round.
+
+Per round, implementations SHOULD compute and record a structural JSON `DeltaSummary` with a bounded `magnitude` and set of `changed_paths`. Deterministic scoring MUST run first; optional Reasoning/LLM confidence in [0,1] MAY be blended per policy `llm_weight`. Acceptance and stop decisions MUST follow `EffectivePolicy` (thresholds, oscillation/tokens/time budgets). Optional HITL pause is enforced per policy.
+
+### 17.4 Reports and Artifacts
+
+Implementations SHOULD emit and persist structured records per round: `EvaluationReport` (deterministic checks, scores, notes), `DecisionReport` (scores, rationale, stop reason), and artifacts: `contract_vN.json`, `diff_v{N-1}_to_vN.json`. See Annex C/D for examples and Activity/Artifacts Protobuf APIs below.
 
 ## 18. MCP Integration and Tool Calling
 
@@ -451,6 +545,7 @@ I’ve already embedded JSON for success, retry/late-ACK, buffer overflow, workt
 • Use `google.protobuf.Timestamp` and `Duration` where helpful.
 • Payloads are `bytes` + `content_type` for maximum flexibility (JSON or protobuf within).
 • Split into logical files for clarity; you can merge if you prefer one file.
+ • The canonical proto package namespace for this specification is `sw4rm.*`. Earlier drafts and examples may have shown other prefixes; use `sw4rm.*` for conformance and code generation.
 
 ---
 
@@ -459,7 +554,7 @@ I’ve already embedded JSON for success, retry/late-ACK, buffer overflow, workt
 ```proto
 syntax = "proto3";
 
-package agentos.common;
+package sw4rm.common;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
@@ -586,7 +681,7 @@ message Empty {}
 ```proto
 syntax = "proto3";
 
-package agentos.registry;
+package sw4rm.registry;
 
 import "google/protobuf/timestamp.proto";
 import "common.proto";
@@ -629,7 +724,7 @@ service RegistryService {
 ```proto
 syntax = "proto3";
 
-package agentos.router;
+package sw4rm.router;
 
 import "common.proto";
 
@@ -652,7 +747,7 @@ service RouterService {
 ```proto
 syntax = "proto3";
 
-package agentos.scheduler;
+package sw4rm.scheduler;
 
 import "google/protobuf/duration.proto";
 import "common.proto";
@@ -711,7 +806,7 @@ service SchedulerService {
 ```proto
 syntax = "proto3";
 
-package agentos.hitl;
+package sw4rm.hitl;
 
 import "common.proto";
 
@@ -741,7 +836,7 @@ service HitlService {
 ```proto
 syntax = "proto3";
 
-package agentos.worktree;
+package sw4rm.worktree;
 
 message BindRequest { string agent_id = 1; string repo_id = 2; string worktree_id = 3; }
 message BindResponse { bool ok = 1; string reason = 2; }
@@ -781,7 +876,7 @@ service WorktreeService {
 ```proto
 syntax = "proto3";
 
-package agentos.tool;
+package sw4rm.tool;
 
 import "google/protobuf/duration.proto";
 
@@ -835,7 +930,7 @@ service ToolService {
 ```proto
 `syntax = "proto3";
 
-package agentos.connector;
+package sw4rm.connector;
 
 message ToolDescriptor {
   string tool_name = 1;
@@ -871,7 +966,7 @@ service ConnectorService {
 ```proto
 syntax = "proto3";
 
-package agentos.negotiation;
+package sw4rm.negotiation;
 
 import "common.proto";
 import "google/protobuf/duration.proto";
@@ -935,7 +1030,7 @@ service NegotiationService {
 ```proto
 syntax = "proto3";
 
-package agentos.reasoning;
+package sw4rm.reasoning;
 
 message ParallelismCheckRequest { string scope_a = 1; string scope_b = 2; }
 message ParallelismCheckResponse { double confidence_score = 1; string notes = 2; }
@@ -961,7 +1056,7 @@ service ReasoningProxy {
 ```proto
 syntax = "proto3";
 
-package agentos.logging;
+package sw4rm.logging;
 
 import "google/protobuf/timestamp.proto";
 
@@ -998,3 +1093,142 @@ python -m grpc_tools.protoc \
 ```
 
 You’ll get `*_pb2.py` and `*_pb2_grpc.py` modules in `./py_sdk`. From there, Claude Code (or your IDE) can scaffold client/server classes. If you want, I can also spit out a minimal Python server skeleton and a client snippet for each service on the next pass.
+
+---
+
+## Additional Protobuf Stubs (additive)
+
+The following additive stubs introduce Scheduler policy control, shared Waggle policy types, and an Activity/Artifacts API. These are OPTIONAL for minimal deployments and REQUIRED for negotiations with policy broadcast, validation reports, and artifact persistence.
+
+## `scheduler_policy.proto`
+
+```proto
+syntax = "proto3";
+
+package sw4rm.scheduler;
+
+import "policy.proto";
+
+message SetWagglePolicyRequest { agentos.policy.WagglePolicy policy = 1; }
+message SetWagglePolicyResponse { bool ok = 1; string reason = 2; }
+
+message GetWagglePolicyRequest {}
+message GetWagglePolicyResponse { agentos.policy.WagglePolicy policy = 1; }
+
+message SetPolicyProfilesRequest { repeated agentos.policy.PolicyProfile profiles = 1; }
+message SetPolicyProfilesResponse { bool ok = 1; string reason = 2; }
+
+message ListPolicyProfilesRequest {}
+message ListPolicyProfilesResponse { repeated agentos.policy.PolicyProfile profiles = 1; }
+
+message GetEffectivePolicyRequest { string negotiation_id = 1; }
+message GetEffectivePolicyResponse { agentos.policy.EffectivePolicy effective = 1; }
+
+message SubmitEvaluationRequest { string negotiation_id = 1; agentos.policy.EvaluationReport report = 2; }
+message SubmitEvaluationResponse { bool accepted = 1; string reason = 2; }
+
+message HitlActionRequest { string negotiation_id = 1; string action = 2; string rationale = 3; }
+message HitlActionResponse { bool ok = 1; string reason = 2; }
+
+service SchedulerPolicyService {
+  rpc SetWagglePolicy(SetWagglePolicyRequest) returns (SetWagglePolicyResponse);
+  rpc GetWagglePolicy(GetWagglePolicyRequest) returns (GetWagglePolicyResponse);
+  rpc SetPolicyProfiles(SetPolicyProfilesRequest) returns (SetPolicyProfilesResponse);
+  rpc ListPolicyProfiles(ListPolicyProfilesRequest) returns (ListPolicyProfilesResponse);
+  rpc GetEffectivePolicy(GetEffectivePolicyRequest) returns (GetEffectivePolicyResponse);
+  rpc SubmitEvaluation(SubmitEvaluationRequest) returns (SubmitEvaluationResponse);
+  rpc HitlAction(HitlActionRequest) returns (HitlActionResponse);
+}
+```
+
+---
+
+## `policy.proto`
+
+```proto
+syntax = "proto3";
+
+package sw4rm.policy;
+
+message WagglePolicy {
+  uint32 max_rounds = 1;
+  float score_threshold = 2;      // 0..1
+  float diff_tolerance = 3;       // 0..1
+  uint64 round_timeout_ms = 4;
+  uint64 token_budget_per_round = 5;
+  uint64 total_token_budget = 6;  // optional 0=unset
+  uint32 oscillation_limit = 7;
+  message Hitl { string mode = 1; } // None|PauseBetweenRounds|PauseOnFinalAccept
+  Hitl hitl = 8;
+  message Scoring { bool require_schema_valid = 1; bool require_examples_pass = 2; float llm_weight = 3; }
+  Scoring scoring = 9;
+}
+
+message AgentPreferences {
+  // Same fields as WagglePolicy but advisory; scheduler clamps to guardrails
+  uint32 max_rounds = 1;
+  float score_threshold = 2;
+  float diff_tolerance = 3;
+  uint64 round_timeout_ms = 4;
+  uint64 token_budget_per_round = 5;
+  uint64 total_token_budget = 6;
+  uint32 oscillation_limit = 7;
+}
+
+message EffectivePolicy {
+  WagglePolicy policy = 1;                // derived authoritative policy
+  map<string, AgentPreferences> applied = 2; // per-agent clamped prefs (optional)
+}
+
+message PolicyProfile {
+  string name = 1;            // e.g., LOW/MEDIUM/HIGH
+  WagglePolicy policy = 2;
+}
+
+message DeltaSummary { float magnitude = 1; repeated string changed_paths = 2; }
+
+message EvaluationReport {
+  string from_agent = 1;
+  float deterministic_score = 2; // 0..1
+  float llm_confidence = 3;      // 0..1, optional 0 if absent
+  string notes = 4;
+  DeltaSummary delta = 5;
+}
+
+message DecisionReport {
+  string decided_by = 1;  // consensus|hitl|policy
+  float final_score = 2;
+  string rationale = 3;
+  string stop_reason = 4; // threshold_met|max_rounds|oscillation|budget|timeout
+}
+```
+
+---
+
+## `activity.proto`
+
+```proto
+syntax = "proto3";
+
+package sw4rm.activity;
+
+message Artifact {
+  string negotiation_id = 1;
+  string kind = 2;       // contract|diff|decision|score|note
+  string version = 3;    // e.g., v3
+  string content_type = 4;
+  bytes content = 5;
+  string created_at = 6; // ISO-8601
+}
+
+message AppendArtifactRequest { Artifact artifact = 1; }
+message AppendArtifactResponse { bool ok = 1; string reason = 2; }
+
+message ListArtifactsRequest { string negotiation_id = 1; string kind = 2; }
+message ListArtifactsResponse { repeated Artifact items = 1; }
+
+service ActivityService {
+  rpc AppendArtifact(AppendArtifactRequest) returns (AppendArtifactResponse);
+  rpc ListArtifacts(ListArtifactsRequest) returns (ListArtifactsResponse);
+}
+```

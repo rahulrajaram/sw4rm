@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package sw4rm.scheduler;
+
+import "policy.proto";
+
+message SetWagglePolicyRequest { sw4rm.policy.WagglePolicy policy = 1; }
+message SetWagglePolicyResponse { bool ok = 1; string reason = 2; }
+
+message GetWagglePolicyRequest {}
+message GetWagglePolicyResponse { sw4rm.policy.WagglePolicy policy = 1; }
+
+message SetPolicyProfilesRequest { repeated sw4rm.policy.PolicyProfile profiles = 1; }
+message SetPolicyProfilesResponse { bool ok = 1; string reason = 2; }
+
+message ListPolicyProfilesRequest {}
+message ListPolicyProfilesResponse { repeated sw4rm.policy.PolicyProfile profiles = 1; }
+
+message GetEffectivePolicyRequest { string negotiation_id = 1; }
+message GetEffectivePolicyResponse { sw4rm.policy.EffectivePolicy effective = 1; }
+
+message SubmitEvaluationRequest { string negotiation_id = 1; sw4rm.policy.EvaluationReport report = 2; }
+message SubmitEvaluationResponse { bool accepted = 1; string reason = 2; }
+
+message HitlActionRequest { string negotiation_id = 1; string action = 2; string rationale = 3; }
+message HitlActionResponse { bool ok = 1; string reason = 2; }
+
+service SchedulerPolicyService {
+  rpc SetWagglePolicy(SetWagglePolicyRequest) returns (SetWagglePolicyResponse);
+  rpc GetWagglePolicy(GetWagglePolicyRequest) returns (GetWagglePolicyResponse);
+  rpc SetPolicyProfiles(SetPolicyProfilesRequest) returns (SetPolicyProfilesResponse);
+  rpc ListPolicyProfiles(ListPolicyProfilesRequest) returns (ListPolicyProfilesResponse);
+  rpc GetEffectivePolicy(GetEffectivePolicyRequest) returns (GetEffectivePolicyResponse);
+  rpc SubmitEvaluation(SubmitEvaluationRequest) returns (SubmitEvaluationResponse);
+  rpc HitlAction(HitlActionRequest) returns (HitlActionResponse);
+}
+
