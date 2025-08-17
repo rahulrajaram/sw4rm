@@ -20,8 +20,7 @@ export async function sendMessageWithAck(
 ): Promise<void> {
   const receivedTimeoutMs = opts?.receivedTimeoutMs ?? 10000;
 
-  // mark SENT in local lifecycle by convention
-  ackLifecycle.mark(envelope.message_id, AckStage.RECEIVED, 'sent_waiting_for_received');
+  // Do not prematurely mark RECEIVED; wait for actual ACK or timeout
 
   const onData = (item: { msg: EnvelopeBuilt }) => {
     const info = ackExtractor(item);
@@ -76,4 +75,3 @@ export async function sendMessageWithAck(
     }, 25);
   });
 }
-

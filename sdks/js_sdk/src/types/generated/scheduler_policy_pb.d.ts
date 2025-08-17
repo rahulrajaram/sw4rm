@@ -1,0 +1,319 @@
+// package: sw4rm.scheduler
+// file: scheduler_policy.proto
+
+/* tslint:disable */
+/* eslint-disable */
+
+import * as jspb from "google-protobuf";
+import * as policy_pb from "./policy_pb";
+
+export class SetWagglePolicyRequest extends jspb.Message { 
+
+    hasPolicy(): boolean;
+    clearPolicy(): void;
+    getPolicy(): policy_pb.WagglePolicy | undefined;
+    setPolicy(value?: policy_pb.WagglePolicy): SetWagglePolicyRequest;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SetWagglePolicyRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: SetWagglePolicyRequest): SetWagglePolicyRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SetWagglePolicyRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SetWagglePolicyRequest;
+    static deserializeBinaryFromReader(message: SetWagglePolicyRequest, reader: jspb.BinaryReader): SetWagglePolicyRequest;
+}
+
+export namespace SetWagglePolicyRequest {
+    export type AsObject = {
+        policy?: policy_pb.WagglePolicy.AsObject,
+    }
+}
+
+export class SetWagglePolicyResponse extends jspb.Message { 
+    getOk(): boolean;
+    setOk(value: boolean): SetWagglePolicyResponse;
+    getReason(): string;
+    setReason(value: string): SetWagglePolicyResponse;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SetWagglePolicyResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: SetWagglePolicyResponse): SetWagglePolicyResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SetWagglePolicyResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SetWagglePolicyResponse;
+    static deserializeBinaryFromReader(message: SetWagglePolicyResponse, reader: jspb.BinaryReader): SetWagglePolicyResponse;
+}
+
+export namespace SetWagglePolicyResponse {
+    export type AsObject = {
+        ok: boolean,
+        reason: string,
+    }
+}
+
+export class GetWagglePolicyRequest extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetWagglePolicyRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetWagglePolicyRequest): GetWagglePolicyRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetWagglePolicyRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetWagglePolicyRequest;
+    static deserializeBinaryFromReader(message: GetWagglePolicyRequest, reader: jspb.BinaryReader): GetWagglePolicyRequest;
+}
+
+export namespace GetWagglePolicyRequest {
+    export type AsObject = {
+    }
+}
+
+export class GetWagglePolicyResponse extends jspb.Message { 
+
+    hasPolicy(): boolean;
+    clearPolicy(): void;
+    getPolicy(): policy_pb.WagglePolicy | undefined;
+    setPolicy(value?: policy_pb.WagglePolicy): GetWagglePolicyResponse;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetWagglePolicyResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetWagglePolicyResponse): GetWagglePolicyResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetWagglePolicyResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetWagglePolicyResponse;
+    static deserializeBinaryFromReader(message: GetWagglePolicyResponse, reader: jspb.BinaryReader): GetWagglePolicyResponse;
+}
+
+export namespace GetWagglePolicyResponse {
+    export type AsObject = {
+        policy?: policy_pb.WagglePolicy.AsObject,
+    }
+}
+
+export class SetPolicyProfilesRequest extends jspb.Message { 
+    clearProfilesList(): void;
+    getProfilesList(): Array<policy_pb.PolicyProfile>;
+    setProfilesList(value: Array<policy_pb.PolicyProfile>): SetPolicyProfilesRequest;
+    addProfiles(value?: policy_pb.PolicyProfile, index?: number): policy_pb.PolicyProfile;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SetPolicyProfilesRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: SetPolicyProfilesRequest): SetPolicyProfilesRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SetPolicyProfilesRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SetPolicyProfilesRequest;
+    static deserializeBinaryFromReader(message: SetPolicyProfilesRequest, reader: jspb.BinaryReader): SetPolicyProfilesRequest;
+}
+
+export namespace SetPolicyProfilesRequest {
+    export type AsObject = {
+        profilesList: Array<policy_pb.PolicyProfile.AsObject>,
+    }
+}
+
+export class SetPolicyProfilesResponse extends jspb.Message { 
+    getOk(): boolean;
+    setOk(value: boolean): SetPolicyProfilesResponse;
+    getReason(): string;
+    setReason(value: string): SetPolicyProfilesResponse;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SetPolicyProfilesResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: SetPolicyProfilesResponse): SetPolicyProfilesResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SetPolicyProfilesResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SetPolicyProfilesResponse;
+    static deserializeBinaryFromReader(message: SetPolicyProfilesResponse, reader: jspb.BinaryReader): SetPolicyProfilesResponse;
+}
+
+export namespace SetPolicyProfilesResponse {
+    export type AsObject = {
+        ok: boolean,
+        reason: string,
+    }
+}
+
+export class ListPolicyProfilesRequest extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListPolicyProfilesRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: ListPolicyProfilesRequest): ListPolicyProfilesRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListPolicyProfilesRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListPolicyProfilesRequest;
+    static deserializeBinaryFromReader(message: ListPolicyProfilesRequest, reader: jspb.BinaryReader): ListPolicyProfilesRequest;
+}
+
+export namespace ListPolicyProfilesRequest {
+    export type AsObject = {
+    }
+}
+
+export class ListPolicyProfilesResponse extends jspb.Message { 
+    clearProfilesList(): void;
+    getProfilesList(): Array<policy_pb.PolicyProfile>;
+    setProfilesList(value: Array<policy_pb.PolicyProfile>): ListPolicyProfilesResponse;
+    addProfiles(value?: policy_pb.PolicyProfile, index?: number): policy_pb.PolicyProfile;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ListPolicyProfilesResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: ListPolicyProfilesResponse): ListPolicyProfilesResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ListPolicyProfilesResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ListPolicyProfilesResponse;
+    static deserializeBinaryFromReader(message: ListPolicyProfilesResponse, reader: jspb.BinaryReader): ListPolicyProfilesResponse;
+}
+
+export namespace ListPolicyProfilesResponse {
+    export type AsObject = {
+        profilesList: Array<policy_pb.PolicyProfile.AsObject>,
+    }
+}
+
+export class GetEffectivePolicyRequest extends jspb.Message { 
+    getNegotiationId(): string;
+    setNegotiationId(value: string): GetEffectivePolicyRequest;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetEffectivePolicyRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetEffectivePolicyRequest): GetEffectivePolicyRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetEffectivePolicyRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetEffectivePolicyRequest;
+    static deserializeBinaryFromReader(message: GetEffectivePolicyRequest, reader: jspb.BinaryReader): GetEffectivePolicyRequest;
+}
+
+export namespace GetEffectivePolicyRequest {
+    export type AsObject = {
+        negotiationId: string,
+    }
+}
+
+export class GetEffectivePolicyResponse extends jspb.Message { 
+
+    hasEffective(): boolean;
+    clearEffective(): void;
+    getEffective(): policy_pb.EffectivePolicy | undefined;
+    setEffective(value?: policy_pb.EffectivePolicy): GetEffectivePolicyResponse;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GetEffectivePolicyResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetEffectivePolicyResponse): GetEffectivePolicyResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GetEffectivePolicyResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetEffectivePolicyResponse;
+    static deserializeBinaryFromReader(message: GetEffectivePolicyResponse, reader: jspb.BinaryReader): GetEffectivePolicyResponse;
+}
+
+export namespace GetEffectivePolicyResponse {
+    export type AsObject = {
+        effective?: policy_pb.EffectivePolicy.AsObject,
+    }
+}
+
+export class SubmitEvaluationRequest extends jspb.Message { 
+    getNegotiationId(): string;
+    setNegotiationId(value: string): SubmitEvaluationRequest;
+
+    hasReport(): boolean;
+    clearReport(): void;
+    getReport(): policy_pb.EvaluationReport | undefined;
+    setReport(value?: policy_pb.EvaluationReport): SubmitEvaluationRequest;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SubmitEvaluationRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: SubmitEvaluationRequest): SubmitEvaluationRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SubmitEvaluationRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SubmitEvaluationRequest;
+    static deserializeBinaryFromReader(message: SubmitEvaluationRequest, reader: jspb.BinaryReader): SubmitEvaluationRequest;
+}
+
+export namespace SubmitEvaluationRequest {
+    export type AsObject = {
+        negotiationId: string,
+        report?: policy_pb.EvaluationReport.AsObject,
+    }
+}
+
+export class SubmitEvaluationResponse extends jspb.Message { 
+    getAccepted(): boolean;
+    setAccepted(value: boolean): SubmitEvaluationResponse;
+    getReason(): string;
+    setReason(value: string): SubmitEvaluationResponse;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SubmitEvaluationResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: SubmitEvaluationResponse): SubmitEvaluationResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SubmitEvaluationResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SubmitEvaluationResponse;
+    static deserializeBinaryFromReader(message: SubmitEvaluationResponse, reader: jspb.BinaryReader): SubmitEvaluationResponse;
+}
+
+export namespace SubmitEvaluationResponse {
+    export type AsObject = {
+        accepted: boolean,
+        reason: string,
+    }
+}
+
+export class HitlActionRequest extends jspb.Message { 
+    getNegotiationId(): string;
+    setNegotiationId(value: string): HitlActionRequest;
+    getAction(): string;
+    setAction(value: string): HitlActionRequest;
+    getRationale(): string;
+    setRationale(value: string): HitlActionRequest;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): HitlActionRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: HitlActionRequest): HitlActionRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: HitlActionRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): HitlActionRequest;
+    static deserializeBinaryFromReader(message: HitlActionRequest, reader: jspb.BinaryReader): HitlActionRequest;
+}
+
+export namespace HitlActionRequest {
+    export type AsObject = {
+        negotiationId: string,
+        action: string,
+        rationale: string,
+    }
+}
+
+export class HitlActionResponse extends jspb.Message { 
+    getOk(): boolean;
+    setOk(value: boolean): HitlActionResponse;
+    getReason(): string;
+    setReason(value: string): HitlActionResponse;
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): HitlActionResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: HitlActionResponse): HitlActionResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: HitlActionResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): HitlActionResponse;
+    static deserializeBinaryFromReader(message: HitlActionResponse, reader: jspb.BinaryReader): HitlActionResponse;
+}
+
+export namespace HitlActionResponse {
+    export type AsObject = {
+        ok: boolean,
+        reason: string,
+    }
+}

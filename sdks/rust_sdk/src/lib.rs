@@ -62,6 +62,7 @@ pub mod ack_integration;
 pub mod worktree_state;
 pub mod interceptors;
 pub mod secrets;
+pub mod negotiation_events;
 
 // Re-export commonly used types
 pub use envelope::*;
@@ -71,6 +72,7 @@ pub use types::*;
 pub use runtime::*;
 pub use clients::*;
 pub use secrets::*;
+pub use negotiation_events::*;
 
 // Generated protobuf code
 #[cfg(feature = "proto")]

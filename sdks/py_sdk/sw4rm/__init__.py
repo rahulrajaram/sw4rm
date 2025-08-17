@@ -16,6 +16,8 @@ __all__ = [
     "constants",
     "error_mapping",
     "buffer_strategy",
+    # Clients
+    "clients",
 ]
 
 __version__ = "0.1.0"

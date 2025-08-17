@@ -22,6 +22,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let wanted = [
         "common.proto","registry.proto","router.proto","scheduler.proto","hitl.proto",
         "worktree.proto","tool.proto","connector.proto","negotiation.proto","reasoning.proto","logging.proto",
+        // Additive policy/negotiation artifacts and activity APIs
+        "policy.proto","scheduler_policy.proto","activity.proto",
     ];
     let mut existing_files = Vec::new();
     for file in &wanted {

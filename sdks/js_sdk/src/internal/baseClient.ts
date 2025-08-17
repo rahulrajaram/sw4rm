@@ -5,7 +5,7 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import { mapGrpcStatusToErrorCode, Sw4rmError } from './errorMapping.js';
 import { ErrorCodeMapper, GrpcErrorInfo } from './errorMapper.js';
-import { InterceptorChain, UnaryContext } from './interceptors.js';
+import { InterceptorChain, UnaryContext, timingInterceptor, loggingInterceptor } from './interceptors.js';
 import { uuidv4 } from './ids.js';
 
 export interface RetryPolicy {
@@ -57,6 +57,7 @@ export class BaseClient {
       'registry.proto',
       'router.proto',
       'scheduler.proto',
+      'scheduler_policy.proto',
       'hitl.proto',
       'worktree.proto',
       'tool.proto',
@@ -64,14 +65,13 @@ export class BaseClient {
       'negotiation.proto',
       'reasoning.proto',
       'logging.proto',
+      'policy.proto',
+      'activity.proto',
     ], loaderOpts);
     this.root = grpc.loadPackageDefinition(this.pkgDef);
     // Default interceptors: timing + error logging; caller can add more
-    try {
-      const { timingInterceptor, loggingInterceptor } = await import('./interceptors.js');
-      this.interceptors.use(timingInterceptor());
-      this.interceptors.use(loggingInterceptor());
-    } catch {}
+    this.interceptors.use(timingInterceptor());
+    this.interceptors.use(loggingInterceptor());
     if (opts.interceptors) opts.interceptors(this.interceptors);
     if (opts.errorMapper) opts.errorMapper(this.errorMapper);
   }
