@@ -6,6 +6,8 @@ The Activity Buffer provides an append-only, queryable record of agent activity 
 1.2. Scope
 This document describes the Activity Buffer data model, write and read paths, sequencing rules, retention and compaction, summarization architecture, command-line interface, concurrency characteristics, failure handling, configuration, testing, and operational guidance. The implementation lives in bee/, and integrates with the Reasoning service for optional remote summarization. Distributed log storage, cross-host replication, and vector indices are out of scope.
 
+Note on Artifacts: The Activity Buffer is operational and short-lived by design and does not store durable negotiation artifacts such as contracts, diffs, or decision reports. A separate, append-only Artifact Journal (planned) will hold those records keyed by negotiation or session id.
+
 1.3. Non-Goals
 The Activity Buffer is not a global event bus, does not perform cross-node consensus, and does not natively index content for similarity search. It does not replace upstream observability pipelines. It does not guarantee global ordering across sessions, only per-session determinism.
 

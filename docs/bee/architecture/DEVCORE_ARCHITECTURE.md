@@ -32,6 +32,7 @@ Non-Goals: production clustering, persistence, ACLs/quotas, HA.
 - State: `subscribers[agent_id] → Vec<mpsc::Sender<Envelope>>`
 - Behavior: `StreamIncoming` subscribes the agent; internal Hub publishes envelopes to all subscribers of that agent_id
 - Backpressure: best-effort; drops to closed/slow subscribers (TODO: buffering & policy)
+- No-subscriber drops: envelopes to agents without active subscribers are dropped (warn logged); buffering/backpressure TBD.
 
 ### Scheduler
 - API: `SubmitTask`, `RequestPreemption`, `ShutdownAgent`, `PollActivityBuffer`, `PurgeActivity`
@@ -46,7 +47,11 @@ Non-Goals: production clustering, persistence, ACLs/quotas, HA.
 - API: `Open`, `Propose`, `Counter`, `Evaluate`, `Decide`, `Abort`
 - State: rooms `id → {topic, participants, events(JSON-lines)}` (bounded ring TODO)
 - Behavior: emits JSON negotiation events to all participants via Router using `MessageType::NEGOTIATION`
+- CLI Convenience: the Bee CLI exposes a `negotiate consult` helper that opens a two-party session (frontend/backend) as a thin wrapper over the above RPCs; the server API remains unchanged.
+- Scope: control-plane fanout only. Policy computation and enforcement (rounds, budgets, oscillation control, scoring) remain Scheduler-owned; DevCore Negotiation does not enforce policy.
 
+- Policy Broadcast: on `open`, an initial `policy` event is broadcast to all participants with the computed `EffectivePolicy` and optional `profile`. The envelope `producer_id` is `scheduler` and `message_type=NEGOTIATION`.
+- Event Shapes: payloads are JSON with fields `kind` and a stub timestamp. Proposals and counters include `payload_b64`; decisions include `result_b64`.
 ## Data Model
 - All services keep state in memory (HashMaps, VecDeque). No persistence across restarts.
 
@@ -70,10 +75,22 @@ Non-Goals: production clustering, persistence, ACLs/quotas, HA.
 - Metrics: Bee CLI starts a Prometheus endpoint (default `127.0.0.1:9464`)
   - When running multiple CLI processes concurrently, set `BEE_METRICS_ADDR=127.0.0.1:0`
 
+## Artifacts and Persistence
+- Activity Buffer: operational/short-lived store for event transcripts and summaries; suitable for observability and replay.
+- Artifact Journal (planned): durable, append-only records for negotiation artifacts (contracts, diffs, decision reports) keyed by negotiation/session id. DevCore defers durable artifact storage to this future journal; do not write contracts/diffs into the Activity Buffer.
+
 ## Configuration
 - Endpoints are resolved from `Endpoints::default()` with env overrides:
   - `BEE_REGISTRY`, `BEE_ROUTER`, `BEE_SCHEDULER`, `BEE_NEGOTIATION`
 - For DevCore Negotiation, set `BEE_NEGOTIATION=http://127.0.0.1:50054`
+
+### Policy Profiles and Agent Preferences
+- Profiles: DevCore seeds `low`, `medium`, and `high` profiles derived from defaults; `low` clamps rounds/thresholds for higher safety, while `high` increases budgets and sets `hitl=PauseBetweenRounds`.
+- Intensity Mapping: `Negotiation.open` maps intensity hints to an existing profile (`low|medium|high`) and computes an `EffectivePolicy` accordingly.
+- Agent Preferences: The Scheduler loads optional per-agent preferences to clamp policy parameters.
+  - File: `BEE_AGENT_PREFS_FILE` (defaults to `$BEE_HOME/agent_prefs.json`) mapping `agent_id → AgentPreferences`.
+  - Env: `BEE_AGENT_PREFS_JSON` with the same JSON object shape.
+  - Clamping: preferences reduce rounds/time/budgets or raise minimum score thresholds without exceeding Scheduler guardrails.
 
 ## Limitations (MVP)
 - No persistence; all state lost on restart
@@ -101,4 +118,3 @@ Non-Goals: production clustering, persistence, ACLs/quotas, HA.
 - Shared state (Hub, presence, rooms): `bee/src/devcore/state.rs`
 - Services: `bee/src/devcore/{registry,router,scheduler,negotiation}.rs`
 - CLI: `bee/src/main.rs` (commands `dev-core up|down|health`)
-

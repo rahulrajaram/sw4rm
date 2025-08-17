@@ -7,9 +7,18 @@ This document describes the interactive Shell and TUI architecture for Bee, focu
 - Scope: Persistent command history, incremental search, status line widget (model/lane/events/cost), scheduler slash commands, and parity for `/events on|off` in non-TUI shell.
 - Non-goals: Multi-window tiling and plugin systems.
 
+## Root Inference and Events
+- Root Inference: When run inside a folder containing `bee.json`, the shell infers the default agent identity and service endpoints from that file, avoiding repeated flags. The TUI variant honors the same inference.
+- Event Tailing: After a `/from` is established, the TUI tails live events in a top events pane. In the non-TUI shell, event streaming is controlled via `/events on|off`.
+
+## Negotiation UX
+- Seed Intent: Negotiations are typically seeded by the operator via the Scheduler through CLI/shell commands or a file-based input. This keeps initiation explicit and auditable.
+- Agent-Initiated Rooms: Agents may optionally initiate rooms; when enabled, the shell/TUI must clearly label such sessions as agent-initiated.
+
 ## Components
 - History Store: JSON Lines file under Bee home with rotation and user-only permissions.
 - TUI Layer: Crossterm + Ratatui for rendering, with an input area and a status line.
+- Composer: Inline Markdown composer with live preview; initial sample is pre-filled on first open for demo friendliness (clear or overwrite as desired).
 - Slash Commands: Call into existing CLI clients (Scheduler/Negotiation/Router) and render results inline.
 - Keybindings: Dotfile-driven chords to toggle features and switch lanes.
 - Telemetry Hook: Optional source for usage/cost estimates; TUI degrades gracefully when unavailable.
@@ -20,6 +29,7 @@ This document describes the interactive Shell and TUI architecture for Bee, focu
 3. Scheduler/Negotiation actions execute asynchronously via SDK clients; outputs stream to the console pane.
 4. The status line subscribes to in-memory session state (from agent, lane, events toggle) and telemetry (optional) to render dynamic fields.
 5. Commands are appended to the history store with a timestamp and basic result flag.
+6. When a session source is bound via `/from`, the TUI attaches an event tail subscription; the non-TUI shell exposes `/events on|off` to mirror this behavior.
 
 ## History Persistence
 - Format: NDJSON, each line is `{ ts, input, ok }`.
@@ -39,10 +49,13 @@ This document describes the interactive Shell and TUI architecture for Bee, focu
 - `/switch <agent_id>` (change default “from” agent)
 - Non-TUI parity: `/events on|off` supported in non-TUI shell.
 
-Notes:
-- Commands use an idempotency key per request where appropriate.
-- Errors are surfaced in-line with actionable messages.
-
+## Negotiation Commands
+- `/open <id> participants=a,b topic=... [intensity=low|high] [timeout_ms=N]`
+- `/propose json <payload>` | `/propose <text>`
+- `/counter json <payload>` | `/counter <text>`
+- `/eval <score:0..1> <notes>`
+- `/decide json <result>` | `/decide <text>`
+- `/abort [reason]`
 ## Keybindings and Config
 - Source: `$BEE_HOME/keybindings.json` (defaults to `~/.config/bee/keybindings.json`).
 - Defaults:
@@ -78,6 +91,7 @@ Notes:
 - Some combinations may conflict with terminal emulators; adjust as needed.
 
 ## Edge Cases and Resilience
+- Debug overlay: set `BEE_TUI_DEBUG=1` to show an extra debug line with cursor/markdown diagnostics.
 - History rotation avoids corruption; reads tolerate malformed lines.
 - Terminal resizes recalculate layout without truncating content.
 - Telemetry missing: status line falls back to static fields; cost remains `—`.
@@ -93,6 +107,7 @@ Notes:
 - Backwards compatible with existing shell usage; additional features are opt-in via keybindings.
 
 ## Observability
+- Debug overlay: set `BEE_TUI_DEBUG=1` to enable an extra debug line with cursor/markdown diagnostics at the bottom of the TUI.
 - Metrics emitter for scheduler outcomes, lane depths, and preemption rates is planned.
 - Tracing: configured via `BEE_OTEL_EXPORTER`, `OTEL_EXPORTER_OTLP_ENDPOINT`, and `BEE_OTEL_SAMPLING`.
 

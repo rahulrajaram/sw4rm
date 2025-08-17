@@ -8,6 +8,8 @@ This document specifies the architecture for scheduler lanes and preemption with
 
 The architecture guarantees that a task submitted to a higher-priority lane can displace a running lower-priority task while preserving the displaced task’s ability to resume from a checkpoint. It enforces deterministic queueing and tie-breaking rules within and across lanes, provides idempotent operator controls, and records all relevant decisions and transitions for audit and replay. It avoids distributed consensus and focuses on single-scheduler correctness with clear operational semantics.
 
+Policy Ownership: Enforcement of Waggle policy (rounds, budgets, oscillation control, scoring) is Scheduler-owned and transport-agnostic; other services (e.g., Negotiation) do not implement policy logic.
+
 1.3. Core Concepts
 
 The scheduler partitions work into lanes. A lane is a priority class with an associated numeric priority and aging policy. Tasks are admitted to a single lane and maintain both a base priority and an effective priority that may increase due to aging while queued. The scheduler maintains a run queue per lane and a global selection policy that always prefers higher effective priority. When a preemption condition holds, the scheduler triggers a cooperative checkpoint-and-yield handshake with the affected worker and records the transition. Tasks are immutable with respect to historical events; only their current state changes in a monotonic sequence.
