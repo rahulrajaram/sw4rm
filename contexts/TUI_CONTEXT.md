@@ -123,3 +123,49 @@ Known Issue — Cursor “two-line” misalignment (pending)
   - Expand tests to cover: fence without newline, removing the third backtick, ` `` ` at EOL, mixed markers on the same line, and multibyte characters adjacent to backticks.
 
 - Status: Partially mitigated. The majority of cases are fixed (e.g., headings/bullets literal, fences rendered/counting, Unicode-safe edits), but there is still an intermittent hang specifically when backspacing into/through the opening fence after newline removal or when two backticks remain at EOL. This is tracked for the next iteration with the parser unification and additional guardrails described above.
+5.15. LLM Integration — OpenAI + ChatGPT Responses
+
+5.15.1. Scope
+Adds an OpenAI provider for the TUI with support for both the public OpenAI Chat Completions API (API key) and the ChatGPT Responses backend (OAuth). Enables robust server-sent events (SSE) streaming, optional reasoning (“thinking”) display, and a safe fallback to a mock provider.
+
+5.15.2. Objectives
+- Reliability: Rustls-only HTTP client, token refresh, and hardened auth file updates.
+- Correctness: Align request shape/headers with codex-rs to avoid 400s.
+- UX: Stream partial answer deltas and show an optional “Thinking:” overlay.
+- Resilience: Fallback to a mock provider when init/auth fails.
+
+5.15.3. Architecture
+- Provider: `OpenAiProvider` implements `ModelProvider` with `complete()` and `stream()`.
+- Auth modes:
+  - ApiKey: uses `OPENAI_API_KEY` or key in `~/.codex/auth.json`.
+  - ChatGPT: reads tokens from `~/.codex/auth.json`, extracts plan from `id_token` (JWT), supports refresh (`/oauth/token`), and safely updates `auth.json`.
+- Headers (ChatGPT mode): `OpenAI-Beta: responses=experimental`, `Accept: text/event-stream`, optional `chatgpt-account-id`, `session_id` (UUID), `User-Agent: bee-cli`, `originator: sigagent_bee`.
+- Requests (ChatGPT mode): send `instructions` string + messages as structured content items `[{ type: "input_text", text }]`; avoid `system` role in the list.
+- SSE: parse `response.output_text.delta`, legacy `content.delta` forms, completion/done, and error events.
+- Reasoning (opt-in): when `BEE_LLM_REASONING=summary|on|1`, include `reasoning` with `include: ["reasoning.encrypted_content"]` and parse reasoning deltas for UI overlay.
+
+5.15.4. TUI Integration
+- Provider init: create `OpenAiProvider::new_from_env()` and fall back to `MockProvider` on failure.
+- Streaming: consume `StreamEvent::TextDelta` and `StreamEvent::ReasoningDelta` to update an in-flight buffer and the thinking overlay respectively; finalize on `Final`.
+- Model: default to `gpt-5` for TUI interactions.
+- Debugging: `BEE_TUI_DEBUG=1` writes UI event logs to `/tmp/bee_tui_debug.log`; `BEE_LLM_DEBUG` dumps payloads/headers.
+
+5.15.5. Build and Dependencies
+- `reqwest` features: `["json", "stream", "rustls-tls"]` (no native-tls).
+- Crate `default-run = "bee"`.
+
+5.15.6. Failure Modes and Recovery
+- 401 refresh: attempt a single token refresh then retry the request.
+- 400 instructions/messages: ensure `instructions` is always sent; encode messages as structured content; do not use `Role::System` with ChatGPT Responses.
+- SSE gaps: treat `response.failed` as errors and render actionable messages; continue on non-delta events.
+- Init/auth failure: degrade to mock provider and keep TUI responsive.
+
+5.15.7. Operator Controls
+- `BEE_LLM_REASONING`: `summary`, `on`, or `1` to enable thinking overlay; unset/other values disable it.
+- `BEE_CHATGPT_INSTRUCTIONS_FILE`: alternate instructions file path; falls back to a concise built-in.
+- `BEE_LLM_DEBUG`, `BEE_TUI_DEBUG`: verbose logs for payloads and UI.
+
+5.15.8. Open Issues / Next Steps
+- Reasoning visibility varies by model/account; confirm via debug logs.
+- Add CLI flags for reasoning/model override; expose token usage like codex-rs.
+- Expand SSE coverage and add backoff for transient auth/network errors.

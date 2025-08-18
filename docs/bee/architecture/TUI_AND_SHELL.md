@@ -116,4 +116,16 @@ Notes:
 - Keybindings: `bee/src/tui/keybindings.rs`
 - History store: `bee/src/history.rs`
 - Telemetry: `bee/src/telemetry/*`
- 
+
+## LLM Provider Integration (TUI)
+- Provider: `OpenAiProvider` implements `ModelProvider` with `complete()` and `stream()`.
+- Auth:
+  - API Key mode via `OPENAI_API_KEY` (standard Chat Completions API).
+  - ChatGPT Responses mode via tokens from `~/.codex/auth.json`; extracts plan from `id_token` and refreshes tokens when needed; writes back safely.
+- Networking: `reqwest` with features `json`, `stream`, `rustls-tls` (no native-tls).
+- Headers (ChatGPT mode): `OpenAI-Beta: responses=experimental`, `Accept: text/event-stream`, `chatgpt-account-id` (optional), `session_id` (UUID), `User-Agent: bee-cli`, `originator: sigagent_bee`.
+- Requests (ChatGPT mode): always include `instructions` plus messages encoded as structured content items `[{ type: "input_text", text }]`; avoid `system` role in message list.
+- Streaming (SSE): parse `response.output_text.delta` and legacy `content.delta`; handle `response.done/completed` and `response.failed` for error surfacing.
+- Reasoning: opt-in via `BEE_LLM_REASONING=summary|on|1`; includes `reasoning` knob and `include: ["reasoning.encrypted_content"]`; UI shows a transient “Thinking:” overlay while streaming.
+- TUI defaults: model `gpt-5`; if provider init fails, TUI falls back to `MockProvider` to preserve interactivity.
+- Debug toggles: `BEE_LLM_DEBUG` (provider logs) and `BEE_TUI_DEBUG` (UI logs to `/tmp/bee_tui_debug.log`).
