@@ -1,6 +1,6 @@
 # SW4RM Rust SDK
 
-A production-grade Rust implementation of the SW4RM Agentic Protocol, providing high-performance gRPC clients and runtime utilities for building distributed autonomous agents.
+Reference Rust SDK for the SW4RM Agentic Protocol. This is one of three SDKs in this repository (Python, Rust, JavaScript) and provides high-performance gRPC clients and runtime utilities for building distributed autonomous agents.
 
 ## Features
 
@@ -12,7 +12,7 @@ A production-grade Rust implementation of the SW4RM Agentic Protocol, providing 
 - **Configurable endpoints** with sensible defaults
 - **Production-ready** error handling and resource management
 
-## Quick Start
+## Install
 
 Add to your `Cargo.toml`:
 
@@ -21,6 +21,8 @@ Add to your `Cargo.toml`:
 sw4rm-sdk = "0.1.0"
 tokio = { version = "1.0", features = ["full"] }
 ```
+
+## Quick Start
 
 ### Basic Agent Example
 
@@ -117,6 +119,13 @@ let endpoints = Endpoints {
 let config = AgentConfig::new("my-agent".to_string(), "My Agent".to_string())
     .with_endpoints(endpoints);
 ```
+
+## Links
+
+- Top-level README (overview and API): `../../README.md`
+- Quickstart for running local services: `../../QUICKSTART.md`
+- Python SDK: `../py_sdk/README.md`
+- JavaScript SDK: `../js_sdk/README.md`
 
 ## Building from Source
 

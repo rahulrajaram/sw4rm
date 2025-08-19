@@ -4,9 +4,14 @@
 [![Rust CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-rust.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-rust.yml)
 [![JS CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-js.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-js.yml)
 
-SW4RM is an open agentic protocol for building message-driven agents with guaranteed delivery, persistent state, and rich observability. This repository provides the reference Python SDK that implements the protocol: clients, a lightweight runtime, and helpers for ACK lifecycle, worktree/state handling, and more.
+SW4RM is an open agentic protocol for building message-driven agents with guaranteed delivery, persistent state, and rich observability. This repository provides three SDKs that implement the protocol — Python, Rust, and JavaScript — including clients, lightweight runtimes, and helpers for ACK lifecycle, worktree/state handling, and more.
 
-## Installation
+SDKs
+- Python: `sdks/py_sdk` — see `sdks/py_sdk/README.md`
+- Rust: `sdks/rust_sdk` — see `sdks/rust_sdk/README.md`
+- JavaScript: `sdks/js_sdk` — see `sdks/js_sdk/README.md`
+
+## Python SDK Installation
 - Prerequisites:
   - Python >= 3.9
   - Optional: create and activate a virtual environment
@@ -382,7 +387,7 @@ python examples/test_client.py --router localhost:50051 --registry localhost:500
 
 ## Architecture
 
-The SDK is organized into layers:
+The Python SDK is organized into layers:
 
 1. **Protocol Layer**: Generated protobuf stubs (`sw4rm.protos`)
 2. **Client Layer**: Service clients (`sw4rm.clients`) 

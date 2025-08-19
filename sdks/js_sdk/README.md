@@ -1,12 +1,14 @@
 # SW4RM JavaScript SDK
 
-🚧 **Under Development** - Initial implementation with basic RegistryClient
+Reference JavaScript SDK for the SW4RM Agentic Protocol. This is one of three SDKs in this repository (Python, Rust, JavaScript). 🚧 Under development: initial implementation includes a basic RegistryClient and core utilities.
 
-## Quick Start
+## Install
 
 ```bash
 npm install @sw4rm/js-sdk
 ```
+
+## Quick Start
 
 ```typescript
 import { RegistryClient, AgentState, CommunicationClass } from '@sw4rm/js-sdk';
@@ -42,7 +44,7 @@ await client.deregisterAgent('my-agent', 'Done');
 ## License
 
 MIT
-## Install
+## Builds
 
 This package ships dual builds for maximum compatibility:
 
@@ -101,3 +103,10 @@ persist.startAutosave();
 - Envelope, ACK lifecycle, Scheduler (priority/Duration), Worktree, HITL, Negotiation, Reasoning, Connector, Logging clients implemented.
 - Streaming resilience and interceptor hooks included by default.
 - JSON persistence for ActivityBuffer and ACK states.
+
+## Links
+
+- Top-level README (overview and API): `../../README.md`
+- Quickstart for running local services: `../../QUICKSTART.md`
+- Python SDK: `../py_sdk/README.md`
+- Rust SDK: `../rust_sdk/README.md`
