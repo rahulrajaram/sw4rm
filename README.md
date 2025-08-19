@@ -2,18 +2,17 @@
 
 SW4RM is an open agentic protocol for building message-driven agents with guaranteed delivery, persistent state, and rich observability. This repository provides the reference Python SDK that implements the protocol: clients, a lightweight runtime, and helpers for ACK lifecycle, worktree/state handling, and more.
 
-## Install
-- Runtime only:
+## Installation
+- Prerequisites:
+  - Python >= 3.9
+  - Optional: create and activate a virtual environment
+    - `python3 -m venv venv && source venv/bin/activate`
+- Runtime install (local):
   - `python -m pip install .`
-- Dev (with codegen):
+- Dev install (with codegen):
   - `python -m pip install -e ".[dev]"`
-  - Generate stubs: `make protos` (requires `grpcio-tools`).
-
-## Before You Start
-- For local development, install dev deps and generate protobuf stubs:
-  - `python -m pip install -e ".[dev]"`
-  - `make protos`
-  - Stubs are generated under `sdks/py_sdk/sw4rm/protos`.
+  - Generate stubs: `make protos` (requires `grpcio-tools`)
+    - Stubs are generated under `sdks/py_sdk/sw4rm/protos`
 
 ## Core Features
 
@@ -29,7 +28,6 @@ SW4RM is an open agentic protocol for building message-driven agents with guaran
 Looking for a local all-in-one stack? See the DevCore Quickstart to run in-repo Registry, Router, Scheduler, and Negotiation services:
 
 - DevCore Quickstart: `QUICKSTART.md` (section "DevCore (Rust) Quickstart")
-- DevCore context and TODOs: `contexts/DEVCORE.md`
 
 ### Basic Agent
 ```python
@@ -39,9 +37,10 @@ from sw4rm.clients.router import RouterClient
 from sw4rm.protos import common_pb2 as common
 
 # Connect to services
-channel = grpc.insecure_channel("localhost:50051")
-registry = RegistryClient(channel)
-router = RouterClient(channel)
+router_ch = grpc.insecure_channel("localhost:50051")
+registry_ch = grpc.insecure_channel("localhost:50052")
+registry = RegistryClient(registry_ch)
+router = RouterClient(router_ch)
 
 # Register agent
 response = registry.register({
@@ -55,6 +54,7 @@ response = registry.register({
 
 ### Advanced Agent with Persistence
 ```python
+from sw4rm import constants as C
 from sw4rm.activity_buffer import PersistentActivityBuffer
 from sw4rm.worktree_state import PersistentWorktreeState
 from sw4rm.ack_integration import ACKLifecycleManager, MessageProcessor
@@ -70,11 +70,21 @@ def handle_data(envelope):
     print(f"Processing: {envelope['message_id']}")
     return "processed"
 
-processor.register_handler(common.MessageType.DATA, handle_data)
+processor.register_handler(C.DATA, handle_data)
 
 # Process incoming messages with automatic ACKs
 for item in router.stream_incoming("my-agent"):
-    envelope = convert_to_dict(item.msg)  # Convert protobuf to dict
+    # Extract envelope from stream item (protobuf → dict)
+    envelope_msg = getattr(item, "msg", item)
+    envelope = {
+        "message_id": getattr(envelope_msg, "message_id", ""),
+        "message_type": getattr(envelope_msg, "message_type", 0),
+        "content_type": getattr(envelope_msg, "content_type", ""),
+        "payload": getattr(envelope_msg, "payload", b""),
+        "producer_id": getattr(envelope_msg, "producer_id", ""),
+        "correlation_id": getattr(envelope_msg, "correlation_id", ""),
+        "sequence_number": getattr(envelope_msg, "sequence_number", 0),
+    }
     result = processor.process_message(envelope)
 ```
 
@@ -109,12 +119,19 @@ needs_retry = buffer.reconcile()
 Manages worktree bindings with policy validation.
 
 ```python
-from sw4rm.worktree_state import PersistentWorktreeState, DefaultWorktreePolicy
+from sw4rm.worktree_state import PersistentWorktreeState
 
-# Custom policy
-class MyPolicy(DefaultWorktreePolicy):
+# Minimal custom policy implementing the expected hooks
+class MyPolicy:
+    def __init__(self, allowed_repos=None):
+        self.allowed_repos = set(allowed_repos or [])
+
     def before_bind(self, repo_id, worktree_id, current):
-        return repo_id in self.allowed_repos
+        # Allow only specific repos
+        return (not self.allowed_repos) or (repo_id in self.allowed_repos)
+
+    def after_bind(self, binding):
+        print(f"Bound to {binding.repo_id}/{binding.worktree_id}")
 
 # Initialize with policy
 worktree = PersistentWorktreeState(
@@ -132,6 +149,7 @@ Automatic acknowledgment handling with router integration.
 
 ```python
 from sw4rm.ack_integration import ACKLifecycleManager
+from sw4rm import constants as C
 
 manager = ACKLifecycleManager(
     router_client=router,
@@ -155,6 +173,7 @@ Handler-based message processing with automatic ACKs.
 
 ```python
 from sw4rm.ack_integration import MessageProcessor
+from sw4rm import constants as C
 
 processor = MessageProcessor(ack_manager)
 
@@ -181,6 +200,7 @@ result = processor.process_message(envelope)
 #### RegistryClient
 ```python
 from sw4rm.clients.registry import RegistryClient
+from sw4rm.protos import common_pb2 as common
 
 registry = RegistryClient(grpc_channel)
 
@@ -189,11 +209,11 @@ response = registry.register({
     "agent_id": "my-agent",
     "name": "My Agent",
     "capabilities": ["processing", "analysis"],
-    "communication_class": 2  # STANDARD
+    "communication_class": common.CommunicationClass.STANDARD
 })
 
 # Send heartbeat
-registry.heartbeat("my-agent", state=4)  # RUNNING
+registry.heartbeat("my-agent", state=common.AgentState.RUNNING)
 
 # Deregister
 registry.deregister("my-agent", reason="shutdown")
@@ -250,6 +270,13 @@ C.DATA                    # Data message
 C.CONTROL                 # Control message
 C.ACKNOWLEDGEMENT        # ACK message
 C.WORKTREE_CONTROL       # Worktree operation
+C.HEARTBEAT              # Heartbeat
+C.NOTIFICATION           # Notification
+C.HITL_INVOCATION        # HITL invocation
+C.NEGOTIATION            # Negotiation
+C.TOOL_CALL              # Tool call
+C.TOOL_RESULT            # Tool result
+C.TOOL_ERROR             # Tool error
 
 # ACK stages
 C.RECEIVED               # Message received
@@ -257,12 +284,27 @@ C.READ                   # Message read/parsed
 C.FULFILLED              # Processing completed
 C.REJECTED               # Processing rejected
 C.FAILED                 # Processing failed
+C.TIMED_OUT              # Processing timed out
 
 # Error codes
 C.VALIDATION_ERROR       # Invalid message format
 C.PERMISSION_DENIED      # Unauthorized operation
 C.INTERNAL_ERROR         # Internal processing error
+C.ACK_TIMEOUT            # ACK not received in time
+C.AGENT_UNAVAILABLE      # Agent not reachable
+C.AGENT_SHUTDOWN         # Agent shutting down
+C.NO_ROUTE               # No route to target
+C.OVERSIZE_PAYLOAD       # Payload too large
+C.TOOL_TIMEOUT           # Tool call timed out
+C.FORCED_PREEMPTION      # Scheduler forced preemption
+C.TTL_EXPIRED            # Message TTL expired
 ```
+
+## Message Semantics
+- Required fields: `message_id`, `producer_id`, `correlation_id`, `sequence_number`, `message_type`, `content_type`, `payload`.
+- Correlation: For negotiation flows, `correlation_id` equals the negotiation ID (per protocol spec).
+- Optional fields: `idempotency_token`, `repo_id`, `worktree_id`, `ttl_ms`, `content_length`, `hlc_timestamp`.
+- Envelope builder returns a dict matching proto fields; adapt to protobuf classes if stubs are present.
 
 ## Examples
 
@@ -274,13 +316,13 @@ C.INTERNAL_ERROR         # Internal processing error
 ### Running Examples
 ```bash
 # Start advanced agent
-python examples/advanced_agent.py --data-dir ./my_agent_data
+python examples/advanced_agent.py --router localhost:50051 --registry localhost:50052 --data-dir ./my_agent_data
 
 # Test the agent (in another terminal)
-python examples/test_client.py --target-agent advanced-1
+python examples/test_client.py --router localhost:50051 --registry localhost:50052 --target-agent advanced-1
 
 # Run specific test
-python examples/test_client.py --test data --target-agent advanced-1
+python examples/test_client.py --router localhost:50051 --registry localhost:50052 --test data --target-agent advanced-1
 ```
 
 See `examples/README.md` for detailed example documentation.
@@ -328,9 +370,10 @@ Notes
 
 ### Testing
 ```bash
-# Run examples against mock services
-python examples/advanced_agent.py --router mock:50051
-python examples/test_client.py --router mock:50051
+# Run examples against local services
+# See QUICKSTART.md for how to start the in-repo services
+python examples/advanced_agent.py --router localhost:50051 --registry localhost:50052
+python examples/test_client.py --router localhost:50051 --registry localhost:50052
 ```
 
 ## Architecture
@@ -342,6 +385,11 @@ The SDK is organized into layers:
 3. **Runtime Layer**: Core functionality (`sw4rm.activity_buffer`, `sw4rm.worktree_state`)
 4. **Integration Layer**: High-level APIs (`sw4rm.ack_integration`)
 5. **Utility Layer**: Helpers (`sw4rm.envelope`, `sw4rm.acks`)
+
+Protocol highlights
+- Cooperative preemption and urgent lane semantics defined by Scheduler and CommunicationClass (see spec).
+- HITL escalation reasons and Reasoning Engine participation are supported via dedicated services.
+- Activity buffer persists advisory task/message context and supports reconciliation.
 
 ## Production Considerations
 
