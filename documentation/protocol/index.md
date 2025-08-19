@@ -1,6 +1,6 @@
 # 3. SW4RM Protocol Specification
 
-([Link to full RFC](https://github.com/rahulrajaram/sw4rm/blob/main/documentation/protocol/spec.md))
+([Link to full RFC](https://github.com/rahulrajaram/sw4rm/blob/master/documentation/protocol/spec.md))
 
 **SW4RM Protocol v0.1** | **Status: Production Ready** | **Last Updated: 2025-08-09**
 

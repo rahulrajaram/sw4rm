@@ -76,7 +76,7 @@ This protocol specification enables heterogeneous agent implementations to commu
 
 SW4RM is an open agentic protocol for building resilient, distributed agentic systems that operate reliably in mission‑critical enterprise environments. It defines services, message envelopes, and ACK lifecycle semantics that enable robust, stateful, message‑driven architectures.
 
-The protocol addresses the fundamental challenges inherent in distributed agentic systems — message loss, state corruption, coordination failures, autonomous decision-making, and operational complexity — while enabling developers to build truly autonomous agents that can negotiate, coordinate, and resolve conflicts independently without human intervention. A reference Python SDK implementation is available at [rahulrajaram/sw4rm/sdks/py_sdk](https://github.com/rahulrajaram/sw4rm/tree/main/sdks/py_sdk).
+The protocol addresses the fundamental challenges inherent in distributed agentic systems — message loss, state corruption, coordination failures, autonomous decision-making, and operational complexity — while enabling developers to build truly autonomous agents that can negotiate, coordinate, and resolve conflicts independently without human intervention. A reference Python SDK implementation is available at [rahulrajaram/sw4rm/sdks/py_sdk](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/py_sdk).
 
 ## 1.3. Technical Architecture Overview
 
