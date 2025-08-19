@@ -1,46 +1,6 @@
 # SW4RM Agentic Protocol — Quickstart
 
-This Quickstart has two tracks:
-- Rust Bee CLI + DevCore (local services) — easiest way to run everything locally.
-- Python SDK — build a Python agent and interact with services.
-
-## DevCore (Rust) Quickstart
-
-Run local in-repo services for Registry, Router, Scheduler, and Negotiation.
-
-1. Build and start DevCore
-   ```bash
-   cd bee
-   cargo build
-   cargo run -- dev-core up
-   ```
-
-2. Probe health (new shell)
-   ```bash
-   bee dev-core health
-   ```
-
-3. Router ping
-   ```bash
-   BEE_ROUTER=http://127.0.0.1:50052 bee router ping
-   ```
-
-4. Submit a task and watch events
-   - Terminal A: `bee Shell` then type `/from my-agent-1`
-   - Terminal B:
-     ```bash
-     bee scheduler submit --endpoint http://127.0.0.1:50053 task-1 my-agent-1 --json '{}'
-     ```
-
-5. Negotiation fanout (DevCore uses 50054)
-   ```bash
-   export BEE_NEGOTIATION=http://127.0.0.1:50054
-   bee negotiate open demo-1 --topic demo --participants my-agent-1,other
-   ```
-
-Tips:
-- If you run multiple CLI processes, set `BEE_METRICS_ADDR=127.0.0.1:0` to avoid port clashes.
-- Default endpoints: registry 50051, router 50052, scheduler 50053, negotiation 50054.
+This quickstart focuses on the SW4RM protocol and SDKs. For CLI tools and local development services, see the separate bee-cli project.
 
 ---
 
@@ -546,21 +506,6 @@ export SW4RM_REGISTRY_ADDR=registry.example.com:50052
 ```
 
 
-## Bee Shell and TUI
+## CLI Tools
 
-### New Slash Commands and Shortcuts
-
-- `/from <agent_id>`: Set default agent (affects scheduler commands and events).
-- `/use <negotiation_id>`: Select active negotiation.
-- `/bind <lane>` or `/switch <lane>`: Set the current scheduler lane.
-- `/submit <task_id> [priority=N] [scope=<lane>] [json <payload>] [ct=<type>] [agent=<id>]`: Submit a task via scheduler.
-- `/preempt <task_id> [reason=txt] [agent=<id>]`: Request preemption for a task.
-- `/events on|off` (non-TUI): Tail incoming events for the selected agent.
-- `/history [N]` (non-TUI): Show the last N commands (persisted across sessions).
-- `/search <term>` (non-TUI): Search recent history.
-
-TUI enhancements:
-- Status line shows `model:- lane:<lane> events:on|off from:<agent> cost:—`.
-- Ctrl-R: Toggle incremental history search; type to filter, Enter to accept.
-
-History is persisted to `BEE_HOME/history.jsonl` (rotated); content may include sensitive commands. Ensure `BEE_HOME` is secured.
+For CLI tools, shell interface, and local development services, see the bee-cli project repository.

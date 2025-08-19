@@ -37,7 +37,7 @@
     "javascript"
   ],
   "author": "SW4RM Team",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
