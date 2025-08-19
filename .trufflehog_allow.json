@@ -1,0 +1,3 @@
+{
+  "Password in URL": "postgres://user:pass@host:5432/dbname"
+}

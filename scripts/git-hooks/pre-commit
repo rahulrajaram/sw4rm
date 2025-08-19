@@ -18,3 +18,6 @@ fi
 # Run documentation style checks before commit
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
 python3 "$REPO_ROOT/scripts/check_docs_style.py"
+
+# Run TruffleHog secret scanning before commit
+python3 "$REPO_ROOT/scripts/check_secrets.py"
