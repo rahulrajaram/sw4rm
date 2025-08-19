@@ -109,7 +109,14 @@ export class BaseClient {
     let backoff = this.retry.initialBackoffMs;
     for (;;) {
       try {
-        const ctx: UnaryContext = { method: methodName, metadata: new Map((mdForCtx?.getMap && Object.entries(mdForCtx.getMap())) || []), startTime: Date.now() };
+        const mdMap = new Map<string, string>();
+        if (mdForCtx?.getMap) {
+          const rawMap = mdForCtx.getMap();
+          for (const [k, v] of Object.entries(rawMap)) {
+            mdMap.set(k, typeof v === 'string' ? v : String(v));
+          }
+        }
+        const ctx: UnaryContext = { method: methodName, metadata: mdMap, startTime: Date.now() };
         this.interceptors.runRequest(ctx);
         const res = await fn();
         this.interceptors.runResponse(ctx, { ok: true, durationMs: Date.now() - ctx.startTime });
@@ -125,7 +132,14 @@ export class BaseClient {
             mapped,
             { grpcStatus: status, details: e?.details || e?.message }
           );
-          const ctx: UnaryContext = { method: methodName, metadata: new Map((mdForCtx?.getMap && Object.entries(mdForCtx.getMap())) || []), startTime: Date.now() };
+          const mdMap = new Map<string, string>();
+        if (mdForCtx?.getMap) {
+          const rawMap = mdForCtx.getMap();
+          for (const [k, v] of Object.entries(rawMap)) {
+            mdMap.set(k, typeof v === 'string' ? v : String(v));
+          }
+        }
+        const ctx: UnaryContext = { method: methodName, metadata: mdMap, startTime: Date.now() };
           this.interceptors.runResponse(ctx, { ok: false, error: err, durationMs: 0 });
           throw err;
         }

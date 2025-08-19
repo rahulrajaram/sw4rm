@@ -21,7 +21,11 @@ export * from './clients/scheduler.js';
 export * from './clients/schedulerPolicy.js';
 export * from './clients/worktree.js';
 export * from './clients/tool.js';
-export * from './clients/logging.js';
+export { 
+  LoggingClient,
+  type LogEvent,
+  // Skip Timestamp as it conflicts with internal/envelope.js
+} from './clients/logging.js';
 export * from './clients/activity.js';
 export * from './clients/hitl.js';
 export * from './clients/negotiation.js';
@@ -30,7 +34,14 @@ export * from './clients/connector.js';
 export * from './clients/registry.js';
 
 // Internal helpers (exported for advanced usage)
-export * from './internal/envelope.js';
+export { 
+  buildEnvelope,
+  type EnvelopeBuilt,
+  type EnvelopeInput,
+  nowTimestamp,
+  type Timestamp,
+  // Skip MessageType as it's already exported from constants
+} from './internal/envelope.js';
 export * from './internal/errorMapping.js';
 export * from './internal/baseClient.js';
 export * from './internal/time.js';
