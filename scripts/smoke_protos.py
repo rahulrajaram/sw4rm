@@ -15,20 +15,10 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PY_OUT = REPO_ROOT / "py_sdk" / "sw4rm" / "protos"
-PROTOS = [
-    "common.proto",
-    "registry.proto",
-    "router.proto",
-    "scheduler.proto",
-    "hitl.proto",
-    "worktree.proto",
-    "tool.proto",
-    "connector.proto",
-    "negotiation.proto",
-    "reasoning.proto",
-    "logging.proto",
-]
+# SDK sources live under sdks/py_sdk
+SDK_ROOT = REPO_ROOT / "sdks" / "py_sdk"
+PY_OUT = SDK_ROOT / "sw4rm" / "protos"
+PROTO_DIR = REPO_ROOT / "protos"
 
 
 def compile_protos() -> None:
@@ -46,13 +36,15 @@ def compile_protos() -> None:
 
     inc = pkg_resources.resource_filename("grpc_tools", "_proto")
 
+    # Compile all .proto files in repo's protos/ directory
+    protos = sorted(str(p) for p in PROTO_DIR.glob("*.proto"))
     args = [
         "protoc",
-        f"-I{REPO_ROOT}",
+        f"-I{PROTO_DIR}",
         f"-I{inc}",
         f"--python_out={PY_OUT}",
         f"--grpc_python_out={PY_OUT}",
-    ] + [str(REPO_ROOT / p) for p in PROTOS]
+    ] + protos
 
     rc = protoc.main(args)
     if rc != 0:
@@ -61,8 +53,8 @@ def compile_protos() -> None:
 
 
 def import_generated_and_clients() -> None:
-    # Ensure editable-style import from repo root works
-    sys.path.insert(0, str(REPO_ROOT / "py_sdk"))
+    # Ensure editable-style import from SDK root works
+    sys.path.insert(0, str(SDK_ROOT))
     # Also add generated stubs directory for absolute imports like `import common_pb2`
     sys.path.insert(0, str(PY_OUT))
 

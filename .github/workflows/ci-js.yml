@@ -1,0 +1,32 @@
+name: JS CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: sdks/js_sdk/package-lock.json
+
+      - name: Install dependencies
+        working-directory: sdks/js_sdk
+        run: npm ci
+
+      - name: Build SDK
+        working-directory: sdks/js_sdk
+        run: npm run build
+
+      - name: Run JS tests
+        working-directory: sdks/js_sdk
+        run: npm test --silent
+

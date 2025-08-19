@@ -1,0 +1,40 @@
+name: Rust CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          protoc --version
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            sdks/rust_sdk/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('sdks/rust_sdk/Cargo.lock') }}
+
+      - name: Cargo test
+        working-directory: sdks/rust_sdk
+        env:
+          PROTO_DIR: ${{ github.workspace }}/protos
+        run: |
+          cargo test --all --locked --color=always
+
