@@ -1,6 +1,6 @@
 # SW4RM Agentic Protocol — Quickstart
 
-This quickstart focuses on the SW4RM protocol and SDKs. For CLI tools and local development services, see the separate bee-cli project.
+This quickstart focuses on the SW4RM protocol and SDKs.
 
 ---
 
@@ -506,6 +506,6 @@ export SW4RM_REGISTRY_ADDR=registry.example.com:50052
 ```
 
 
-## CLI Tools
+## Additional Tools
 
-For CLI tools, shell interface, and local development services, see the bee-cli project repository.
+Additional development tools and CLI utilities are available separately.
