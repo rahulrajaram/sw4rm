@@ -139,7 +139,7 @@ if [[ -d "$SDK_PATH" ]]; then
     git pull origin main
 else
     log_info "Cloning SW4RM SDK repository..."
-    git clone https://github.com/sw4rm/sw4rm-sdk.git "$SDK_PATH"
+    git clone https://github.com/rahulrajaram/sw4rm.git "$SDK_PATH"
     cd "$SDK_PATH"
 fi
 
@@ -208,7 +208,7 @@ Next Steps:
 
 Support:
 - Documentation: https://sw4rm.ai
-- GitHub Issues: https://github.com/sw4rm/sw4rm-sdk/issues
+- GitHub Issues: https://github.com/rahulrajaram/sw4rm/issues
 EOF
 
 log_success "Development environment installation completed successfully!"

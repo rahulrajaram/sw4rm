@@ -6,8 +6,8 @@ site_url: https://sw4rm.ai
 docs_dir: documentation
 
 # Repo is private for now; update when public
-repo_name: sw4rm/sw4rm-sdk
-repo_url: https://github.com/sw4rm/sw4rm-sdk
+repo_name: rahulrajaram/sw4rm
+repo_url: https://github.com/rahulrajaram/sw4rm
 
 theme:
   name: material
@@ -84,9 +84,9 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/sw4rm/sw4rm-sdk
+      link: https://github.com/rahulrajaram/sw4rm
     - icon: fontawesome/brands/python
-      link: https://pypi.org/project/sw4rm-sdk/
+      link: https://pypi.org/rahulrajaram/sw4rm-sdk
 
 extra_css:
   - assets/custom.css
