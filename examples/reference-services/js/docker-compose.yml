@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  registry:
+    build:
+      context: ../..
+      dockerfile: examples/reference-services/js/Dockerfile.registry
+    ports:
+      - "50052:50052"
+    networks:
+      - sw4rm-js
+    healthcheck:
+      test: ["CMD", "node", "-e", "const net=require('net');let s=net.createConnection({host:'localhost',port:50052},()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  router:
+    build:
+      context: ../..
+      dockerfile: examples/reference-services/js/Dockerfile.router
+    ports:
+      - "50051:50051"
+    networks:
+      - sw4rm-js
+    healthcheck:
+      test: ["CMD", "node", "-e", "const net=require('net');let s=net.createConnection({host:'localhost',port:50051},()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  sw4rm-js:
+    driver: bridge

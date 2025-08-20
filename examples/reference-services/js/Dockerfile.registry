@@ -1,0 +1,19 @@
+FROM node:20-alpine
+
+WORKDIR /app/examples/reference-services/js
+
+# Copy SDK and example sources
+COPY sdks/js_sdk /app/sdks/js_sdk
+COPY examples/reference-services/js/package*.json ./
+COPY examples/reference-services/js/tsconfig.json ./
+COPY examples/reference-services/js/src ./src
+
+# Install dependencies
+RUN npm ci
+
+# Expose registry port
+EXPOSE 50052
+
+# Start registry service via tsx
+CMD ["npx", "tsx", "src/registry-service.ts"]
+

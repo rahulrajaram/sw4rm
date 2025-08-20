@@ -1,0 +1,4 @@
+grpcio==1.56.*
+grpcio-tools==1.56.*
+protobuf>=4.23,<5
+googleapis-common-protos>=1.60,<2

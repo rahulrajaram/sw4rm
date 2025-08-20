@@ -8,6 +8,35 @@ Reference JavaScript SDK for the SW4RM Agentic Protocol. This is one of three SD
 npm install @sw4rm/js-sdk
 ```
 
+## Quick Start with Working Services
+
+🎉 **NEW**: Complete working example with services included! You can now run a full SW4RM setup locally.
+
+### 1. Start the Services
+
+```bash
+cd ../../examples/reference-services/
+./start_services_local.sh
+```
+
+### 2. Test the Setup
+
+```bash
+# Test the complete setup
+python test_complete_setup.py
+```
+
+### 3. Run JavaScript Examples
+
+```bash
+cd ../examples/js/
+npm install
+npm run register_agent    # Register an agent
+npm run router_send_receive  # Send and receive messages
+```
+
+You should see successful agent registration and message routing!
+
 ## Quick Start
 
 ```typescript

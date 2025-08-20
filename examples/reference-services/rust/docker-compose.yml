@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  registry:
+    build:
+      context: ../..
+      dockerfile: examples/reference-services/rust/Dockerfile.registry
+    ports:
+      - "50052:50052"
+    networks:
+      - sw4rm-rust
+
+  router:
+    build:
+      context: ../..
+      dockerfile: examples/reference-services/rust/Dockerfile.router
+    ports:
+      - "50051:50051"
+    networks:
+      - sw4rm-rust
+
+networks:
+  sw4rm-rust:
+    driver: bridge

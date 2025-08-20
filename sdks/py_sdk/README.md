@@ -10,6 +10,46 @@ From the repo root (recommended during development):
 python -m pip install -e ".[dev]"
 ```
 
+## Quick Start with Working Services
+
+🎉 **NEW**: Complete working example with services included! You can now run a full SW4RM setup locally.
+
+### 1. Start the Services
+
+```bash
+cd ../../examples/reference-services/
+./start_services_local.sh
+```
+
+### 2. Test the Setup
+
+```bash
+python test_complete_setup.py
+```
+
+### 3. Run the Echo Agent
+
+```bash
+cd ..
+python examples/echo_agent.py --router localhost:50051 --registry localhost:50052
+```
+
+You should see:
+```
+✅ Registered successfully
+🚀 Starting message loop for echo-1
+```
+
+### 4. Send Test Messages
+
+In another terminal:
+```bash
+cd examples/reference-services/
+python test_complete_setup.py
+```
+
+Your echo agent will receive and process the test message!
+
 Runtime-only install (no dev tooling):
 
 ```bash

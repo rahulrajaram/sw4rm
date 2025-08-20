@@ -22,7 +22,45 @@ sw4rm-sdk = "0.1.0"
 tokio = { version = "1.0", features = ["full"] }
 ```
 
-## Quick Start
+## Quick Start with Working Services
+
+🎉 **NEW**: Complete working example with services included! You can now run a full SW4RM setup locally.
+
+### 1. Start the Services
+
+**Option A: Python Services (Recommended for getting started)**
+```bash
+cd ../../examples/reference-services/
+./start_services_local.sh
+```
+
+**Option B: Rust Services**
+```bash
+cd ../../examples/reference-services/rust/
+cargo run --bin start-services
+```
+
+### 2. Run the Echo Agent
+
+```bash
+cargo run --example echo_agent
+```
+
+You should see:
+```
+✅ Registered agent successfully
+🚀 Starting message loop for echo-agent
+```
+
+### 3. Test the Setup
+
+```bash
+# In another terminal
+cd ../../examples/reference-services/
+python test_complete_setup.py
+```
+
+This will send a test message that your agent will receive and process!
 
 ### Basic Agent Example
 

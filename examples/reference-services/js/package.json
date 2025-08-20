@@ -1,0 +1,25 @@
+{
+  "name": "sw4rm-services-js",
+  "version": "0.1.0",
+  "description": "SW4RM Protocol Services - Registry and Router reference implementations using the JS SDK",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start:registry": "tsx src/registry-service.ts",
+    "start:router": "tsx src/router-service.ts", 
+    "start:all": "tsx src/start-services.ts",
+    "dev": "npm run build && npm run start:all"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.15.7",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.10.0",
+    "@sw4rm/js-sdk": "file:../../sdks/js_sdk"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

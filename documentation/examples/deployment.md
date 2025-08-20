@@ -201,20 +201,20 @@ Compose referencing local builds:
 version: '3.9'
 services:
   router:
-    build: ./services/router        # path to your router source
+    build: ./examples/reference-services/        # path to your router source
     image: sw4rm-router:dev
     ports: ["50051:50051"]
     volumes: ["router-data:/var/lib/sw4rm"]
     restart: unless-stopped
 
   registry:
-    build: ./services/registry
+    build: ./examples/reference-services/
     image: sw4rm-registry:dev
     ports: ["50052:50052"]
     restart: unless-stopped
 
   scheduler:
-    build: ./services/scheduler
+    build: ./examples/reference-services/
     image: sw4rm-scheduler:dev
     ports: ["50053:50053"]
     restart: unless-stopped
@@ -238,7 +238,7 @@ The following Compose file builds Router, Registry, and Scheduler from your loca
 version: '3.9'
 services:
   router:
-    build: ./services/router
+    build: ./examples/reference-services/
     image: sw4rm-router:dev
     container_name: sw4rm-router
     ports:
@@ -248,7 +248,7 @@ services:
     restart: unless-stopped
 
   registry:
-    build: ./services/registry
+    build: ./examples/reference-services/
     image: sw4rm-registry:dev
     container_name: sw4rm-registry
     ports:
@@ -256,7 +256,7 @@ services:
     restart: unless-stopped
 
   scheduler:
-    build: ./services/scheduler
+    build: ./examples/reference-services/
     image: sw4rm-scheduler:dev
     container_name: sw4rm-scheduler
     ports:
@@ -535,7 +535,7 @@ For dev clusters without published images, build and push images to a local regi
 
 ```bash
 # Example: build and tag
-docker build -t localhost:5000/sw4rm-router:dev ./services/router
+docker build -t localhost:5000/sw4rm-router:dev ./examples/reference-services/
 docker push localhost:5000/sw4rm-router:dev
 
 # Update Deployment image: localhost:5000/sw4rm-router:dev
