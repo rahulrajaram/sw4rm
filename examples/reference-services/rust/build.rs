@@ -5,12 +5,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = env::var("OUT_DIR").unwrap();
 
     // Use the protos from the parent directory
-    let proto_dir = PathBuf::from("../../protos");
+    let proto_dir = PathBuf::from("../../../protos");
     
     let proto_files = vec![
         proto_dir.join("common.proto"),
         proto_dir.join("registry.proto"),
         proto_dir.join("router.proto"),
+        proto_dir.join("scheduler.proto"),
     ];
 
     // Check if proto files exist

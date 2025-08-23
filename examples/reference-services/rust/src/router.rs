@@ -3,7 +3,7 @@ use crate::proto::sw4rm::router::{
     SendMessageRequest, SendMessageResponse,
     StreamRequest, StreamItem,
 };
-use crate::proto::sw4rm::common::{Envelope, MessageType};
+use crate::proto::sw4rm::common::MessageType;
 use dashmap::DashMap;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -168,18 +168,11 @@ impl RouterService for RouterServiceImpl {
         // Store the sender for this agent
         self.agent_senders.insert(agent_id.clone(), tx);
 
-        // Clean up when connection drops
-        let agent_senders_clone = Arc::clone(&self.agent_senders);
-        let agent_id_clone = agent_id.clone();
-        
-        // Create the stream first
+        // Create the stream
         let stream = UnboundedReceiverStream::new(rx);
         
         // Cleanup will happen automatically when the stream is dropped
-        tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            // This is a simple cleanup - in production you'd want better connection tracking
-        });
+        // The agent_senders entry is cleaned up in the stream event handlers above
 
         Ok(Response::new(stream))
     }

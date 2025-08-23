@@ -42,11 +42,11 @@ export interface EnvelopeBuilt {
   sequence_number: number;
   retry_count: number;
   message_type: MessageType;
-  content_type?: string;
+  content_type: string; // Always present (aligns with Python/Rust)
   content_length?: number;
   repo_id?: string;
   worktree_id?: string;
-  hlc_timestamp?: string;
+  hlc_timestamp: string; // Always present (aligns with Python/Rust)
   ttl_ms?: number;
   timestamp: Timestamp;
   payload?: Uint8Array;
@@ -57,6 +57,11 @@ export function nowTimestamp(date = new Date()): Timestamp {
   const seconds = Math.floor(ms / 1000);
   const nanos = (ms % 1000) * 1e6;
   return { seconds, nanos };
+}
+
+// HLC timestamp stub to align with Python/Rust (returns unix milliseconds as string)
+export function nowHlcStub(date = new Date()): string {
+  return String(date.getTime());
 }
 
 function uuidv4(): string {
@@ -79,15 +84,15 @@ function uuidv4(): string {
 
 export function buildEnvelope(input: EnvelopeInput): EnvelopeBuilt {
   const hasPayload = input.payload !== undefined;
-  if (hasPayload && !input.content_type) {
-    throw new Error('content_type is required when payload is provided');
-  }
+  // Always set content_type to align with Python/Rust behavior
+  const content_type = input.content_type ?? 'application/json';
 
   const message_id = uuidv4(); // new per attempt
   const correlation_id = input.correlation_id ?? uuidv4();
-  const sequence_number = input.sequence_number ?? 0;
+  const sequence_number = input.sequence_number ?? 1;
   const retry_count = input.retry_count ?? 0;
   const ts = nowTimestamp(input.timestamp ?? new Date());
+  const hlc_timestamp = input.hlc_timestamp ?? nowHlcStub(input.timestamp);
 
   const built: EnvelopeBuilt = {
     message_id,
@@ -97,9 +102,10 @@ export function buildEnvelope(input: EnvelopeInput): EnvelopeBuilt {
     sequence_number,
     retry_count,
     message_type: input.message_type,
+    content_type, // Always set content_type (aligns with Python/Rust)
     repo_id: input.repo_id,
     worktree_id: input.worktree_id,
-    hlc_timestamp: input.hlc_timestamp,
+    hlc_timestamp, // Always set hlc_timestamp (aligns with Python/Rust)
     ttl_ms: input.ttl_ms,
     timestamp: ts,
   };
@@ -107,8 +113,11 @@ export function buildEnvelope(input: EnvelopeInput): EnvelopeBuilt {
   if (hasPayload) {
     const payload = input.payload instanceof Uint8Array ? input.payload : new Uint8Array(input.payload as any);
     built.payload = payload;
-    built.content_type = input.content_type;
     built.content_length = payload.byteLength;
+    // Override content_type for binary payloads if not explicitly set, like Rust does
+    if (!input.content_type) {
+      built.content_type = 'application/octet-stream';
+    }
   }
 
   return built;

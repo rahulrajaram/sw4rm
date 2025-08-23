@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "to": "scheduler",
+  "stage": "run",
+  "params": {
+    "commands": {
+      "backend": {"run_cmd": "cd backend && python3 server.py"},
+      "frontend": {"run_cmd": "cd frontend && python3 -m http.server 5173"}
+    }
+  }
+}

@@ -9,8 +9,13 @@ pub mod proto {
         pub mod router {
             tonic::include_proto!("sw4rm.router");
         }
+        pub mod scheduler {
+            tonic::include_proto!("sw4rm.scheduler");
+        }
     }
 }
 
 pub mod registry;
 pub mod router;
+pub mod scheduler;
+pub mod agents;

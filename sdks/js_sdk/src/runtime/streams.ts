@@ -18,10 +18,12 @@ export function createResilientIncomingStream(
   const maxBackoff = opts?.maxBackoffMs ?? 8000;
   const mult = opts?.multiplier ?? 2;
   let stopped = false;
+  let current: grpc.ClientReadableStream<any> | null = null;
 
   const start = () => {
     if (stopped) return;
     const stream = router.streamIncoming(agentId);
+    current = stream;
     stream.on('data', (msg) => emitter.emit('data', msg));
     stream.on('error', async () => {
       if (stopped) return;
@@ -41,9 +43,16 @@ export function createResilientIncomingStream(
 
   // public controls
   // @ts-expect-error augment emitter
-  emitter.stop = () => { stopped = true; };
+  emitter.stop = () => {
+    stopped = true;
+    try {
+      if (current && typeof (current as any).cancel === 'function') {
+        (current as any).cancel();
+      }
+    } catch {}
+    current = null;
+  };
 
   start();
   return emitter;
 }
-

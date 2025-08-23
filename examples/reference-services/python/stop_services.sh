@@ -3,15 +3,38 @@ set -e
 
 cd "$(dirname "$0")"
 
-echo "🛑 Stopping Python reference services (Docker)"
+MODE="docker"
+for arg in "$@"; do
+  case "$arg" in
+    --local) MODE="local" ;;
+    --docker) MODE="docker" ;;
+    -h|--help)
+      cat <<EOF
+Usage: ./stop_services.sh [--local|--docker]
+Default: --docker
 
-if command -v docker-compose &> /dev/null; then
-  COMPOSE_CMD="docker-compose"
-else
-  COMPOSE_CMD="docker compose"
+--local   Stop local Python Registry/Router/Scheduler processes
+--docker  Stop docker-compose stack
+EOF
+      exit 0
+      ;;
+  esac
+done
+
+if [[ "$MODE" == "docker" ]]; then
+  echo "🛑 Stopping Python reference services (Docker)"
+  # shellcheck disable=SC1091
+  source ../scripts/lib.sh
+  detect_compose || exit 1
+  $COMPOSE_CMD -f docker/docker-compose.yml down
+  echo "✅ Stopped"
+  exit 0
 fi
 
-$COMPOSE_CMD down
+echo "🛑 Stopping Python reference services (Local)"
+
+source ../scripts/lib.sh
+kill_from_pidfiles_then_patterns .registry.pid .router.pid .scheduler.pid -- \
+  "hive/registry_service.py" "hive/router_service.py" "hive/scheduler_service.py"
 
 echo "✅ Stopped"
-

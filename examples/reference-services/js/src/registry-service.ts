@@ -140,7 +140,8 @@ async function serve(): Promise<void> {
   // We'll need to load the service definition properly
   // For now, this is a conceptual implementation
   
-  const addr = '127.0.0.1:50052';
+  const port = parseInt(process.env.REGISTRY_PORT || '50052', 10);
+  const addr = `0.0.0.0:${port}`;
   
   server.bindAsync(addr, grpc.ServerCredentials.createInsecure(), (err, port) => {
     if (err) {

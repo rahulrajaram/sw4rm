@@ -1,7 +1,7 @@
 use clap::Parser;
 use std::process::{Command, Stdio};
 use tokio::signal;
-use tracing::{info, error};
+use tracing::info;
 use tracing_subscriber;
 
 #[derive(Parser)]

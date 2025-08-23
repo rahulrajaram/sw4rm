@@ -11,6 +11,7 @@ Reference Rust SDK for the SW4RM Agentic Protocol. This is one of three SDKs in 
 - **Built-in logging and tracing** via tracing crate
 - **Configurable endpoints** with sensible defaults
 - **Production-ready** error handling and resource management
+- **CONTROL helpers** and content-types for CONTROL-only flows (scheduler command v1, agent report v1)
 
 ## Install
 
@@ -194,6 +195,22 @@ See the `examples/` directory for more comprehensive usage examples including:
 - HITL workflows  
 - Multi-agent negotiation
 - Preemption handling
+
+### Example: CONTROL scheduler command
+
+```rust
+use sw4rm_sdk::{EnvelopeBuilder, constants, control::{SchedulerCommandV1, SchedulerStage, CT_SCHEDULER_COMMAND_V1}};
+
+let cmd = SchedulerCommandV1::new(SchedulerStage::Run)
+    .with_input(serde_json::json!({"repo":"demo"}));
+let payload = cmd.to_bytes().unwrap();
+
+let env = EnvelopeBuilder::new("frontend-agent".into(), constants::message_type::CONTROL)
+    .with_payload(payload)
+    .with_content_type(CT_SCHEDULER_COMMAND_V1.to_string())
+    .build();
+// send `env` via Router client
+```
 
 ## Testing
 

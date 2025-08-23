@@ -1,0 +1,36 @@
+# Multi-stage build for Rust scheduler service
+FROM rust:1.70-slim as builder
+
+WORKDIR /build
+
+# Install build dependencies  
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy source code (repo root)
+COPY . .
+
+# Build the scheduler service in release mode
+RUN cargo build --release --bin scheduler-service
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the binary from builder stage
+COPY --from=builder /build/target/release/scheduler-service /usr/local/bin/scheduler-service
+
+# Set default port
+ENV SCHEDULER_PORT=50053
+
+# Expose port
+EXPOSE 50053
+
+# Run the scheduler service
+CMD ["/usr/local/bin/scheduler-service"]

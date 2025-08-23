@@ -77,6 +77,7 @@ pub mod worktree_state;
 pub mod interceptors;
 pub mod secrets;
 pub mod negotiation_events;
+pub mod control;
 
 // Re-export commonly used types
 pub use envelope::*;
@@ -87,6 +88,7 @@ pub use runtime::*;
 pub use clients::*;
 pub use secrets::*;
 pub use negotiation_events::*;
+pub use control::*;
 
 // Generated protobuf code
 #[cfg(feature = "proto")]

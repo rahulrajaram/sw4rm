@@ -1,0 +1,20 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy SDK and install in editable mode (local build context includes repo root)
+COPY sdks/py_sdk /app/sdks/py_sdk
+RUN pip install --no-cache-dir -e /app/sdks/py_sdk
+
+# Copy service files and install service requirements
+COPY examples/reference-services/python/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy registry service implementation
+COPY examples/reference-services/python/hive/registry_service.py ./registry_service.py
+
+# Expose registry port
+EXPOSE 50052
+
+# Run the registry service
+CMD ["python", "registry_service.py"]

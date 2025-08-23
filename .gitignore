@@ -54,6 +54,16 @@ examples/reference-services/.*.pid
 examples/reference-services/*_pb2.py
 examples/reference-services/*_pb2_grpc.py
 examples/reference-services/js/src/generated/
+examples/reference-services/python/client_server_llm/generated_app/
+examples/reference-services/python/client_server_llm/transcript.json
+examples/reference-services/python/client_server_llm/claude_stream_scheduler.jsonl
+examples/reference-services/python/*.pid
+examples/reference-services/python/*.log
+examples/reference-services/python/client_server_llm/*.log
+examples/reference-services/python/client_server_llm/*.pid
+examples/reference-services/python/client_server_llm/.*.pid
+examples/reference-services/python/client_server_llm/.*_session_id
+*/client_server_llm/generated_app/
 
 # Documentation build output
 site/

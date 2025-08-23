@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "start:registry": "tsx src/registry-service.ts",
-    "start:router": "tsx src/router-service.ts", 
+    "start:registry": "tsx src/registry-service-proper.ts",
+    "start:router": "tsx src/router-service-proper.ts",
+    "start:scheduler": "tsx src/scheduler-service.ts", 
     "start:all": "tsx src/start-services.ts",
     "dev": "npm run build && npm run start:all"
   },
@@ -17,6 +18,7 @@
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.10.0",
+    "@grpc/proto-loader": "^0.7.13",
     "@sw4rm/js-sdk": "file:../../sdks/js_sdk"
   },
   "engines": {
