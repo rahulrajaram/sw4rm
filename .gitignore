@@ -39,6 +39,32 @@ CLAUDE.md
 sdks/py_sdk/sw4rm/protos/*.py
 sdks/py_sdk/sw4rm/protos/*.pyi
 
+# Node.js artifacts (anywhere in the repo)
+**/node_modules/
+
+# Rust build artifacts (anywhere in the repo)
+**/target/debug/
+**/target/release/
+**/target/.rustc_info.json
+**/target/CACHEDIR.TAG
+
+# Reference services specific ignores
+examples/reference-services/*.log
+examples/reference-services/.*.pid
+examples/reference-services/*_pb2.py
+examples/reference-services/*_pb2_grpc.py
+examples/reference-services/js/src/generated/
+examples/reference-services/python/client_server_llm/generated_app/
+examples/reference-services/python/client_server_llm/transcript.json
+examples/reference-services/python/client_server_llm/claude_stream_scheduler.jsonl
+examples/reference-services/python/*.pid
+examples/reference-services/python/*.log
+examples/reference-services/python/client_server_llm/*.log
+examples/reference-services/python/client_server_llm/*.pid
+examples/reference-services/python/client_server_llm/.*.pid
+examples/reference-services/python/client_server_llm/.*_session_id
+*/client_server_llm/generated_app/
+
 # Documentation build output
 site/
 # Transient decision logs (keep out of VC)
@@ -47,5 +73,8 @@ DECISIONS_LOG.txt
 # Project logs (ignore all runtime logs)
 logs/
 
+# Temporary directories and test artifacts
+tmp_readme_check/
+tmp_*/
 
 .workmerge/

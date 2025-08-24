@@ -1,0 +1,58 @@
+[package]
+name = "sw4rm-services"
+version = "0.1.0"
+edition = "2021"
+description = "SW4RM Protocol Services - Registry and Router reference implementations"
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.0", features = ["full"] }
+tokio-stream = "0.1"
+tonic = { version = "0.12", features = ["gzip", "tls"] }
+prost = "0.13"
+prost-types = "0.13"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+async-trait = "0.1"
+dashmap = "6.0"
+clap = { version = "4.0", features = ["derive"] }
+sw4rm-sdk = { path = "../../../sdks/rust_sdk" }
+base64 = "0.22"
+
+# Protobuf build dependencies
+[build-dependencies]
+tonic-build = "0.12"
+prost-build = "0.13"
+
+[[bin]]
+name = "registry-service"
+path = "src/bin/registry_service.rs"
+
+[[bin]]
+name = "router-service"
+path = "src/bin/router_service.rs"
+
+[[bin]]
+name = "scheduler-service"
+path = "src/bin/scheduler_service.rs"
+
+[[bin]]
+name = "start-services"
+path = "src/bin/start_services.rs"
+
+[[bin]]
+name = "backend-agent"
+path = "src/bin/backend_agent.rs"
+
+[[bin]]
+name = "frontend-agent"
+path = "src/bin/frontend_agent.rs"
+[[bin]]
+name = "prompter"
+path = "src/bin/prompter.rs"

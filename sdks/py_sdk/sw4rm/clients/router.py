@@ -17,7 +17,9 @@ class RouterClient:
     def send_message(self, envelope: dict) -> Any:
         if not self._stub:
             raise RuntimeError("Protobuf stubs not generated. Run `make protos`." )
-        req = self._pb2.SendMessageRequest(msg=self._pb2.Envelope(**envelope))
+        from sw4rm.protos import common_pb2
+        envelope_msg = common_pb2.Envelope(**envelope)
+        req = self._pb2.SendMessageRequest(msg=envelope_msg)
         return self._stub.SendMessage(req)
 
     def stream_incoming(self, agent_id: str) -> Iterable[Any]:

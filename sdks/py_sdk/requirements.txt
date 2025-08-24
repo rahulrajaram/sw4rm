@@ -1,7 +1,12 @@
-# Runtime dependencies for SW4RM Agentic Protocol (Python SDK)
-# Note: grpcio-tools is only needed for generating stubs (dev time).
-# Install dev tools separately, e.g., `pip install grpcio-tools` or use a dev requirements file.
+# SW4RM Python SDK — pinned runtime deps for running clients/examples
+# These match pyproject.toml and are sufficient to run the examples
+# without needing to regenerate protobuf stubs.
 
 protobuf>=4.23,<5
 grpcio>=1.56,<2
 googleapis-common-protos>=1.60,<2
+
+# Optional — only needed if you want to (re)generate protobuf stubs locally.
+# Including this here ensures a single `pip install -r requirements.txt`
+# equips both runtime and dev flows without extra steps.
+grpcio-tools>=1.56,<2

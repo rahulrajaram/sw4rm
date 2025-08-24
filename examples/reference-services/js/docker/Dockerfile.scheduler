@@ -1,0 +1,44 @@
+# Multi-stage build for JavaScript scheduler service
+FROM node:18-slim as builder
+
+WORKDIR /app
+
+# Copy SDK source
+COPY sdks/js_sdk /app/js_sdk
+
+# Install SDK dependencies and build
+WORKDIR /app/js_sdk
+RUN npm install && npm run build
+
+# Copy service source
+WORKDIR /app
+COPY examples/reference-services/js/package.json examples/reference-services/js/package-lock.json ./
+COPY examples/reference-services/js/src ./src
+COPY examples/reference-services/js/tsconfig.json ./
+COPY protos ./protos
+
+# Install service dependencies
+RUN npm install
+
+# Build the service
+RUN npm run build 2>/dev/null || echo "TypeScript build skipped - will run with tsx"
+
+# Runtime stage
+FROM node:18-slim
+
+WORKDIR /app
+
+# Copy built application and dependencies
+COPY --from=builder /app ./
+
+# Install tsx globally
+RUN npm install -g tsx
+
+# Set default port
+ENV SCHEDULER_PORT=50053
+
+# Expose port
+EXPOSE 50053
+
+# Run the scheduler service
+CMD ["tsx", "src/scheduler-service.ts"]

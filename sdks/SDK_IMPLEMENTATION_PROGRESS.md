@@ -14,6 +14,7 @@ Recent updates
 - New clients: SchedulerPolicy + Activity across all SDKs
 - Negotiation helpers (parse events, base64 payload/result) across all SDKs
 - Expanded Python tests; fixed JS ACK helper semantics; ensured codegen/build scripts include new protos
+- CONTROL parity: Added CONTROL content-types and helpers in Rust/JS SDKs (`scheduler.command+json;v=1`, `agent.report+json;v=1`) with path normalization utilities and strict JSON encoding.
 
 ---
 
@@ -100,4 +101,3 @@ cargo build --manifest-path sdks/rust_sdk/Cargo.toml
 ---
 
 This progress file is kept in lockstep with SDK/spec changes. When updating protos or clients, update the matrix and commands here in the same commit.
-

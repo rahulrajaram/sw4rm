@@ -11,6 +11,7 @@ Reference Rust SDK for the SW4RM Agentic Protocol. This is one of three SDKs in 
 - **Built-in logging and tracing** via tracing crate
 - **Configurable endpoints** with sensible defaults
 - **Production-ready** error handling and resource management
+- **CONTROL helpers** and content-types for CONTROL-only flows (scheduler command v1, agent report v1)
 
 ## Install
 
@@ -22,7 +23,45 @@ sw4rm-sdk = "0.1.0"
 tokio = { version = "1.0", features = ["full"] }
 ```
 
-## Quick Start
+## Quick Start with Working Services
+
+🎉 **NEW**: Complete working example with services included! You can now run a full SW4RM setup locally.
+
+### 1. Start the Services
+
+**Option A: Python Services (Recommended for getting started)**
+```bash
+cd ../../examples/reference-services/
+./start_services_local.sh
+```
+
+**Option B: Rust Services**
+```bash
+cd ../../examples/reference-services/rust/
+cargo run --bin start-services
+```
+
+### 2. Run the Echo Agent
+
+```bash
+cargo run --example echo_agent
+```
+
+You should see:
+```
+✅ Registered agent successfully
+🚀 Starting message loop for echo-agent
+```
+
+### 3. Test the Setup
+
+```bash
+# In another terminal
+cd ../../examples/reference-services/
+python test_complete_setup.py
+```
+
+This will send a test message that your agent will receive and process!
 
 ### Basic Agent Example
 
@@ -156,6 +195,22 @@ See the `examples/` directory for more comprehensive usage examples including:
 - HITL workflows  
 - Multi-agent negotiation
 - Preemption handling
+
+### Example: CONTROL scheduler command
+
+```rust
+use sw4rm_sdk::{EnvelopeBuilder, constants, control::{SchedulerCommandV1, SchedulerStage, CT_SCHEDULER_COMMAND_V1}};
+
+let cmd = SchedulerCommandV1::new(SchedulerStage::Run)
+    .with_input(serde_json::json!({"repo":"demo"}));
+let payload = cmd.to_bytes().unwrap();
+
+let env = EnvelopeBuilder::new("frontend-agent".into(), constants::message_type::CONTROL)
+    .with_payload(payload)
+    .with_content_type(CT_SCHEDULER_COMMAND_V1.to_string())
+    .build();
+// send `env` via Router client
+```
 
 ## Testing
 

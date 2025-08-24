@@ -8,6 +8,35 @@ Reference JavaScript SDK for the SW4RM Agentic Protocol. This is one of three SD
 npm install @sw4rm/js-sdk
 ```
 
+## Quick Start with Working Services
+
+🎉 **NEW**: Complete working example with services included! You can now run a full SW4RM setup locally.
+
+### 1. Start the Services
+
+```bash
+cd ../../examples/reference-services/
+./start_services_local.sh
+```
+
+### 2. Test the Setup
+
+```bash
+# Test the complete setup
+python test_complete_setup.py
+```
+
+### 3. Run JavaScript Examples
+
+```bash
+cd ../../examples/sdk-usage/
+npm install
+npm run register_agent    # Register an agent
+npm run router_send_receive  # Send and receive messages
+```
+
+You should see successful agent registration and message routing!
+
 ## Quick Start
 
 ```typescript
@@ -85,6 +114,24 @@ const env = buildEnvelope({
 // Example ACK extractor if server sends acknowledgements as envelopes
 const extractor = (item: { msg: any }) => ({ ackFor: item.msg?.ack_for_message_id, stage: item.msg?.ack_stage });
 await sendMessageWithAck(router, stream as any, env, ack, extractor, { receivedTimeoutMs: 10000 });
+```
+
+## CONTROL helpers
+
+When using CONTROL-only orchestration flows, use the provided content-types and encoder:
+
+```ts
+import { buildEnvelope, MessageType } from '@sw4rm/js-sdk';
+import { CT_SCHEDULER_COMMAND_V1, encodeSchedulerCommandV1 } from '@sw4rm/js-sdk';
+
+const payload = encodeSchedulerCommandV1({ stage: 'run', input: { repo: 'demo' } });
+const env = buildEnvelope({
+  producer_id: 'frontend-agent',
+  message_type: MessageType.CONTROL,
+  payload,
+  content_type: CT_SCHEDULER_COMMAND_V1,
+});
+// send `env` via RouterClient
 ```
 
 ## Persistence

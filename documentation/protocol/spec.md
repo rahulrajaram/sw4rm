@@ -27,13 +27,21 @@ The framework defines a central scheduler that orders and preempts task executio
 The key words “MUST”, “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL NOT”, “SHOULD”, “SHOULD NOT”, “RECOMMENDED”, “MAY”, and “OPTIONAL” follow RFC 2119.
 
 **Agent**: execution participant supervised by the Scheduler.
+
 **Task**: unit of work enqueued to an Agent.
+
 **Message**: routed unit of communication with normative lifecycle.
+
 **Scheduler**: sole authority for ordering, preemption, routing, and HITL invocation.
+
 **Reasoning Engine**: external decision service; MAY be deterministic or not; SHOULD return `confidence_score` when consulted for parallelism checks or negotiation evaluation; MUST NOT mutate Agent/Scheduler state directly.
+
 **Tool**: external capability invoked via routing; MCP optional, MCP-like required.
+
 **Worktree**: Git worktree bound to an Agent.
+
 **Communication Class**: agent-level preference for routing (PRIVILEGED, STANDARD, BULK).
+
 **Connector**: binding to a Tool provider or Reasoning Engine.
 
 ## 4. Architecture

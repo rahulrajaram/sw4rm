@@ -61,6 +61,7 @@ export * from './internal/idempotency.js';
 export * from './runtime/persistenceAdapter.js';
 export * from './internal/errorMapper.js';
 export * from './internal/ack.js';
+export * from './internal/control.js';
 
 // Secrets (experimental)
 export * from './secrets/types.js'

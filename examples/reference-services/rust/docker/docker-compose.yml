@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  registry:
+    build:
+      context: ../..
+      dockerfile: examples/reference-services/rust/docker/Dockerfile.registry
+    ports:
+      - "50052:50052"
+    networks:
+      - sw4rm-rust
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 50052"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  router:
+    build:
+      context: ../..
+      dockerfile: examples/reference-services/rust/docker/Dockerfile.router
+    ports:
+      - "50051:50051"
+    networks:
+      - sw4rm-rust
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 50051"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  scheduler:
+    build:
+      context: ../..
+      dockerfile: examples/reference-services/rust/docker/Dockerfile.scheduler
+    ports:
+      - "50053:50053"
+    networks:
+      - sw4rm-rust
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 50053"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  sw4rm-rust:
+    driver: bridge
+

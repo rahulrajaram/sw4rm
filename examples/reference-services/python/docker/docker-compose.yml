@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  registry:
+    build:
+      context: ../../..
+      dockerfile: examples/reference-services/python/docker/Dockerfile.registry
+    ports:
+      - "50052:50052"
+    networks:
+      - sw4rm-python
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; grpc.insecure_channel('localhost:50052').channel_ready().result(timeout=1.0)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  router:
+    build:
+      context: ../../..
+      dockerfile: examples/reference-services/python/docker/Dockerfile.router
+    ports:
+      - "50051:50051"
+    networks:
+      - sw4rm-python
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; grpc.insecure_channel('localhost:50051').channel_ready().result(timeout=1.0)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  scheduler:
+    build:
+      context: ../../..
+      dockerfile: examples/reference-services/python/docker/Dockerfile.scheduler
+    ports:
+      - "50053:50053"
+    networks:
+      - sw4rm-python
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; grpc.insecure_channel('localhost:50053').channel_ready().result(timeout=1.0)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  sw4rm-python:
+    driver: bridge
