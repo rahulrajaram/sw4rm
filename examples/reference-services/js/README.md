@@ -4,7 +4,7 @@ Minimal Registry, Router, and Scheduler services implemented with the JS SDK (Ty
 
 ## Quick Start
 
-- Local (Node >= 18)
+- Local (Node >= 20)
   ```bash
   cd examples/reference-services/js
   ./start_services_local.sh
