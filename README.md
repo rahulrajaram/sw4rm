@@ -3,6 +3,7 @@
 [![Python CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-python.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-python.yml)
 [![Rust CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-rust.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-rust.yml)
 [![JS CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-js.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-js.yml)
+[![Examples: ACK Demo](https://github.com/rahulrajaram/sw4rm/actions/workflows/examples-sdk-usage.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/examples-sdk-usage.yml)
 
 SW4RM is an open agentic protocol for building message-driven agents with guaranteed delivery, persistent state, and rich observability. This repository provides three SDKs that implement the protocol — Python, Rust, and JavaScript — including clients, lightweight runtimes, and helpers for ACK lifecycle, worktree/state handling, and more.
 
@@ -10,6 +11,19 @@ SDKs
 - Python: `sdks/py_sdk` — see `sdks/py_sdk/README.md`
 - Rust: `sdks/rust_sdk` — see `sdks/rust_sdk/README.md`
 - JavaScript: `sdks/js_sdk` — see `sdks/js_sdk/README.md`
+
+## CI Workflows
+
+- Python CI: Python 3.12, installs `.[dev]`, runs `scripts/smoke_protos.py`, then `pytest -q sdks/py_sdk/tests`.
+- Rust CI: Installs `protoc`, runs `cargo test --all --locked` in `sdks/rust_sdk`.
+- JS CI: Node 20, runs `npm ci && npm run build && npm test` in `sdks/js_sdk`.
+- Examples ACK Demo: Runs `examples/sdk-usage/run_all.sh ack-demo` which auto-starts local JS reference services, launches an ACK agent, and exercises router send/receive with ACKs.
+
+Reproduce locally
+- Python: `python -m pip install -e ".[dev]" && pytest -q sdks/py_sdk/tests`
+- Rust: `cd sdks/rust_sdk && cargo test --all --locked`
+- JS: `cd sdks/js_sdk && npm ci && npm run build && npm test`
+- ACK demo: `bash examples/sdk-usage/run_all.sh ack-demo` (uses defaults `localhost:{50051,50052,50053}` via `SW4RM_*` envs)
 
 ## Python SDK Installation
 - Prerequisites:
@@ -336,6 +350,8 @@ python examples/test_client.py --router localhost:50051 --registry localhost:500
 
 See `examples/README.md` for detailed example documentation.
 
+For TypeScript/JS usage examples and an ACK flow demo, see `examples/sdk-usage/README.md`.
+
 ## Development
 
 ### Generate Protocol Buffers
@@ -378,7 +394,16 @@ Notes
 - See `docs/PROGRESS_REPORT.md` for a detailed Release Checklist.
 
 ### Testing
+- Unified: `make test` (runs Python, Rust, JS tests + JS ACK demo)
+- Python only: `make test-python`
+- Rust only: `make test-rust` (requires `protoc`)
+- JS only: `make test-js` (Node >= 20)
+- Examples demo: `make demo-examples` (runs `examples/sdk-usage/run_all.sh ack-demo`)
+
 ```bash
+# Run all tests and the ACK demo
+make test
+
 # Run examples against local services
 # See QUICKSTART.md for how to start the in-repo services
 python examples/advanced_agent.py --router localhost:50051 --registry localhost:50052

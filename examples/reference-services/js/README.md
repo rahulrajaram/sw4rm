@@ -7,8 +7,8 @@ Minimal Registry, Router, and Scheduler services implemented with the JS SDK (Ty
 - Local (Node >= 20)
   ```bash
   cd examples/reference-services/js
-  ./start_services_local.sh
-  ./stop_services_local.sh
+  ./start_services.sh --local
+  ./stop_services.sh --local
   ```
 
 - Docker
@@ -34,7 +34,7 @@ Port conflicts
 ## Notes
 
 - SDK: Dockerfiles copy the local JS SDK from `sdks/js_sdk` and run with `tsx`.
-- Local: `start_services_local.sh` installs deps if `node_modules` is absent.
+- Local: `start_services.sh --local` will install dependencies if `node_modules` is absent.
 
 ## LLM Client/Server Demo
 

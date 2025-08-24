@@ -158,3 +158,61 @@ clean:
 # Swarm Core Orchestration
 # -----------------------
 
+# -----------------------
+# Unified Testing
+# -----------------------
+.PHONY: test test-python test-rust test-js demo-examples
+
+test: test-python test-rust test-js demo-examples
+
+test-python: dev-deps protos
+	@echo "[python] Running unit tests..."
+	@$(PYTHON) -m pytest -q sdks/py_sdk/tests
+
+test-rust:
+	@set -e; \
+	if command -v protoc >/dev/null 2>&1; then \
+	  echo "[rust] Running cargo tests..."; \
+	  (cd sdks/rust_sdk && PROTO_DIR=$(CURDIR)/protos cargo test --all --locked --color=always); \
+	else \
+	  echo "[rust] protoc not found. Install protobuf-compiler to run Rust tests."; \
+	  exit 2; \
+	fi
+
+test-js:
+	@set -e; \
+	if command -v node >/dev/null 2>&1; then \
+	  echo "[js] Running JS tests..."; \
+	  cd sdks/js_sdk; \
+	  if [ ! -d node_modules ]; then \
+	    if [ -n "$$NO_NPM_INSTALL" ]; then \
+	      echo "[js] node_modules missing and NO_NPM_INSTALL set; skipping npm ci"; \
+	    else \
+	      npm ci; \
+	    fi; \
+	  fi; \
+    npm run build; \
+    npm test --silent -- --run; \
+	else \
+	  echo "[js] Node.js not found. Install Node >= 20 to run JS tests."; \
+	  exit 3; \
+	fi
+
+# Run JS ACK demo examples that exercise Router + ACK flow
+demo-examples:
+	@set -e; \
+	if ! command -v node >/dev/null 2>&1; then \
+	  echo "[demo] Node.js not found. Install Node >= 20 to run examples."; \
+	  exit 3; \
+	fi; \
+	if [ ! -d sdks/js_sdk/node_modules ]; then \
+	  if [ -n "$$NO_NPM_INSTALL" ]; then \
+	    echo "[demo] sdks/js_sdk/node_modules missing and NO_NPM_INSTALL set; aborting."; \
+	    exit 4; \
+	  else \
+	    echo "[demo] Installing JS SDK deps..."; \
+	    (cd sdks/js_sdk && npm ci); \
+	  fi; \
+	fi; \
+	echo "[demo] Running ACK demo via examples/sdk-usage/run_all.sh"; \
+	bash examples/sdk-usage/run_all.sh ack-demo
