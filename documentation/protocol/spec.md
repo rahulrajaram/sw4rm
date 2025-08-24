@@ -85,7 +85,9 @@ Each agent maintains `<task_id, repo_id, worktree_id, branch, timestamp, descrip
 
 ## 11. Messaging Model
 
-Lifecycle: SENT → RECEIVED → ACKNOWLEDGED → READ → FULFILLED. Errors: REJECTED, FAILED, TIMED\_OUT, RETRYING. Default 10 s to `RECEIVED`; on timeout set `TIMED_OUT` and NACK with `ack_timeout`. Late ACKs MUST be reconciled.
+Lifecycle: SENT → RECEIVED → READ → FULFILLED. Errors: REJECTED, FAILED, TIMED\_OUT, RETRYING. Default 10 s to `RECEIVED`; on timeout set `TIMED_OUT` and NACK with `ack_timeout`. Late ACKs MUST be reconciled.
+
+Note: `RECEIVED` serves as the acknowledgement stage in this protocol. There is no separate `ACKNOWLEDGED` state; acknowledgement semantics are encoded via `AckStage.RECEIVED`.
 
 Every message MUST include:
 `message_id` (UUIDv4 per attempt), `producer_id`, `correlation_id` (UUIDv4), `sequence_number` (monotonic per producer stream), `retry_count`, `message_type` (CONTROL, DATA, HEARTBEAT, NOTIFICATION, ACKNOWLEDGEMENT, HITL\_INVOCATION, WORKTREE\_CONTROL, NEGOTIATION, TOOL\_CALL, TOOL\_RESULT, TOOL\_ERROR), and `content_type`/`content_length` when payload present. MAY include `idempotency_token` (constant across retries of same logical op). When HLC is enabled include `hlc_timestamp`. MAY include `ttl_ms` (expired → FAILED `ttl_expired`). Core error codes include: `buffer_full`, `no_route`, `ack_timeout`, `agent_unavailable`, `agent_shutdown`, `validation_error`, `permission_denied`, `unsupported_message_type`, `oversize_payload`, `tool_timeout`, `partial_delivery`(reserved), `forced_preemption`, `internal_error`.
@@ -115,44 +117,9 @@ Agents register with name, ≤200-word description, capabilities, communication 
 
 Scheduler issues `HITL_INVOCATION` with `reason_type` in {CONFLICT, SECURITY\_APPROVAL, TASK\_ESCALATION, MANUAL\_OVERRIDE, WORKTREE\_OVERRIDE, DEBATE\_DEADLOCK, TOOL\_PRIVILEGE\_ESCALATION, CONNECTOR\_APPROVAL}. Context SHOULD include case facts and Reasoning metadata when present. HITL responds with `HITL_DECISION`; Scheduler applies immediately and logs.
 
-## 16. Inter-Agent Negotiation ("Debate")
-
-Negotiations are scheduler-mediated, identified by `negotiation_id`, and scoped by `correlation_id`. For room semantics the `correlation_id` MUST equal the `negotiation_id`. An `Open` includes topic, participants, and a `debate_intensity_factor ∈ {LOWEST,LOW,MEDIUM,HIGH,HIGHEST}` to select guardrails (round/time/threshold budgets). Scheduler enforces `debate_timeout`; on deadlock/timeout, apply tie-break or escalate with `DEBATE_DEADLOCK`. Negotiation does not mutate repos; subsequent CONTROL/DATA messages do.
-
-### 16.1 Negotiation Event Fanout (JSON over Envelopes)
-
-Negotiation events are carried as `NEGOTIATION` envelopes whose payload is a JSON object. Services MUST preserve raw payload bytes and `correlation_id`; unknown fields MUST be ignored.
-
-Defined event kinds:
-
-- `open`: `{ kind, ts, topic: string, corr: string }`
-- `policy`: `{ kind, ts, negotiation_id: string, profile?: string, policy: WagglePolicy }`
-- `propose`: `{ kind, ts, from: string, ct: string, payload_b64: string }`
-- `counter`: `{ kind, ts, from: string, ct: string, payload_b64: string }`
-- `evaluate`: `{ kind, ts, from: string, score: number, notes: string }`
-- `decide`: `{ kind, ts, by: string, ct: string, result_b64: string }`
-- `abort`: `{ kind, ts, reason: string }`
-
-Notes:
-
-- `payload_b64`/`result_b64` hold opaque bytes for proposals/results; `ct` declares content type. SDKs SHOULD offer helpers to decode on demand.
-- Services MUST NOT reorder events; stream ordering is authoritative.
-
-### 16.2 Waggle Policy and Effective Policy
-
-On `Open`, the Scheduler derives an `EffectivePolicy` from a base `WagglePolicy` and any clamped `AgentPreferences`, then broadcasts a `policy` event (see 16.1). A profile hint MAY select a base policy; the effective policy is authoritative and persisted per negotiation.
-
-### 16.3 Validation, Diff, and Scoring
-
-Implementations SHOULD validate proposals early (e.g., JSON Schema and runnable examples). Invalid drafts MUST be rejected without consuming a round. Per round, record a bounded structural diff summary and scores. Deterministic checks run first; optional LLM/Reasoning confidence in [0,1] MAY be blended per policy weight. Acceptance/stop decisions MUST follow `EffectivePolicy` (thresholds, oscillation/tokens/time budgets). Optional HITL pauses are enforced per policy.
-
-### 16.4 Reports and Artifacts
-
-Implementations SHOULD emit structured records per round (evaluation/decision reports) and artifacts (e.g., `contract_vN.json`, `diff_v{N-1}_to_vN.json`). See `activity.proto` for an API to persist artifacts.
-
 ---
 
-## Appendix — Protobuf Package Namespace
+## Appendix A — Protobuf Package Namespace
 
 The canonical `.proto` package namespace for this specification is `sw4rm.*`. Earlier drafts may show other prefixes; use `sw4rm.*` for conformance and code generation. See the `protos/` directory and the stubs below.
 
@@ -237,7 +204,7 @@ Scheduler HA (WAL + leader election + replay), group addressing, formal Reasonin
 
 ---
 
-## Annex A — Architecture Diagrams (Mermaid)
+## Appendix B — Architecture Diagrams (Mermaid)
 
 ```mermaid
 flowchart LR
@@ -309,7 +276,7 @@ flowchart TB
 
 ---
 
-## Annex B — Finite-State Diagrams (Mermaid)
+## Appendix C — Finite-State Diagrams (Mermaid)
 
 **Agent lifecycle**
 
@@ -350,7 +317,7 @@ stateDiagram-v2
 
 ---
 
-## Annex C — Sequence Diagrams (Mermaid) and JSON Examples
+## Appendix D — Sequence Diagrams (Mermaid) and JSON Examples
 
 Below are canonical flows. All messages are **unicast** and include the RFC envelope fields.
 
@@ -540,7 +507,7 @@ sequenceDiagram
 
 ---
 
-## Annex D — Representative JSON Payloads
+## Appendix E — Representative JSON Payloads
 
 I’ve already embedded JSON for success, retry/late-ACK, buffer overflow, worktree, tool, negotiation, and HITL above. If you want these as a fixture pack, I can hand you a tarball structure later.
 
@@ -699,7 +666,7 @@ message AgentDescriptor {
   string name = 2;
   string description = 3; // ≤200 words
   repeated string capabilities = 4;
-  agentos.common.CommunicationClass communication_class = 5;
+  sw4rm.common.CommunicationClass communication_class = 5;
   repeated string modalities_supported = 6; // MIME types
   repeated string reasoning_connectors = 7; // URIs
   bytes public_key = 8; // optional
@@ -710,7 +677,7 @@ message RegisterAgentResponse { bool accepted = 1; string reason = 2; }
 
 message HeartbeatRequest {
   string agent_id = 1;
-  agentos.common.AgentState state = 2;
+  sw4rm.common.AgentState state = 2;
   map<string,string> health = 3;
 }
 message HeartbeatResponse { bool ok = 1; }
@@ -736,11 +703,11 @@ package sw4rm.router;
 
 import "common.proto";
 
-message SendMessageRequest { agentos.common.Envelope msg = 1; }
+message SendMessageRequest { sw4rm.common.Envelope msg = 1; }
 message SendMessageResponse { bool accepted = 1; string reason = 2; }
 
 message StreamRequest { string agent_id = 1; }
-message StreamItem { agentos.common.Envelope msg = 1; }
+message StreamItem { sw4rm.common.Envelope msg = 1; }
 
 service RouterService {
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
@@ -819,7 +786,7 @@ package sw4rm.hitl;
 import "common.proto";
 
 message HitlInvocation {
-  agentos.common.HitlReasonType reason_type = 1;
+  sw4rm.common.HitlReasonType reason_type = 1;
   bytes context = 2;             // JSON or protobuf, see content_type in envelope
   repeated string proposed_actions = 3;
   int32 priority = 4;
@@ -936,7 +903,7 @@ service ToolService {
 ## `connector.proto`
 
 ```proto
-`syntax = "proto3";
+syntax = "proto3";
 
 package sw4rm.connector;
 
@@ -984,7 +951,7 @@ message NegotiationOpen {
   string correlation_id = 2;
   string topic = 3;
   repeated string participants = 4;
-  agentos.common.DebateIntensity intensity = 5;
+  sw4rm.common.DebateIntensity intensity = 5;
   google.protobuf.Duration debate_timeout = 6;
 }
 
@@ -1016,18 +983,18 @@ message Decision {
   bytes result = 4;
 }
 
-message Abort {
+message AbortRequest {
   string negotiation_id = 1;
   string reason = 2;
 }
 
 service NegotiationService {
-  rpc Open(NegotiationOpen) returns (agentos.common.Empty);
-  rpc Propose(Proposal) returns (agentos.common.Empty);
-  rpc Counter(CounterProposal) returns (agentos.common.Empty);
-  rpc Evaluate(Evaluation) returns (agentos.common.Empty);
-  rpc Decide(Decision) returns (agentos.common.Empty);
-  rpc Abort(Abort) returns (agentos.common.Empty);
+  rpc Open(NegotiationOpen) returns (sw4rm.common.Empty);
+  rpc Propose(Proposal) returns (sw4rm.common.Empty);
+  rpc Counter(CounterProposal) returns (sw4rm.common.Empty);
+  rpc Evaluate(Evaluation) returns (sw4rm.common.Empty);
+  rpc Decide(Decision) returns (sw4rm.common.Empty);
+  rpc Abort(AbortRequest) returns (sw4rm.common.Empty);
 }
 ```
 
@@ -1117,22 +1084,22 @@ package sw4rm.scheduler;
 
 import "policy.proto";
 
-message SetWagglePolicyRequest { agentos.policy.WagglePolicy policy = 1; }
+message SetWagglePolicyRequest { sw4rm.policy.WagglePolicy policy = 1; }
 message SetWagglePolicyResponse { bool ok = 1; string reason = 2; }
 
 message GetWagglePolicyRequest {}
-message GetWagglePolicyResponse { agentos.policy.WagglePolicy policy = 1; }
+message GetWagglePolicyResponse { sw4rm.policy.WagglePolicy policy = 1; }
 
-message SetPolicyProfilesRequest { repeated agentos.policy.PolicyProfile profiles = 1; }
+message SetPolicyProfilesRequest { repeated sw4rm.policy.PolicyProfile profiles = 1; }
 message SetPolicyProfilesResponse { bool ok = 1; string reason = 2; }
 
 message ListPolicyProfilesRequest {}
-message ListPolicyProfilesResponse { repeated agentos.policy.PolicyProfile profiles = 1; }
+message ListPolicyProfilesResponse { repeated sw4rm.policy.PolicyProfile profiles = 1; }
 
 message GetEffectivePolicyRequest { string negotiation_id = 1; }
-message GetEffectivePolicyResponse { agentos.policy.EffectivePolicy effective = 1; }
+message GetEffectivePolicyResponse { sw4rm.policy.EffectivePolicy effective = 1; }
 
-message SubmitEvaluationRequest { string negotiation_id = 1; agentos.policy.EvaluationReport report = 2; }
+message SubmitEvaluationRequest { string negotiation_id = 1; sw4rm.policy.EvaluationReport report = 2; }
 message SubmitEvaluationResponse { bool accepted = 1; string reason = 2; }
 
 message HitlActionRequest { string negotiation_id = 1; string action = 2; string rationale = 3; }
