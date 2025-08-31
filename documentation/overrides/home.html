@@ -1,0 +1,85 @@
+{% extends "main.html" %}
+
+{% block tabs %}
+  {{ super() }}
+{% endblock %}
+
+{% block content %}
+<section class="sw4rm-hero sw4rm-hero--wide md-typeset">
+  <div class="sw4rm-hero__copy">
+    <h1>SW4RM Agentic Protocol</h1>
+    <p class="lead">An open, message‑driven standard for interoperable agent systems.</p>
+    <p>Define how agents talk, confirm work, share state, and finish jobs — across stacks — with consistent envelopes, explicit ACKs, and composable services.</p>
+    <div class="sw4rm-hero__ctas">
+      <a class="md-button md-button--primary" href="#why-sw4rm">Why SW4RM</a>
+      <a class="md-button" href="#what-you-get">What you get</a>
+      <a class="md-button" href="{{ 'overview/' | url }}">Full overview</a>
+      <a class="md-button" href="{{ 'quickstart/index/' | url }}">Quickstart</a>
+    </div>
+  </div>
+  </section>
+
+<section id="why-sw4rm" class="sw4rm-section md-typeset">
+  <h2>Why SW4RM exists</h2>
+  <ul>
+    <li><strong>Chats drift</strong>: long threads dilute quality; nudges don’t add checks.</li>
+    <li><strong>Single agents stall</strong>: tool‑use stays linear; no real self‑checks or gates.</li>
+    <li><strong>Teams don’t coordinate</strong>: handoffs break; no shared state, roles, or policies.</li>
+  </ul>
+  <p>SW4RM provides a shared contract for communication, delivery guarantees, state, and observability so roles can coordinate, verify work, and converge — with auditability and fewer bespoke glue layers.</p>
+  <div class="sw4rm-section__cta">
+    <a class="md-button" href="#agentic-workflows">See agentic workflows</a>
+  </div>
+  </section>
+
+<section id="what-you-get" class="sw4rm-section md-typeset">
+  <h2>What you get</h2>
+  <ul>
+    <li><strong>Reliable messaging</strong>: standardized envelopes, correlation IDs, and explicit ACK lifecycle.</li>
+    <li><strong>Composable services</strong>: Registry, Router, Scheduler, Negotiation, Tooling (typed gRPC).</li>
+    <li><strong>Durable progress</strong>: Activity Buffer and Worktree for shared, resumable state.</li>
+    <li><strong>Governance</strong>: checks, approvals, and policies to define “done”.</li>
+    <li><strong>Portability</strong>: versioned protobufs and SDKs for Python, Rust, and JavaScript.</li>
+  </ul>
+  <div class="sw4rm-section__cta">
+    <a class="md-button" href="{{ 'protocol/index/' | url }}">Explore the protocol</a>
+  </div>
+  </section>
+
+<section id="agentic-workflows" class="sw4rm-overview md-typeset">
+  <h2>Agentic workflows</h2>
+  <p class="lead">From endless chats to finished work.</p>
+  <p>Most people start in a chat window. The convo drifts, context grows, answers degrade — then a “single agent” still stalls. What’s missing is a workflow where roles talk, verify, and converge.</p>
+
+  <h3>The typical path</h3>
+  <ul>
+    <li><strong>Chat spiral</strong>: you prompt → it replies → you nudge; the thread stretches and quality drifts.</li>
+    <li><strong>Context myth</strong>: stuffing more into the window doesn’t add reasoning or checks — costs go up, answers get worse.</li>
+    <li><strong>Single “agent” try</strong>: adds tools/prompts but stays linear; no real self‑checks; stalls or loops.</li>
+    <li><strong>No communication</strong>: multiple agents don’t coordinate; handoffs break; errors multiply.</li>
+  </ul>
+
+  <h3>What agentic workflows add</h3>
+  <ul>
+    <li><strong>Shared goal & state</strong>: a common plan and memory everyone follows.</li>
+    <li><strong>Roles that communicate</strong>: agents coordinate, hand off, or briefly debate.</li>
+    <li><strong>Checks & gates</strong>: tests/metrics/policies define “done”; rollback paths exist.</li>
+    <li><strong>Converge or escalate</strong>: stop loops, ask for help on low confidence, finish the job.</li>
+  </ul>
+
+  <h3>Tiny example</h3>
+  <ul>
+    <li>Open PR → run tests and security scans.</li>
+    <li>Request human approval when required.</li>
+    <li>Canary deploy → watch SLOs → promote or roll back.</li>
+  </ul>
+</section>
+
+<section class="sw4rm-section sw4rm-section--final md-typeset">
+  <div class="sw4rm-section__cta" style="text-align:center; margin-top: 0.5rem;">
+    <a class="md-button md-button--primary" href="{{ 'protocol/index/' | url }}">Dive into the Protocol Specification</a>
+  </div>
+  </section>
+
+<!-- Landing page intentionally ends after Agentic Workflows -->
+{% endblock %}

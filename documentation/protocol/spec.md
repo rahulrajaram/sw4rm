@@ -154,6 +154,31 @@ This approach provides several operational benefits:
 
 For implementations that cannot adopt the standard gRPC Health Checking Protocol due to technical constraints, implementations SHOULD expose a minimal HTTP `/healthz` endpoint that provides basic liveness indication. This fallback approach ensures that even simplified implementations can integrate with standard monitoring and orchestration tooling.
 
+### 5.4. Payload Size, Chunking, and Batching
+
+Implementations MUST declare payload sizes (`content_length`) for messages that carry payloads to enable pre-admission checks and resource planning. Implementations SHOULD enforce configurable maximum payload sizes and MUST reject oversize payloads with `error_code=oversize_payload`.
+
+Chunking for large payloads is OPTIONAL and MUST be explicitly negotiated per route/tool. When chunking is enabled:
+
+- Producers MUST include chunk sequence information, total chunk count, and per-chunk size, and SHOULD include per-chunk integrity hashes.
+- Receivers MUST validate chunk integrity and MUST process payloads only after complete reassembly and validation.
+- On partial delivery or corruption, receivers MUST fail the transfer with a descriptive error and MAY request retransmission of missing/corrupted chunks.
+
+Batching is OPTIONAL and MUST be explicitly advertised by receivers. When batching is enabled:
+
+- A batch is delivered atomically for transport admission (success/fail as a unit), but each message within a batch retains normal processing semantics and terminal states.
+- Implementations MUST track per-message outcomes within a batch and MUST support retrying only failed members of a batch.
+- Batches remain subject to overall size limits and SHOULD be constrained by size and count configuration.
+
+### 5.5. Stream Resumption and Backlog Management
+
+For long-lived streams, implementations SHOULD support durable resumption. Two patterns are permitted:
+
+- Offset-based resumption: Consumers resume from the last acknowledged offset (sequence number/timestamp) plus one.
+- Opaque token resumption: Consumers resume using an implementation-defined opaque token that encodes position.
+
+Implementations MUST bound backlog processing to protect memory and latency. Receivers SHOULD provide time/size windows for resume, and MAY require checkpointing or periodic heartbeats to extend resume windows. Expired resume positions MUST fail with a clear error that includes recovery guidance.
+
 ## 6. Identity and Security
 
 Security within the SW4RM framework operates on multiple layers to provide comprehensive protection while maintaining operational flexibility. The security model adapts to different deployment scenarios, from single-user development environments to multi-tenant production systems, ensuring that appropriate security measures are applied based on the threat model and operational requirements.
@@ -407,6 +432,16 @@ Recommended back-pressure metrics (names are illustrative):
 - `agent.process_time_seconds{agent_id}`: service time per message.
 - `router.oldest_enqueued_age_seconds{agent_id}`: age of oldest message in queue.
 
+### 13.1. Optional: Credit-Based Flow Control
+
+Implementations MAY support a credit-based flow control profile. When enabled:
+
+- Receivers advertise a credit window representing the maximum number of in-flight deliveries they can accept.
+- Senders MUST respect advertised credits and MUST NOT exceed available credits for a receiver.
+- Credits are consumed on send and replenished only on terminal acknowledgements (FULFILLED or terminal error).
+- Implementations SHOULD enforce per-producer caps and rate limits to prevent monopolization and SHOULD implement fair-share mechanisms across producers.
+- Implementations MAY adapt credit windows based on observed latency and resource utilization; adaptations MUST avoid oscillation and MUST preserve safety.
+
 ## 14. Registry, Discovery, Heartbeats
 
 Agents MUST register with the Registry providing: name, description (<=200 words), capabilities list, communication class, supported modalities, tool descriptors, at least one Inference Engine connector, and public key (if message signing is enabled). The Scheduler MUST emit periodic heartbeats to registered Agents. Agents MUST respond to heartbeat requests within the configured timeout period. The Registry MUST broadcast join/leave events to all participants who MUST maintain local discovery state. Implementations MUST implement debounce mechanisms before removing Agents for missed heartbeats. Agent deregistration MUST be explicit and cannot occur solely due to missed heartbeats.
@@ -574,7 +609,7 @@ Providers MUST map failures to structured error codes (e.g., `TOOL_TIMEOUT`, `VA
 
 ### 18.4 Security and Isolation
 
-Tool execution MUST honor confinement and capability policies (see 6.4 and PROTOCOL_ENHANCEMENTS.md §4.5). Default posture SHOULD be deny-by-default with explicit grants for filesystem, network, and process privileges.
+Tool execution MUST honor confinement and capability policies (see 6.4 and documentation/protocol/spec_enhancements.md Section 4.5). Default posture SHOULD be deny-by-default with explicit grants for filesystem, network, and process privileges.
 
 ## 19. Observability
 
@@ -587,6 +622,18 @@ Defaults: ACK 10s to RECEIVED; inbound buffer 10; task priority 0; idempotency `
 ## 21. Error Handling
 
 On error, implementations MUST set a terminal state (`REJECTED`, `FAILED`, or `TIMED_OUT`) and include an `error_code`. Negative acknowledgments (NACKs) MUST include the precipitating `message_id`, failed stage, and `error_code`. Late acknowledgments MUST be reconciled to the truthful terminal state. For idempotent duplicates, implementations MUST return `DUPLICATE_DETECTED` with the original attempt ID, status, cached result or error, and `cached_at`.
+
+### 21.1. Dead Letter Queues (DLQ)
+
+Routers SHOULD provide a Dead Letter Queue facility. Messages MUST be moved to DLQ when any of the following occur:
+
+- Retry budget exhausted without successful processing.
+- Terminal error indicating the operation cannot succeed (validation error, permission denied, malformed message, etc.).
+- Policy violation (security, resource limits) or TTL expiry.
+
+DLQ entries MUST include diagnostic context sufficient for operator triage, including: final error classification, attempt history with timestamps and reasons, routing context (producer, route, hops), creation and final failure times, payload size and content type, and either a payload excerpt or a secure reference to the payload.
+
+Implementations SHOULD provide inspection and reprocessing tools. Operators MUST be able to requeue selected DLQ entries, export diagnostic bundles, and apply filters (time range, error class, route, producer). Implementations SHOULD enforce retention policies to bound storage.
 
 ## 22. Conformance
 

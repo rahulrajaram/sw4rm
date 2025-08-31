@@ -1,0 +1,16 @@
+{#
+  Custom header title placed next to the logo.
+  Renders: swam for rm.ai (with .ai in brand teal)
+  Keeps link to homepage and preserves accessibility.
+#}
+<div class="md-header__title">
+  <div class="md-ellipsis">
+    <a href="{{ nav.homepage.url | url }}" title="{{ config.site_name }}">
+      <span class="brand-title">swam for rm<span class="brand-suffix">.ai</span></span>
+    </a>
+  </div>
+  {#
+    Optionally, include page title after a separator. Omitted for concise brand bar.
+  #}
+</div>
+

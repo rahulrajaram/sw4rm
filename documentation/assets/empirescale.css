@@ -1,0 +1,289 @@
+/*
+  Empirescale aesthetic for SW4RM docs (Material for MkDocs)
+  - Light theme, teal brand, rounded corners, Inter + Space Grotesk
+  - Derived from empirescale Tailwind tokens:
+      brand-500 #06B6D4, brand-600 #0891B2, brand-700 #0E7490
+*/
+
+/* Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700;800&family=Inter:wght@400;600;800&display=swap');
+
+:root {
+  --brand-500: #06B6D4;
+  --brand-600: #0891B2;
+  --brand-700: #0E7490;
+  --gray-50: #F9FAFB;
+  --gray-100: #F3F4F6;
+  --gray-200: #E5E7EB;
+  --gray-300: #D1D5DB;
+  --gray-600: #4B5563;
+  --gray-700: #374151;
+  --gray-800: #1F2937;
+  --gray-900: #111827;
+  --radius-brand: 16px;
+}
+
+/* Map to Material variables (light scheme) */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: var(--brand-600);
+  --md-primary-fg-color--light: var(--brand-500);
+  --md-primary-fg-color--dark: var(--brand-700);
+  --md-accent-fg-color: var(--brand-500);
+
+  --md-default-bg-color: #ffffff;
+  --md-default-fg-color: var(--gray-900);
+  --md-default-fg-color--light: var(--gray-700);
+  --md-default-fg-color--lighter: var(--gray-600);
+
+  --md-code-bg-color: var(--gray-50);
+  --md-code-fg-color: var(--gray-900);
+
+  --md-footer-bg-color: #ffffff;
+  --md-footer-fg-color: var(--gray-700);
+}
+
+/* Typography */
+.md-typeset {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  color: var(--gray-900);
+}
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+  font-family: 'Space Grotesk', Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Type scale (approximate Tailwind classes from empirescale) */
+.md-typeset h1 { font-weight: 800; font-size: clamp(3rem, 2.4rem + 2.4vw, 5rem); line-height: 1.04; }
+.md-typeset h2 { font-weight: 700; font-size: clamp(2rem, 1.6rem + 1.5vw, 3rem); line-height: 1.1; }
+.md-typeset .lead { font-size: clamp(1.125rem, 1rem + 0.5vw, 1.25rem); color: var(--gray-700); }
+
+/* Links */
+.md-typeset a { color: var(--brand-600); }
+.md-typeset a:hover, .md-typeset a:focus { color: var(--brand-700); text-decoration: underline; }
+
+/* Header and tabs: clean, light with subtle dividers */
+.md-header {
+  background: #ffffff !important;
+  box-shadow: none;
+  border-bottom: 1px solid var(--gray-200);
+}
+/* Force header text/icons to teal instead of inheriting theme default */
+[data-md-color-scheme="default"] .md-header { color: var(--brand-600); }
+.md-header__title, .md-header__title .md-ellipsis { color: var(--brand-600); }
+.md-header__title .md-ellipsis a { color: var(--brand-600) !important; }
+.md-tabs {
+  background: #ffffff !important;
+  border-bottom: 1px solid var(--gray-200);
+}
+.md-tabs__link {
+  border-radius: 0;
+  padding: 0.4rem 0.75rem;
+  color: var(--gray-900) !important; /* ensure tab labels read as black */
+}
+.md-tabs__item--active > .md-tabs__link {
+  color: var(--gray-900) !important; /* active tab label stays black */
+  background: rgba(6, 182, 212, 0.10);
+  border-bottom: 2px solid var(--brand-600);
+}
+
+/* Brand title next to logo */
+.brand-title {
+  font-family: 'Space Grotesk', Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--brand-600);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+.brand-suffix { color: var(--brand-600); }
+
+/* Ensure header title link renders in teal */
+.md-header__title .md-ellipsis a {
+  color: var(--brand-600) !important;
+  text-decoration: none;
+}
+.md-header__title .md-ellipsis a:hover,
+.md-header__title .md-ellipsis a:focus {
+  color: var(--brand-700) !important;
+}
+
+/* Make the logo larger and align nicely with the text */
+.md-header__button.md-logo {
+  margin: 0;
+  padding: 0.2rem 0.5rem 0.2rem 0.25rem;
+}
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 2.6rem;
+  width: auto;
+}
+@media screen and (min-width: 76.1875em) {
+  .brand-title { font-size: 1.9rem; }
+  .md-header__button.md-logo img,
+  .md-header__button.md-logo svg { height: 3.4rem; }
+}
+
+/* Header buttons (icons) adopt teal, with subtle hover */
+.md-header__button { color: var(--brand-600); }
+.md-header__button:hover, .md-header__button:focus {
+  color: var(--brand-700);
+  background: rgba(6, 182, 212, 0.08);
+}
+
+/* Sidebar and search */
+.md-nav, .md-sidebar--primary, .md-sidebar--secondary { background: #ffffff; }
+.md-nav__title, .md-nav__link { color: var(--gray-900); }
+.md-nav__link:hover { background: var(--gray-50); color: var(--brand-700); }
+.md-nav__link--active { color: var(--brand-700); }
+
+[data-md-color-scheme="default"] .md-search__form {
+  background: #ffffff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-brand);
+}
+[data-md-color-scheme="default"] .md-search__form:hover { border-color: var(--brand-500); }
+[data-md-color-scheme="default"] .md-search__form:focus-within { border-color: var(--brand-600); box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.15); }
+[data-md-color-scheme="default"] .md-search__input { background: transparent; color: var(--gray-900); }
+
+/* Buttons (Material: .md-button class) */
+.md-button, .md-typeset .md-button {
+  border-radius: var(--radius-brand);
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--brand-600);
+  color: var(--brand-600);
+  background: #ffffff;
+}
+.md-button:hover, .md-typeset .md-button:hover {
+  background: var(--gray-50);
+  border-color: var(--brand-700);
+  color: var(--brand-700);
+  box-shadow: 0 20px 60px rgba(6, 182, 212, 0.25);
+}
+.md-button--primary, .md-typeset .md-button--primary {
+  background: var(--brand-600);
+  color: #ffffff;
+  border-color: var(--brand-600);
+}
+.md-button--primary:hover, .md-typeset .md-button--primary:hover {
+  background: var(--brand-700);
+  border-color: var(--brand-700);
+}
+
+/* Code blocks */
+.md-typeset pre > code { background: var(--gray-50); border: 1px solid var(--gray-200); }
+.md-typeset code { color: var(--gray-900); }
+
+/* Tables */
+.md-typeset table:not([class]) { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.md-typeset table:not([class]) th, .md-typeset table:not([class]) td { border-color: var(--gray-200); }
+.md-typeset table:not([class]) tr { background: #ffffff; }
+.md-typeset table:not([class]) tr:hover { background: var(--gray-50); }
+
+/* Cards and admonitions: subtle, rounded */
+.md-typeset .admonition, .md-typeset details {
+  border-radius: var(--radius-brand);
+  border-width: 1px;
+}
+.md-typeset .admonition-title, .md-typeset summary { font-weight: 700; }
+
+/* Footer */
+.md-footer { border-top: 1px solid var(--gray-200); }
+
+/* Images */
+.md-typeset img { border-radius: 8px; }
+
+/* Make page top spacing consistent under sticky header */
+.md-content__inner::before { content: none; }
+
+/* ---- Landing page (home) ---- */
+.sw4rm-hero {
+  position: relative;
+  padding: clamp(1.5rem, 1rem + 3vw, 3.25rem) clamp(0rem, -0.4rem + 2vw, 1rem);
+  margin-bottom: clamp(1rem, 0.6rem + 2vw, 2rem);
+  border-radius: 0;          /* no box around hero */
+  background: transparent;   /* no background box */
+  border: 0;                 /* remove border */
+}
+.sw4rm-hero--wide::before { content: none; }
+.sw4rm-hero__copy {
+  position: relative;
+  max-width: 1100px;
+}
+.sw4rm-hero h1 { margin: 0 0 0.25rem 0; }
+.sw4rm-hero .lead { margin: 0.25rem 0 0.75rem; color: var(--gray-700); }
+/* Removed chips per design feedback */
+.sw4rm-hero__highlights { display: grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); gap: 0.35rem 1.25rem; padding-left: 1rem; margin: 0.75rem 0 1rem; }
+.sw4rm-hero__highlights li { margin: 0; color: var(--gray-800); }
+.sw4rm-hero__ctas { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.5rem; }
+@media screen and (max-width: 76.1875em) {
+  .sw4rm-hero__highlights { grid-template-columns: 1fr; padding-left: 1rem; }
+}
+
+/* At a glance cards */
+.sw4rm-glance { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; padding: 0 clamp(0rem, -0.4rem + 2vw, 1rem) 1rem; }
+.glance-card { border: 1px solid var(--gray-200); border-radius: var(--radius-brand); background: #fff; padding: 1rem; }
+.glance-card h3 { margin: 0.25rem 0 0.25rem; }
+@media screen and (max-width: 76.1875em) { .sw4rm-glance { grid-template-columns: 1fr; } }
+
+/* Section blocks */
+.sw4rm-section {
+  background: transparent; /* unboxed */
+  border: 0;
+  border-radius: 0;
+  padding: 1rem 0;
+  margin: 0 0 1rem 0;
+}
+.sw4rm-section h2 { margin-top: 0; }
+.sw4rm-section__cta { margin-top: 0.5rem; }
+
+/* Content wrapper after hero for smoother transition */
+.sw4rm-content { margin-top: clamp(0.75rem, 0.5rem + 1vw, 1.25rem); }
+
+/* Hide paragraph symbol permalinks until hover for cleaner look */
+.md-typeset a.headerlink { visibility: hidden; }
+.md-typeset h1:hover > a.headerlink,
+.md-typeset h2:hover > a.headerlink,
+.md-typeset h3:hover > a.headerlink { visibility: visible; }
+
+/* Uniform, small heading anchor (¶) across all levels */
+.md-typeset h1 .headerlink,
+.md-typeset h2 .headerlink,
+.md-typeset h3 .headerlink,
+.md-typeset h4 .headerlink,
+.md-typeset h5 .headerlink,
+.md-typeset h6 .headerlink {
+  font-size: 0.85rem;           /* fixed small size */
+  line-height: 1;               /* keeps it compact */
+  margin-left: 0.5rem;          /* spacing from heading text */
+  vertical-align: middle;       /* align with text */
+  opacity: 0;                   /* shown on hover only */
+  color: var(--brand-600);
+  text-decoration: none;
+}
+.md-typeset h1:hover .headerlink,
+.md-typeset h2:hover .headerlink,
+.md-typeset h3:hover .headerlink,
+.md-typeset h4:hover .headerlink,
+.md-typeset h5:hover .headerlink,
+.md-typeset h6:hover .headerlink {
+  opacity: 1;
+}
+.md-typeset .headerlink:focus { opacity: 1; outline: none; }
+
+/* Larger site header title (brand/title in top bar) */
+.md-header__title .md-ellipsis {
+  font-family: 'Space Grotesk', Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  font-size: 1.6rem;
+}
+@media screen and (min-width: 76.1875em) {
+  .md-header__title .md-ellipsis { font-size: 2.1rem; }
+}

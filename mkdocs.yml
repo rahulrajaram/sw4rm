@@ -13,13 +13,14 @@ theme:
   name: material
   logo: assets/icons/sw4rm-logo.svg
   favicon: assets/icons/sw4rm-favicon.svg
+  custom_dir: documentation/overrides
   font:
     text: Inter
     code: JetBrains Mono
   palette:
-    - scheme: slate
-      primary: blue grey
-      accent: yellow
+    - scheme: default
+      primary: teal
+      accent: cyan
   features:
     - navigation.tabs
     - navigation.tabs.sticky
@@ -60,11 +61,11 @@ markdown_extensions:
 
 plugins:
   - search
-  - section-index
   - kroki
 
 nav:
   - Home: index.md
+  - Overview: overview.md
   - Getting Started:
     - quickstart/index.md
     - Installation: quickstart/installation.md
@@ -89,7 +90,7 @@ extra:
       link: https://pypi.org/rahulrajaram/sw4rm-sdk
 
 extra_css:
-  - assets/custom.css
+  - assets/empirescale.css
 
 extra_javascript:
   - assets/collapse-mobile-nav.js

@@ -120,7 +120,6 @@
   /* Desktop: enlarge header title text */
   .md-header__title .md-ellipsis {
     font-size: 2.3em !important;
-    line-height: 1;
   }
 }
 

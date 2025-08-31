@@ -1,10 +1,60 @@
----
-template: home.html
-title: SW4RM Agentic Protocol
-hide: [toc]
----
 
-<!-- Landing page content is provided by the home.html template (hero + Agentic Workflows). -->
+# 1. SW4RM Agentic Protocol
+
+## 1.1. Overview and Motivation
+
+Contemporary agentic systems lack standardized inter-process communication (IPC) mechanisms for agent-to-agent coordination. This architectural gap constrains system composability and operational efficiency. As a result, present capabilities and LLM engagement often suffer from context rot, sycophancy, and an inability to change course mid‑execution. Common symptoms include brittle long‑context prompting without stable correlation or deduplication, duplicate side effects on retry, weak interruption and scheduling controls, unreliable delivery confirmation and reconciliation, missing escalation paths for risky decisions, and poor observability and auditability.
+
+Due to these reasons, the ability to achieve true autonomy remains limited, often necessitating human intervention. As agentic systems evolve toward true autonomy—where agents operate independently without human intervention and make complex decisions through agent-to-agent negotiation—the need for robust, standardized communication protocols becomes even more critical.
+
+**Agents and Agentic Interaction**
+
+An **Agent** is a process-isolated execution participant supervised by the **Scheduler**. Each agent has a stable `agent_id`, registers with the **Registry** (name, ≤200‑word description, declared capabilities, and **Communication Class**), and MAY run multiple instances subject to `max_parallel_instances` and concurrency policy. Agents exchange typed **Messages** over gRPC via the **Router**, using standardized message envelopes and acknowledgement lifecycles. Agents maintain an advisory **Activity Buffer** for in‑flight tasks, MAY bind to a **Worktree** for repository state, and implement cooperative preemption safe points so the Scheduler can orchestrate priority, ordering, and preemption.
+
+**Agentic interaction** is the message‑driven coordination among Agents and core services (Registry, Router, Scheduler, HITL, Tool/Connector, Negotiation, Reasoning, Logging). Interactions are expressed as routed Messages that MUST carry `message_id`, `producer_id`, `correlation_id`, `sequence_number`, `retry_count`, `message_type`, and payload `content_type`/`content_length` when present, and MAY include `idempotency_token`, HLC timestamp, or `ttl_ms`. Messages follow the normative lifecycle `SENT → RECEIVED → ACKNOWLEDGED → READ → FULFILLED` with error outcomes (`REJECTED`, `FAILED`, `TIMED_OUT`, etc.). The Router enforces addressing and declared modalities; the Scheduler provides ordering, cooperative preemption, and HITL escalation; tools are invoked via the Tool service; inter‑agent decisions MAY use Negotiation and the **Reasoning Engine** for conflict assessment. Buffers and back‑pressure policies prevent overload, and idempotency semantics ensure exactly‑once effects where required.
+
+Note on terminology: This definition intentionally departs from some prevailing industry usage of “agent,” which often refers to an LLM wrapper, autonomous script runner, or library-managed coroutine with implicit control flow. In this specification, an **Agent** is a supervised, process‑isolated participant with registry‑backed identity, explicit message lifecycles, cooperative preemption, and protocol‑level contracts for routing, acknowledgements, idempotency, and back‑pressure. “Agentic interaction” denotes this message‑routed, service‑mediated coordination rather than ad‑hoc tool invocation within a single runtime.
+
+### 1.1.1. Communication Protocol Landscape Analysis
+
+Modern day computing stack employs well-defined communication protocols at each abstraction layer: operating systems provide POSIX IPC primitives (pipes, shared memory, message queues, semaphores), the network layer standardizes TCP/IP and UDP with socket APIs, application protocols include HTTP/REST, gRPC, and GraphQL with defined message semantics, message brokers implement AMQP and MQTT specifications, and AI tool integration uses the Model Context Protocol (MCP) for LLM-tool communication.
+
+**Agentic systems lack comprehensive standardization.** While protocols like MCP address specific use cases (tool integration), no universal standard exists for agent-to-agent communication, task scheduling, and message exchange between heterogeneous implementations, along with supporting capabilities like agent discovery and capability negotiation. SW4RM defines agent-to-agent communication more thoroughly than existing specifications like Google's A2A protocol (detailed comparison available in [Protocol Specification §3.10](protocol/#310-comparison-with-googles-agent-to-agent-protocol)).
+
+### 1.1.2. Technical Implications
+
+The absence of agent IPC standards produces several systemic effects:
+
+**Interoperability Constraints**
+
+
+- Agents developed using different frameworks cannot communicate directly
+- Message formats and transport mechanisms remain framework-specific
+- Multi-agentic systems cannot span implementation boundaries
+
+**Development Inefficiency**
+
+
+- IPC primitives are reimplemented across frameworks
+- Message routing, acknowledgment protocols, and error handling lack reusable abstractions
+- No standardized libraries for agent communication
+
+**Operational Complexity**
+
+
+- Monitoring and debugging requires framework-specific tooling
+- Load balancing, failover, and scaling patterns vary by implementation
+- No unified observability model for agent communications
+
+**Enterprise Integration Limitations**
+
+
+- agentic systems cannot leverage existing enterprise messaging infrastructure
+- Security and authentication models are implementation-dependent
+- Compliance and audit trails require custom solutions per framework
+
+## 1.2. SW4RM: A Universal Agentic Protocol
+
 SW4RM (pronounced "swarm") establishes the foundational protocol that enables agentic systems to operate with the same level of standardization and reliability as traditional distributed systems. Just as TCP provides reliable packet delivery and Linux provides process scheduling, SW4RM provides:
 
 
