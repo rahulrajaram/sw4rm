@@ -453,6 +453,30 @@ To enforce consistent commit messages across the repo:
 
 - Recommended setup:
   - Set versioned hooks path once per clone: `git config core.hooksPath scripts/git-hooks`
+
+## Contributing
+
+- Versioning: Keep all SDKs in lockstep with the protocol spec. The single source of truth is `documentation/protocol/spec.md` line `Version: X.Y.Z (...)`. Python (`pyproject.toml`), JS (`sdks/js_sdk/package.json`), and Rust (`sdks/rust_sdk/Cargo.toml`) must equal the spec version.
+- Pre-commit hook: Local guard that blocks commits if versions aren’t SemVer or out of sync; also requires a bump when protocol/protos or an SDK changes.
+  - Enable once per clone: `git config core.hooksPath .githooks && chmod +x .githooks/pre-commit`
+- Bump script: Updates spec + all SDKs together.
+  - `python scripts/bump_version.py X.Y.Z [--stage]`
+- PR checks: CI enforces the same rules and does preflight builds.
+  - Workflow: `.github/workflows/version-guard.yml`
+- Release tags: Publishing is tag-driven per language and runs in GitHub Actions.
+  - PyPI: `git tag py-vX.Y.Z && git push origin py-vX.Y.Z`
+  - npm: `git tag npm-vX.Y.Z && git push origin npm-vX.Y.Z`
+  - crates.io: `git tag rs-vX.Y.Z && git push origin rs-vX.Y.Z`
+- Release scripts: Create tags locally (publishing happens in Actions).
+  - One SDK: `python scripts/release.py [py|npm|rs] X.Y.Z --push`
+  - All SDKs: `python scripts/release_all.py X.Y.Z --push`
+- Secrets storage: Use a GitHub Actions Environment named `production` for publish tokens.
+  - Add environment secrets: `PYPI_API_TOKEN`, `NPM_TOKEN`, `CRATES_IO_TOKEN` under Settings → Environments → production.
+  - Release workflows target this environment: `.github/workflows/release-*.yml`.
+- Tag prefixes and SemVer:
+  - Tags must use `py-v`, `npm-v`, `rs-v` followed by `X.Y.Z` that matches all manifests and the spec.
+  - SemVer only (no suffixes). CI and hooks will fail on mismatch.
+
   - Optionally install template and hooks via script: `./scripts/install_git_hooks.sh`
 - Hooks enforce:
   - Subject: non-empty, ≤50 chars, imperative, no trailing period

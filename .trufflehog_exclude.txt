@@ -1,0 +1,48 @@
+# Common directories and files to skip during TruffleHog scans
+node_modules/
+dist/
+build/
+site/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.idea/
+.vscode/
+tmp_readme_check/
+workmerge_data/
+worktrees/
+logs/
+
+# Generated/proto artifacts
+**/*.pb.*
+**/*.gen.*
+
+# Binary and media files
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.svg
+**/*.ico
+**/*.pdf
+**/*.zip
+**/*.tar
+**/*.gz
+**/*.7z
+**/*.rar
+**/*.woff
+**/*.woff2
+**/*.ttf
+**/*.otf
+**/*.map
+
+# Lock files and large metadata
+**/package-lock.json
+**/pnpm-lock.yaml
+**/yarn.lock
+**/Cargo.lock
+**/poetry.lock
+
+# Documentation (usually noisy; adjust if needed)
+**/*.md

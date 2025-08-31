@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+red() { printf "\033[31m%s\033[0m\n" "$*"; }
+green() { printf "\033[32m%s\033[0m\n" "$*"; }
+
+require_file() {
+  [[ -f "$1" ]] || { red "Missing required file: $1"; exit 1; }
+}
+
+semver_re='^[0-9]+\.[0-9]+\.[0-9]+$'
+
+spec_ver() {
+  sed -n -E 's/^Version:\s*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' documentation/protocol/spec.md | head -n1
+}
+
+py_ver() {
+  # Extract version under [project]
+  awk 'BEGIN{p=0} /^\[project\]/{p=1;next} /^\[/{p=0} p==1 && $1=="version"{gsub(/\"/ ,"",$3); print $3; exit}' pyproject.toml
+}
+
+js_ver() {
+  sed -n -E 's/\s*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' sdks/js_sdk/package.json | head -n1
+}
+
+rs_ver() {
+  awk 'BEGIN{p=0} /^\[package\]/{p=1;next} /^\[/{p=0} p==1 && $1=="version"{gsub(/\"/ ,"",$3); print $3; exit}' sdks/rust_sdk/Cargo.toml
+}
+
+require_file documentation/protocol/spec.md
+require_file pyproject.toml
+require_file sdks/js_sdk/package.json
+require_file sdks/rust_sdk/Cargo.toml
+
+SPEC=$(spec_ver)
+PY=$(py_ver)
+JS=$(js_ver)
+RS=$(rs_ver)
+
+[[ $SPEC =~ $semver_re ]] || { red "Spec version not SemVer: '$SPEC'"; exit 1; }
+[[ $PY =~ $semver_re ]]   || { red "Python version not SemVer: '$PY'"; exit 1; }
+[[ $JS =~ $semver_re ]]   || { red "JS version not SemVer: '$JS'"; exit 1; }
+[[ $RS =~ $semver_re ]]   || { red "Rust version not SemVer: '$RS'"; exit 1; }
+
+if [[ "$PY" != "$SPEC" || "$JS" != "$SPEC" || "$RS" != "$SPEC" ]]; then
+  red "SDK versions must equal spec version. spec=$SPEC py=$PY js=$JS rs=$RS"
+  red "Run: python scripts/bump_version.py $SPEC"
+  exit 1
+fi
+
+# Optional stricter checks: if certain paths changed, ensure bump vs HEAD
+if git rev-parse --verify HEAD >/dev/null 2>&1; then
+  CHANGED=$(git diff --cached --name-only)
+  base_ver() { git show HEAD:$1 2>/dev/null | sed -n -E "$2" | head -n1; }
+  BASE_SPEC=$(base_ver documentation/protocol/spec.md 's/^Version:\s*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p')
+  BASE_PY=$(base_ver pyproject.toml '/^\[project\]/,/^\[/{s/^version\s*=\s*"([^"]+)"/\1/p}')
+  BASE_JS=$(base_ver sdks/js_sdk/package.json 's/\s*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p')
+  BASE_RS=$(base_ver sdks/rust_sdk/Cargo.toml '/^\[package\]/{p=1;next} /^\[/{p=0} p==1 && $1=="version"{gsub(/\"/ ,"",$3); print $3; exit}')
+
+  greater() { python - "$1" "$2" <<'PY'
+import sys
+def norm(v):
+    return tuple(map(int, v.split('.'))) if v else None
+v1, v2 = map(norm, sys.argv[1:3])
+sys.exit(0 if v2 is None or (v1 and v2 and v1>v2) else 1)
+PY
+  }
+
+  if echo "$CHANGED" | grep -E '^(documentation/protocol/|protos/)' >/dev/null 2>&1; then
+    if ! greater "$SPEC" "$BASE_SPEC"; then
+      red "Spec changed but version not bumped (head=$SPEC base=${BASE_SPEC:-unset})."; exit 1
+    fi
+  fi
+  if echo "$CHANGED" | grep -E '^sdks/py_sdk/' >/dev/null 2>&1; then
+    if ! greater "$PY" "$BASE_PY"; then red "Python SDK changed but version not bumped (head=$PY base=${BASE_PY:-unset})."; exit 1; fi
+  fi
+  if echo "$CHANGED" | grep -E '^sdks/js_sdk/' >/dev/null 2>&1; then
+    if ! greater "$JS" "$BASE_JS"; then red "JS SDK changed but version not bumped (head=$JS base=${BASE_JS:-unset})."; exit 1; fi
+  fi
+  if echo "$CHANGED" | grep -E '^sdks/rust_sdk/' >/dev/null 2>&1; then
+    if ! greater "$RS" "$BASE_RS"; then red "Rust SDK changed but version not bumped (head=$RS base=${BASE_RS:-unset})."; exit 1; fi
+  fi
+fi
+
+green "pre-commit: version checks passed"
+

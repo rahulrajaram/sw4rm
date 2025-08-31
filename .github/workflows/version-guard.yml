@@ -1,0 +1,178 @@
+name: Version Guard
+
+on:
+  pull_request:
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+
+jobs:
+  check-versions:
+    name: Enforce spec + SDK version sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine base and head refs
+        id: refs
+        run: |
+          echo "base=${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
+          echo "head=${{ github.head_ref }}" >> "$GITHUB_OUTPUT"
+
+      - name: List changed files
+        id: diff
+        run: |
+          git fetch origin "${{ steps.refs.outputs.base }}" --depth=1 || true
+          CHANGED=$(git diff --name-only "origin/${{ steps.refs.outputs.base }}...HEAD")
+          echo "$CHANGED" | sed '/^$/d'
+          echo "changed<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Parse versions (head)
+        id: head
+        shell: bash
+        run: |
+          set -euo pipefail
+          SPEC_VER=$(sed -n -E 's/^Version:\s*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' documentation/protocol/spec.md | head -n1)
+          PY_VER=$(sed -n '/^\[project\]/,/^\[/{s/^version\s*=\s*"([^"]+)"/\1/p}' pyproject.toml | head -n1)
+          JS_VER=$(sed -n -E 's/\s*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' sdks/js_sdk/package.json | head -n1)
+          RS_VER=$(awk 'BEGIN{p=0} /^\[package\]/{p=1;next} /^\[/{p=0} p==1 && $1=="version"{gsub(/\"/ ,"",$3); print $3; exit}' sdks/rust_sdk/Cargo.toml)
+          echo "spec=$SPEC_VER" >> $GITHUB_OUTPUT
+          echo "py=$PY_VER" >> $GITHUB_OUTPUT
+          echo "js=$JS_VER" >> $GITHUB_OUTPUT
+          echo "rs=$RS_VER" >> $GITHUB_OUTPUT
+
+      - name: Parse versions (base)
+        id: base
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_REF="origin/${{ steps.refs.outputs.base }}"
+          git fetch origin "${{ steps.refs.outputs.base }}" --depth=1 || true
+          get_show() { git show "$BASE_REF:$1" 2>/dev/null || true; }
+          SPEC_VER=$(get_show documentation/protocol/spec.md | sed -n -E 's/^Version:\s*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' | head -n1)
+          PY_VER=$(get_show pyproject.toml | sed -n '/^\[project\]/,/^\[/{s/^version\s*=\s*"([^"]+)"/\1/p}' | head -n1)
+          JS_VER=$(get_show sdks/js_sdk/package.json | sed -n -E 's/\s*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' | head -n1)
+          RS_VER=$(get_show sdks/rust_sdk/Cargo.toml | awk 'BEGIN{p=0} /^\[package\]/{p=1;next} /^\[/{p=0} p==1 && $1=="version"{gsub(/\"/ ,"",$3); print $3; exit}')
+          echo "spec=$SPEC_VER" >> $GITHUB_OUTPUT
+          echo "py=$PY_VER" >> $GITHUB_OUTPUT
+          echo "js=$JS_VER" >> $GITHUB_OUTPUT
+          echo "rs=$RS_VER" >> $GITHUB_OUTPUT
+
+      - name: Enforce rules
+        shell: bash
+        env:
+          CHANGED: ${{ steps.diff.outputs.changed }}
+        run: |
+          set -euo pipefail
+          must_semver() {
+            [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Invalid SemVer: $2 = '$1'" >&2; exit 1; }
+          }
+          cmp_gt() {
+            # returns 0 if v1>v2, else 1
+            python - "$1" "$2" <<'PY'
+import sys
+from packaging.version import Version
+v1, v2 = map(Version, sys.argv[1:3])
+sys.exit(0 if v1>v2 else 1)
+PY
+          }
+          HEAD_SPEC='${{ steps.head.outputs.spec }}'
+          HEAD_PY='${{ steps.head.outputs.py }}'
+          HEAD_JS='${{ steps.head.outputs.js }}'
+          HEAD_RS='${{ steps.head.outputs.rs }}'
+          BASE_SPEC='${{ steps.base.outputs.spec }}'
+          BASE_PY='${{ steps.base.outputs.py }}'
+          BASE_JS='${{ steps.base.outputs.js }}'
+          BASE_RS='${{ steps.base.outputs.rs }}'
+
+          for k in SPEC PY JS RS; do
+            eval v=\$HEAD_${k}
+            must_semver "$v" "HEAD_${k}"
+          done
+
+          # All SDKs must equal the spec version
+          if [[ "$HEAD_PY" != "$HEAD_SPEC" || "$HEAD_JS" != "$HEAD_SPEC" || "$HEAD_RS" != "$HEAD_SPEC" ]]; then
+            echo "SDK versions must equal spec version. spec=$HEAD_SPEC py=$HEAD_PY js=$HEAD_JS rs=$HEAD_RS" >&2
+            exit 1
+          fi
+
+          # If protocol or protos changed, require spec bump > base
+          if echo "$CHANGED" | grep -E '^(documentation/protocol/|protos/)' >/dev/null 2>&1; then
+            if [[ -n "$BASE_SPEC" ]]; then
+              if ! cmp_gt "$HEAD_SPEC" "$BASE_SPEC"; then
+                echo "Spec changed but version not bumped (head=$HEAD_SPEC base=$BASE_SPEC)." >&2
+                exit 1
+              fi
+            fi
+          fi
+
+          # If an SDK changed, require that SDK version bumped > base
+          if echo "$CHANGED" | grep -E '^sdks/py_sdk/' >/dev/null 2>&1; then
+            if [[ -n "$BASE_PY" ]]; then
+              if ! cmp_gt "$HEAD_PY" "$BASE_PY"; then
+                echo "Python SDK changed but version not bumped (head=$HEAD_PY base=$BASE_PY)." >&2
+                exit 1
+              fi
+            fi
+          fi
+          if echo "$CHANGED" | grep -E '^sdks/js_sdk/' >/dev/null 2>&1; then
+            if [[ -n "$BASE_JS" ]]; then
+              if ! cmp_gt "$HEAD_JS" "$BASE_JS"; then
+                echo "JS SDK changed but version not bumped (head=$HEAD_JS base=$BASE_JS)." >&2
+                exit 1
+              fi
+            fi
+          fi
+          if echo "$CHANGED" | grep -E '^sdks/rust_sdk/' >/dev/null 2>&1; then
+            if [[ -n "$BASE_RS" ]]; then
+              if ! cmp_gt "$HEAD_RS" "$BASE_RS"; then
+                echo "Rust SDK changed but version not bumped (head=$HEAD_RS base=$BASE_RS)." >&2
+                exit 1
+              fi
+            fi
+          fi
+
+          echo "Version guard checks passed."
+
+  preflight-build:
+    name: Preflight build (no publish)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Python build
+        run: |
+          python -m pip install --upgrade build twine
+          python -m build
+          twine check dist/*
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: JS build
+        working-directory: sdks/js_sdk
+        run: |
+          npm ci
+          npm run build
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust package dry-run
+        run: |
+          cargo package --manifest-path sdks/rust_sdk/Cargo.toml
+

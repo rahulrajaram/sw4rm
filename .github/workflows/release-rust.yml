@@ -1,0 +1,49 @@
+name: Release Rust (crates.io)
+
+on:
+  push:
+    tags:
+      - "rs-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: vars
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#rs-v}"
+          echo "tag_version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify version matches Cargo.toml
+        shell: bash
+        run: |
+          FILE_VERSION=$(grep -m1 '^version\s*=\s*"' sdks/rust_sdk/Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "Tag version: ${{ steps.vars.outputs.tag_version }}"
+          echo "File version: $FILE_VERSION"
+          if [ "$FILE_VERSION" != "${{ steps.vars.outputs.tag_version }}" ]; then
+            echo "Version mismatch: tag ${{ steps.vars.outputs.tag_version }} vs Cargo.toml $FILE_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Dry-run package
+        run: |
+          cargo package --manifest-path sdks/rust_sdk/Cargo.toml
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: |
+          cargo publish --manifest-path sdks/rust_sdk/Cargo.toml

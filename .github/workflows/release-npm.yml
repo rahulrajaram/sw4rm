@@ -1,0 +1,57 @@
+name: Release JS (npm)
+
+on:
+  push:
+    tags:
+      - "npm-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: sdks/js_sdk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: vars
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#npm-v}"
+          echo "tag_version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate protobufs and build
+        run: |
+          npm run build
+
+      - name: Check version matches package.json
+        run: |
+          FILE_VERSION=$(node -p "require('./package.json').version")
+          echo "Tag version: ${{ steps.vars.outputs.tag_version }}"
+          echo "File version: $FILE_VERSION"
+          if [ "$FILE_VERSION" != "${{ steps.vars.outputs.tag_version }}" ]; then
+            echo "Version mismatch: tag ${{ steps.vars.outputs.tag_version }} vs package.json $FILE_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm publish --access public

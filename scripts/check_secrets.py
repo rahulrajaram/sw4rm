@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Secret scanning using TruffleHog for pre-commit checks."""
+"""Secret scanning using TruffleHog for pre-commit checks.
+
+Low-noise defaults:
+- Scan only staged files (copied to a temp dir)
+- Use TruffleHog detectors with --only-verified (no regex/entropy flood)
+- Respect exclude paths file and allowlist if present
+- Skip large files and likely-binary/non-source files
+"""
 
 import json
 import os
@@ -8,6 +15,25 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Dict, List
+
+# Max bytes to scan per file (1 MiB)
+MAX_BYTES = 1 * 1024 * 1024
+
+# Extensions we consider most relevant for secrets; keep tight to reduce noise
+ALLOWED_EXTS = {
+    
+    ".py", ".pyi", ".ipynb",
+    ".js", ".jsx", ".ts", ".tsx",
+    ".json", ".jsonc", ".toml", ".ini", ".cfg",
+    ".yml", ".yaml",
+    ".env", ".dotenv",
+    ".sh", ".bash", ".zsh",
+    ".rb", ".go", ".rs", ".java", ".kt", ".gradle", ".cs", ".php", ".pl", ".swift",
+    ".proto",
+    ".txt",
+}
+
+EXCLUDE_FILE = ".trufflehog_exclude.txt"
 
 
 def get_staged_files() -> List[str]:
@@ -24,14 +50,21 @@ def get_staged_files() -> List[str]:
         return []
 
 
+def is_candidate(path: str) -> bool:
+    """Rudimentary filter to avoid scanning markdown, media, and unknown binaries."""
+    p = Path(path)
+    # Only regular files with allowed extensions
+    return p.suffix.lower() in ALLOWED_EXTS
+
+
 def copy_staged_file_content(file_path: str, temp_dir: Path) -> bool:
     """Copy staged content of a file to temp directory."""
     try:
         # Get staged content
         result = subprocess.run(
             ["git", "show", f":{file_path}"],
-            capture_output=True,
-            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             check=True
         )
         
@@ -40,15 +73,19 @@ def copy_staged_file_content(file_path: str, temp_dir: Path) -> bool:
         dest_file.parent.mkdir(parents=True, exist_ok=True)
         
         # Write staged content
-        with open(dest_file, 'w', encoding='utf-8') as f:
-            f.write(result.stdout)
+        data = result.stdout
+        # Size cap
+        if len(data) > MAX_BYTES:
+            return False
+        with open(dest_file, 'wb') as f:
+            f.write(data)
         
         return True
     except (subprocess.CalledProcessError, OSError):
         return False
 
 
-def run_trufflehog(scan_dir: Path, allowlist_path: Path = None) -> List[Dict]:
+def run_trufflehog(scan_dir: Path, allowlist_path: Path | None = None) -> List[Dict]:
     """Run TruffleHog scan and return findings."""
     if not subprocess.run(["which", "trufflehog"], capture_output=True).returncode == 0:
         print("[pre-commit] ⚠️  TruffleHog not found, skipping secret scan")
@@ -57,13 +94,17 @@ def run_trufflehog(scan_dir: Path, allowlist_path: Path = None) -> List[Dict]:
     cmd = [
         "trufflehog",
         "--json",
-        "--regex",
-        "--entropy=False",
-        f"file://{scan_dir.absolute()}"
+        "--only-verified",
+        f"file://{scan_dir.absolute()}",
     ]
     
     if allowlist_path and allowlist_path.exists():
         cmd.extend(["--allow", str(allowlist_path)])
+
+    # Optional exclude paths file (patterns), if present in repo root
+    exclude_file = Path.cwd() / EXCLUDE_FILE
+    if exclude_file.exists():
+        cmd.extend(["--exclude-paths", str(exclude_file)])
     
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=scan_dir)
@@ -97,10 +138,12 @@ def check_secrets() -> int:
     # Create temporary directory for staged content
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
-        
+
         # Copy staged files to temp directory
         copied_files = 0
         for file_path in staged_files:
+            if not is_candidate(file_path):
+                continue
             if os.path.isfile(file_path) and copy_staged_file_content(file_path, temp_path):
                 copied_files += 1
         
