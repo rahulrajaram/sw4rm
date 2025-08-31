@@ -5,6 +5,9 @@ edition = "2021"
 description = "SW4RM Agentic Protocol - Reference Rust SDK"
 license = "Apache-2.0"
 repository = "https://github.com/rahulrajaram/sw4rm"
+readme = "README.md"
+homepage = "https://sw4rm.ai"
+documentation = "https://github.com/rahulrajaram/sw4rm/tree/main/sdks/rust_sdk#readme"
 keywords = ["grpc", "agents", "distributed", "protocol"]
 categories = ["api-bindings", "network-programming"]
 

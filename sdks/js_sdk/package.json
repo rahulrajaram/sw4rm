@@ -28,6 +28,23 @@
     "lint": "eslint src --ext .ts,.js",
     "format": "prettier --write src"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rahulrajaram/sw4rm.git",
+    "directory": "sdks/js_sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/rahulrajaram/sw4rm/issues"
+  },
+  "homepage": "https://github.com/rahulrajaram/sw4rm#readme",
   "keywords": [
     "sw4rm",
     "agent",
