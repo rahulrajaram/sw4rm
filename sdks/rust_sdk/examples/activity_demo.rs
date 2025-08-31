@@ -1,9 +1,8 @@
-use sw4rm_sdk::prelude::*;
-use sw4rm_sdk::activity_buffer::PersistentActivityBuffer;
-use sw4rm_sdk::persistence::JsonFilePersistence;
 use serde_json::json;
 use std::path::Path;
-use tracing_subscriber;
+use sw4rm_sdk::activity_buffer::PersistentActivityBuffer;
+use sw4rm_sdk::persistence::JsonFilePersistence;
+use sw4rm_sdk::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -25,7 +24,7 @@ async fn main() -> Result<()> {
 
     // Create some test messages
     let agent_id = "activity-demo-agent";
-    
+
     // Create incoming messages
     for i in 1..=5 {
         let envelope = json!({
@@ -88,7 +87,11 @@ async fn main() -> Result<()> {
         });
 
         if let Some(record) = buffer.ack(&ack_data)? {
-            tracing::info!("✅ ACKed message: {} (stage: {})", record.message_id, record.ack_stage);
+            tracing::info!(
+                "✅ ACKed message: {} (stage: {})",
+                record.message_id,
+                record.ack_stage
+            );
         }
     }
 
@@ -102,7 +105,11 @@ async fn main() -> Result<()> {
         });
 
         if let Some(record) = buffer.ack(&ack_data)? {
-            tracing::info!("🎉 Fulfilled message: {} (stage: {})", record.message_id, record.ack_stage);
+            tracing::info!(
+                "🎉 Fulfilled message: {} (stage: {})",
+                record.message_id,
+                record.ack_stage
+            );
         }
     }
 
@@ -115,7 +122,11 @@ async fn main() -> Result<()> {
     });
 
     if let Some(record) = buffer.ack(&reject_ack)? {
-        tracing::warn!("❌ Rejected message: {} (reason: {})", record.message_id, record.ack_note);
+        tracing::warn!(
+            "❌ Rejected message: {} (reason: {})",
+            record.message_id,
+            record.ack_note
+        );
     }
 
     // Show updated unacked messages
@@ -124,12 +135,12 @@ async fn main() -> Result<()> {
     for record in &remaining_unacked {
         let status_emoji = match record.ack_stage {
             stage if stage == constants::ack_stage::RECEIVED => "📨",
-            stage if stage == constants::ack_stage::READ => "👀", 
+            stage if stage == constants::ack_stage::READ => "👀",
             stage if stage == constants::ack_stage::REJECTED => "❌",
             stage if stage == constants::ack_stage::FAILED => "💥",
             _ => "⏳",
         };
-        
+
         tracing::info!(
             "  {} {} ({}) - stage: {}, note: '{}'",
             status_emoji,
@@ -157,7 +168,10 @@ async fn main() -> Result<()> {
     // Demonstrate reconciliation - find outgoing messages needing ACKs
     let reconcile = buffer.reconcile()?;
     if !reconcile.is_empty() {
-        tracing::info!("🔄 Found {} messages needing reconciliation", reconcile.len());
+        tracing::info!(
+            "🔄 Found {} messages needing reconciliation",
+            reconcile.len()
+        );
         for record in &reconcile {
             tracing::info!(
                 "  🔄 {} - sent {}ms ago, no ACK yet",
@@ -185,13 +199,16 @@ async fn main() -> Result<()> {
 
     // Demonstrate loading from persistence
     tracing::info!("🔄 Testing persistence loading...");
-    
+
     let new_persistence = Box::new(JsonFilePersistence::new(persistence_file));
     let loaded_buffer = PersistentActivityBuffer::new(100, Some(new_persistence))?;
-    
+
     let loaded_recent = loaded_buffer.recent(10)?;
-    tracing::info!("📂 Loaded {} messages from persistence", loaded_recent.len());
-    
+    tracing::info!(
+        "📂 Loaded {} messages from persistence",
+        loaded_recent.len()
+    );
+
     // Clean up
     if Path::new(persistence_file).exists() {
         std::fs::remove_file(persistence_file)?;

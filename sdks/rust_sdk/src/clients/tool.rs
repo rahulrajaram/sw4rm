@@ -1,11 +1,11 @@
 use crate::proto::sw4rm::tool::tool_service_client::ToolServiceClient;
-use crate::proto::sw4rm::tool::{ToolCall, ToolFrame, ToolError, ExecutionPolicy};
+use crate::proto::sw4rm::tool::{ExecutionPolicy, ToolCall, ToolError, ToolFrame};
 use crate::{Error, Result};
-use tonic::transport::{Channel, Endpoint};
-use tokio_stream::Stream;
-use std::pin::Pin;
 use prost_types;
+use std::pin::Pin;
 use std::time::Duration;
+use tokio_stream::Stream;
+use tonic::transport::{Channel, Endpoint};
 use tracing::{debug, error, info};
 
 /// Configuration for tool execution policy
@@ -59,7 +59,7 @@ impl ToolClient {
     /// Create a new tool client
     pub async fn new(endpoint: &str) -> Result<Self> {
         debug!("Creating tool client for endpoint: {}", endpoint);
-        
+
         let channel = Endpoint::from_shared(endpoint.to_string())
             .map_err(|e| Error::Config(format!("Invalid tool endpoint: {}", e)))?
             .connect()
@@ -76,7 +76,6 @@ impl ToolClient {
             endpoint: endpoint.to_string(),
         })
     }
-
 
     /// Execute a tool call
     pub async fn call_tool(&mut self, params: ToolCallParams<'_>) -> Result<ToolFrame> {
@@ -146,26 +145,23 @@ impl ToolClient {
         };
 
         let request = tonic::Request::new(tool_call);
-        let response = self.client.call_stream(request).await
-            .map_err(|e| {
-                error!("Failed to start streaming tool call {}: {}", call_id, e);
-                Error::Status(e)
-            })?;
+        let response = self.client.call_stream(request).await.map_err(|e| {
+            error!("Failed to start streaming tool call {}: {}", call_id, e);
+            Error::Status(e)
+        })?;
 
         let stream = response.into_inner();
         info!("Streaming tool call started: {} ({})", call_id, tool_name);
 
         let call_id_owned = call_id.to_string();
-        let mapped_stream = tokio_stream::StreamExt::map(stream, move |result| {
-            match result {
-                Ok(frame) => {
-                    debug!("Received tool frame for call {}", call_id_owned);
-                    Ok(frame)
-                }
-                Err(status) => {
-                    error!("Stream error for tool call {}: {}", call_id_owned, status);
-                    Err(Error::Status(status))
-                }
+        let mapped_stream = tokio_stream::StreamExt::map(stream, move |result| match result {
+            Ok(frame) => {
+                debug!("Received tool frame for call {}", call_id_owned);
+                Ok(frame)
+            }
+            Err(status) => {
+                error!("Stream error for tool call {}: {}", call_id_owned, status);
+                Err(Error::Status(status))
             }
         });
 
@@ -175,25 +171,24 @@ impl ToolClient {
     /// Cancel a tool call
     pub async fn cancel_tool(&mut self, call_id: &str) -> Result<ToolError> {
         debug!("Canceling tool call: {}", call_id);
-        
+
         // For cancellation, we send a minimal ToolCall to identify what to cancel
         let cancel_tool_call = ToolCall {
             call_id: call_id.to_string(),
-            tool_name: "".to_string(),  // Empty for cancel requests
+            tool_name: "".to_string(), // Empty for cancel requests
             provider_id: "".to_string(),
             content_type: "application/json".to_string(),
-            args: b"{}".to_vec(),  // Empty JSON
+            args: b"{}".to_vec(), // Empty JSON
             policy: None,
             stream: false,
         };
 
         let request = tonic::Request::new(cancel_tool_call);
-        let response = self.client.cancel(request).await
-            .map_err(|e| {
-                error!("Failed to cancel tool call {}: {}", call_id, e);
-                Error::Status(e)
-            })?;
-        
+        let response = self.client.cancel(request).await.map_err(|e| {
+            error!("Failed to cancel tool call {}: {}", call_id, e);
+            Error::Status(e)
+        })?;
+
         info!("Tool call {} canceled successfully", call_id);
         Ok(response.into_inner())
     }
@@ -203,5 +198,3 @@ impl ToolClient {
         &self.endpoint
     }
 }
-
-

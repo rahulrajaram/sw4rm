@@ -1,15 +1,15 @@
-use crate::envelope::EnvelopeData;
-use crate::runtime::preemption::PreemptionManager;
-use crate::config::AgentConfig;
+use crate::ack_integration::AckLifecycleManager;
+use crate::activity_buffer::PersistentActivityBuffer;
 use crate::clients::*;
-use crate::{Error, Result};
+use crate::config::AgentConfig;
+use crate::envelope::EnvelopeData;
 use crate::proto::sw4rm::common::AgentState;
+use crate::runtime::preemption::PreemptionManager;
+use crate::{Error, Result};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
-use crate::ack_integration::AckLifecycleManager;
-use crate::activity_buffer::PersistentActivityBuffer;
 
 /// Base trait for SW4RM agents
 #[async_trait]
@@ -35,16 +35,30 @@ pub trait Agent: Send + Sync {
                 if let Some(kind) = body.get("type").and_then(|v| v.as_str()) {
                     match kind {
                         "PREEMPT_REQUEST" => {
-                            let reason = body.get("reason").and_then(|v| v.as_str()).map(|s| s.to_string());
+                            let reason = body
+                                .get("reason")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
                             self.preemption_manager().request_preemption(reason.clone());
                             tracing::info!("Preemption requested: {:?}", reason);
                         }
                         "TERMINATE" | "SHUTDOWN" => {
-                            let reason = body.get("reason").and_then(|v| v.as_str()).map(|s| s.to_string());
-                            let grace_ms = body.get("grace_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+                            let reason = body
+                                .get("reason")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+                            let grace_ms =
+                                body.get("grace_ms").and_then(|v| v.as_u64()).unwrap_or(0);
                             self.preemption_manager().request_preemption(reason.clone());
-                            if grace_ms > 0 { self.preemption_manager().set_deadline(grace_ms); }
-                            tracing::info!("{} requested: reason={:?}, grace_ms={}", kind, reason, grace_ms);
+                            if grace_ms > 0 {
+                                self.preemption_manager().set_deadline(grace_ms);
+                            }
+                            tracing::info!(
+                                "{} requested: reason={:?}, grace_ms={}",
+                                kind,
+                                reason,
+                                grace_ms
+                            );
                         }
                         _ => {}
                     }
@@ -103,21 +117,18 @@ impl AgentRuntime {
     /// Initialize the runtime by connecting to services
     pub async fn init(&mut self) -> Result<()> {
         // Connect to registry service
-        self.registry_client = Some(
-            RegistryClient::new(&self.config.endpoints.registry).await?
-        );
+        self.registry_client = Some(RegistryClient::new(&self.config.endpoints.registry).await?);
 
         // Connect to router service
-        self.router_client = Some(
-            RouterClient::new(&self.config.endpoints.router).await?
-        );
+        self.router_client = Some(RouterClient::new(&self.config.endpoints.router).await?);
 
         // Connect to scheduler service
-        self.scheduler_client = Some(
-            SchedulerClient::new(&self.config.endpoints.scheduler).await?
-        );
+        self.scheduler_client = Some(SchedulerClient::new(&self.config.endpoints.scheduler).await?);
 
-        tracing::info!("Agent runtime initialized for agent: {}", self.config.agent_id);
+        tracing::info!(
+            "Agent runtime initialized for agent: {}",
+            self.config.agent_id
+        );
         Ok(())
     }
 
@@ -149,7 +160,7 @@ impl AgentRuntime {
     {
         // Initialize runtime
         self.init().await?;
-        
+
         // Register agent
         self.register().await?;
 
@@ -181,7 +192,9 @@ impl AgentRuntime {
 
         // Deregister agent
         if let Some(client) = &mut self.registry_client {
-            client.deregister(&self.config.agent_id, Some("Normal shutdown")).await?;
+            client
+                .deregister(&self.config.agent_id, Some("Normal shutdown"))
+                .await?;
         }
 
         tracing::info!("Agent runtime stopped");
@@ -195,20 +208,21 @@ impl AgentRuntime {
         let registry_endpoint = self.config.endpoints.registry.clone();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(
-                std::time::Duration::from_millis(interval_ms)
-            );
+            let mut interval = tokio::time::interval(std::time::Duration::from_millis(interval_ms));
 
             loop {
                 interval.tick().await;
-                
+
                 if let Ok(mut client) = RegistryClient::new(&registry_endpoint).await {
                     let health = HashMap::from([
                         ("status".to_string(), "healthy".to_string()),
                         ("timestamp".to_string(), crate::types::now_hlc_stub()),
                     ]);
-                    
-                    if let Err(e) = client.heartbeat(&agent_id, AgentState::Running, Some(health)).await {
+
+                    if let Err(e) = client
+                        .heartbeat(&agent_id, AgentState::Running, Some(health))
+                        .await
+                    {
                         tracing::warn!("Heartbeat failed: {}", e);
                     }
                 }
@@ -237,7 +251,7 @@ impl AgentRuntime {
             );
 
             let mut stream = router_client.stream_incoming(&self.config.agent_id).await?;
-            
+
             let handle = tokio::spawn(async move {
                 while let Some(envelope_result) = stream.next().await {
                     match envelope_result {
@@ -252,8 +266,14 @@ impl AgentRuntime {
                                 tracing::error!("Error processing message: {}", e);
                                 let _ = ack_manager.auto_ack_failed(message_id.clone(), &e).await;
                             } else {
-                                let note = if msg_type == crate::constants::message_type::CONTROL { "Processed CONTROL" } else { "Processed successfully" };
-                                let _ = ack_manager.auto_ack_fulfilled(message_id.clone(), Some(note.to_string())).await;
+                                let note = if msg_type == crate::constants::message_type::CONTROL {
+                                    "Processed CONTROL"
+                                } else {
+                                    "Processed successfully"
+                                };
+                                let _ = ack_manager
+                                    .auto_ack_fulfilled(message_id.clone(), Some(note.to_string()))
+                                    .await;
                             }
 
                             // Check for preemption
@@ -269,7 +289,7 @@ impl AgentRuntime {
                         }
                     }
                 }
-                
+
                 // Shutdown hook
                 let _ = agent.on_shutdown().await;
             });
@@ -286,23 +306,13 @@ impl AgentRuntime {
         A: Agent,
     {
         use crate::proto::sw4rm::common::MessageType;
-        
+
         match envelope.message_type {
-            x if x == MessageType::Control as i32 => {
-                agent.on_control(envelope).await
-            }
-            x if x == MessageType::Data as i32 => {
-                agent.on_message(envelope).await
-            }
-            x if x == MessageType::ToolCall as i32 => {
-                agent.on_tool_call(envelope).await
-            }
-            x if x == MessageType::HitlInvocation as i32 => {
-                agent.on_hitl(envelope).await
-            }
-            x if x == MessageType::Negotiation as i32 => {
-                agent.on_negotiation(envelope).await
-            }
+            x if x == MessageType::Control as i32 => agent.on_control(envelope).await,
+            x if x == MessageType::Data as i32 => agent.on_message(envelope).await,
+            x if x == MessageType::ToolCall as i32 => agent.on_tool_call(envelope).await,
+            x if x == MessageType::HitlInvocation as i32 => agent.on_hitl(envelope).await,
+            x if x == MessageType::Negotiation as i32 => agent.on_negotiation(envelope).await,
             _ => {
                 tracing::warn!("Unknown message type: {}", envelope.message_type);
                 agent.on_message(envelope).await

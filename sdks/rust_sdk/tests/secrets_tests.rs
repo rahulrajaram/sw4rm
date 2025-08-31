@@ -1,4 +1,10 @@
-use sw4rm_sdk::secrets::{types::*, backend::SecretsBackend, resolver::Resolver, backends::file::FileBackend, factory::{select_backend, BackendMode}};
+use sw4rm_sdk::secrets::{
+    backend::SecretsBackend,
+    backends::file::FileBackend,
+    factory::{select_backend, BackendMode},
+    resolver::Resolver,
+    types::*,
+};
 
 #[test]
 fn precedence_resolver_cli_then_env_then_scoped_then_global() {
@@ -10,8 +16,10 @@ fn precedence_resolver_cli_then_env_then_scoped_then_global() {
     let scoped = Scope::new("dev");
     let global = Scope::global();
 
-    fb.set(&global, &key, &SecretValue::new("GLOB").unwrap()).unwrap();
-    fb.set(&scoped, &key, &SecretValue::new("SCOP").unwrap()).unwrap();
+    fb.set(&global, &key, &SecretValue::new("GLOB").unwrap())
+        .unwrap();
+    fb.set(&scoped, &key, &SecretValue::new("SCOP").unwrap())
+        .unwrap();
 
     // explicit CLI wins
     let r = Resolver::new(&fb);
@@ -49,7 +57,8 @@ fn file_backend_enforces_0600() {
     assert_eq!(mode, 0o600);
     // write one secret and ensure perms remain strict
     let key = SecretKey::new("provider.example.api_key");
-    fb.set(&Scope::global(), &key, &SecretValue::new("abc").unwrap()).unwrap();
+    fb.set(&Scope::global(), &key, &SecretValue::new("abc").unwrap())
+        .unwrap();
     let mode2 = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode2, 0o600);
 }
@@ -61,4 +70,3 @@ fn backend_selection_prefers_file_in_ci() {
     assert_eq!(name, "file");
     std::env::remove_var("CI");
 }
-

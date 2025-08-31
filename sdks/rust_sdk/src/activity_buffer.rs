@@ -1,9 +1,9 @@
 use crate::constants::*;
-use crate::persistence::{PersistenceBackend, JsonFilePersistence, PersistentActivityRecord};
+use crate::persistence::{JsonFilePersistence, PersistenceBackend, PersistentActivityRecord};
 use crate::{Error, Result};
+use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use chrono::Utc;
 
 /// Activity record for tracking message flow
 #[derive(Debug, Clone)]
@@ -84,7 +84,7 @@ impl ActivityBuffer {
         self.by_id.insert(message_id.clone(), record.clone());
         self.order.push(message_id);
         self.prune_if_needed();
-        
+
         Ok(record)
     }
 
@@ -99,7 +99,7 @@ impl ActivityBuffer {
         self.by_id.insert(message_id.clone(), record.clone());
         self.order.push(message_id);
         self.prune_if_needed();
-        
+
         Ok(record)
     }
 
@@ -110,17 +110,17 @@ impl ActivityBuffer {
             .to_string();
 
         let record = self.by_id.get_mut(&target)?;
-        
+
         let stage = ack
             .get("ack_stage")
             .and_then(|v| v.as_i64())
             .unwrap_or(ack_stage::ACK_STAGE_UNSPECIFIED as i64) as i32;
-        
+
         let error_code = ack
             .get("error_code")
             .and_then(|v| v.as_i64())
             .unwrap_or(error_code::ERROR_CODE_UNSPECIFIED as i64) as i32;
-        
+
         let note = ack
             .get("note")
             .and_then(|v| v.as_str())
@@ -136,20 +136,26 @@ impl ActivityBuffer {
     }
 
     pub fn unacked(&self) -> Result<Vec<&ActivityRecord>> {
-        let records = self.by_id
+        let records = self
+            .by_id
             .values()
-            .filter(|r| matches!(r.ack_stage, 
-                ack_stage::ACK_STAGE_UNSPECIFIED | 
-                ack_stage::RECEIVED | 
-                ack_stage::READ
-            ))
+            .filter(|r| {
+                matches!(
+                    r.ack_stage,
+                    ack_stage::ACK_STAGE_UNSPECIFIED | ack_stage::RECEIVED | ack_stage::READ
+                )
+            })
             .collect();
         Ok(records)
     }
 
     pub fn recent(&self, n: usize) -> Result<Vec<&ActivityRecord>> {
-        let start = if self.order.len() > n { self.order.len() - n } else { 0 };
-        
+        let start = if self.order.len() > n {
+            self.order.len() - n
+        } else {
+            0
+        };
+
         let records = self.order[start..]
             .iter()
             .rev()
@@ -179,7 +185,7 @@ struct PersistentActivityBufferInner {
 impl PersistentActivityBuffer {
     pub fn new(max_items: usize, persistence: Option<Box<dyn PersistenceBackend>>) -> Result<Self> {
         let persistence = persistence.unwrap_or_else(|| Box::new(JsonFilePersistence::default()));
-        
+
         let mut inner = PersistentActivityBufferInner {
             by_id: HashMap::new(),
             order: Vec::new(),
@@ -197,8 +203,11 @@ impl PersistentActivityBuffer {
     }
 
     pub fn record_incoming(&self, envelope: serde_json::Value) -> Result<PersistentActivityRecord> {
-        let mut inner = self.inner.write().map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
-        
+        let mut inner = self
+            .inner
+            .write()
+            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
+
         let message_id = envelope
             .get("message_id")
             .and_then(|v| v.as_str())
@@ -210,13 +219,16 @@ impl PersistentActivityBuffer {
         inner.order.push(message_id);
         inner.prune_if_needed();
         inner.dirty = true;
-        
+
         Ok(record)
     }
 
     pub fn record_outgoing(&self, envelope: serde_json::Value) -> Result<PersistentActivityRecord> {
-        let mut inner = self.inner.write().map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
-        
+        let mut inner = self
+            .inner
+            .write()
+            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
+
         let message_id = envelope
             .get("message_id")
             .and_then(|v| v.as_str())
@@ -228,13 +240,16 @@ impl PersistentActivityBuffer {
         inner.order.push(message_id);
         inner.prune_if_needed();
         inner.dirty = true;
-        
+
         Ok(record)
     }
 
     pub fn ack(&self, ack: &serde_json::Value) -> Result<Option<PersistentActivityRecord>> {
-        let mut inner = self.inner.write().map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
-        
+        let mut inner = self
+            .inner
+            .write()
+            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
+
         let target = ack
             .get("ack_for_message_id")
             .and_then(|v| v.as_str())
@@ -246,12 +261,12 @@ impl PersistentActivityBuffer {
                 .get("ack_stage")
                 .and_then(|v| v.as_i64())
                 .unwrap_or(ack_stage::ACK_STAGE_UNSPECIFIED as i64) as i32;
-            
-            let error_code = ack
-                .get("error_code")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(error_code::ERROR_CODE_UNSPECIFIED as i64) as i32;
-            
+
+            let error_code =
+                ack.get("error_code")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(error_code::ERROR_CODE_UNSPECIFIED as i64) as i32;
+
             let note = ack
                 .get("note")
                 .and_then(|v| v.as_str())
@@ -260,11 +275,11 @@ impl PersistentActivityBuffer {
 
             record.ack(stage, error_code, note);
             let result = record.clone();
-            
+
             // Release the mutable borrow before accessing inner.dirty
             let _ = record;
             inner.dirty = true;
-            
+
             Ok(Some(result))
         } else {
             Ok(None)
@@ -272,41 +287,58 @@ impl PersistentActivityBuffer {
     }
 
     pub fn get(&self, message_id: &str) -> Result<Option<PersistentActivityRecord>> {
-        let inner = self.inner.read().map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
+        let inner = self
+            .inner
+            .read()
+            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
         Ok(inner.by_id.get(message_id).cloned())
     }
 
     pub fn unacked(&self) -> Result<Vec<PersistentActivityRecord>> {
-        let inner = self.inner.read().map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
+        let inner = self
+            .inner
+            .read()
+            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
         let records = inner
             .by_id
             .values()
-            .filter(|r| matches!(r.ack_stage, 
-                ack_stage::ACK_STAGE_UNSPECIFIED | 
-                ack_stage::RECEIVED | 
-                ack_stage::READ
-            ))
+            .filter(|r| {
+                matches!(
+                    r.ack_stage,
+                    ack_stage::ACK_STAGE_UNSPECIFIED | ack_stage::RECEIVED | ack_stage::READ
+                )
+            })
             .cloned()
             .collect();
         Ok(records)
     }
 
     pub fn recent(&self, n: usize) -> Result<Vec<PersistentActivityRecord>> {
-        let inner = self.inner.read().map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
-        let start = if inner.order.len() > n { inner.order.len() - n } else { 0 };
-        
+        let inner = self
+            .inner
+            .read()
+            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
+        let start = if inner.order.len() > n {
+            inner.order.len() - n
+        } else {
+            0
+        };
+
         let records = inner.order[start..]
             .iter()
             .rev()
             .filter_map(|id| inner.by_id.get(id))
             .cloned()
             .collect();
-        
+
         Ok(records)
     }
 
     pub fn flush(&self) -> Result<()> {
-        let mut inner = self.inner.write().map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
+        let mut inner = self
+            .inner
+            .write()
+            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
         inner.save_to_persistence()
     }
 
@@ -316,12 +348,15 @@ impl PersistentActivityBuffer {
             .into_iter()
             .filter(|r| r.direction == "out")
             .collect();
-        
+
         Ok(outgoing_unacked)
     }
 
     pub fn clear(&self) -> Result<()> {
-        let mut inner = self.inner.write().map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
+        let mut inner = self
+            .inner
+            .write()
+            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
         inner.by_id.clear();
         inner.order.clear();
         inner.persistence.clear()?;
@@ -334,7 +369,10 @@ impl PersistentActivityBuffer {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.inner.read().map(|i| i.by_id.is_empty()).unwrap_or(true)
+        self.inner
+            .read()
+            .map(|i| i.by_id.is_empty())
+            .unwrap_or(true)
     }
 }
 
@@ -362,7 +400,8 @@ impl PersistentActivityBufferInner {
             return Ok(());
         }
 
-        self.persistence.save_records(self.by_id.clone(), self.order.clone())?;
+        self.persistence
+            .save_records(self.by_id.clone(), self.order.clone())?;
         self.dirty = false;
         Ok(())
     }
@@ -388,10 +427,10 @@ impl Drop for PersistentActivityBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::constants;
     use crate::persistence::JsonFilePersistence;
     use serde_json::json;
     use tempfile::NamedTempFile;
-    use crate::constants;
 
     #[test]
     fn test_activity_buffer_creation() {
@@ -405,7 +444,7 @@ mod tests {
     #[test]
     fn test_activity_buffer_record_incoming() {
         let mut buffer = ActivityBuffer::new(10);
-        
+
         let message = json!({
             "message_id": "msg-1",
             "producer_id": "test-agent",
@@ -414,11 +453,14 @@ mod tests {
         });
 
         let record = buffer.record_incoming(message.clone()).unwrap();
-        
+
         assert_eq!(record.message_id, "msg-1");
         assert_eq!(record.envelope["producer_id"], "test-agent");
         assert_eq!(record.direction, "in");
-        assert_eq!(record.ack_stage, constants::ack_stage::ACK_STAGE_UNSPECIFIED);
+        assert_eq!(
+            record.ack_stage,
+            constants::ack_stage::ACK_STAGE_UNSPECIFIED
+        );
         assert_eq!(buffer.len(), 1);
         assert!(!buffer.is_empty());
     }
@@ -426,7 +468,7 @@ mod tests {
     #[test]
     fn test_activity_buffer_ack_processing() {
         let mut buffer = ActivityBuffer::new(10);
-        
+
         // Record incoming message
         let message = json!({
             "message_id": "msg-ack-test",
@@ -436,7 +478,7 @@ mod tests {
         });
 
         buffer.record_incoming(message).unwrap();
-        
+
         // Send ACK
         let ack = json!({
             "ack_for_message_id": "msg-ack-test",
@@ -447,7 +489,7 @@ mod tests {
 
         let ack_result = buffer.ack(&ack);
         assert!(ack_result.is_some());
-        
+
         let updated_record = ack_result.unwrap();
         assert_eq!(updated_record.ack_stage, constants::ack_stage::RECEIVED);
         assert_eq!(updated_record.ack_note, "Message received successfully");
@@ -457,10 +499,10 @@ mod tests {
     fn test_persistent_activity_buffer_creation() {
         let temp_file = NamedTempFile::new().unwrap();
         let persistence = Box::new(JsonFilePersistence::new(temp_file.path()));
-        
+
         let buffer = PersistentActivityBuffer::new(50, Some(persistence));
         assert!(buffer.is_ok());
-        
+
         let buffer = buffer.unwrap();
         assert_eq!(buffer.capacity(), 50);
         assert!(buffer.is_empty());
@@ -469,7 +511,7 @@ mod tests {
     #[test]
     fn test_activity_buffer_capacity_management() {
         let mut buffer = ActivityBuffer::new(3);
-        
+
         // Add more messages than capacity
         for i in 1..=5 {
             let message = json!({
@@ -483,7 +525,7 @@ mod tests {
 
         // Should only keep the most recent 3 messages
         assert_eq!(buffer.len(), 3);
-        
+
         let all_records = buffer.recent(10).unwrap();
         assert_eq!(all_records.len(), 3);
         assert_eq!(all_records[0].message_id, "capacity-5");
@@ -493,7 +535,7 @@ mod tests {
     #[test]
     fn test_activity_buffer_error_handling() {
         let mut buffer = ActivityBuffer::new(10);
-        
+
         // Test with invalid message (missing required fields)
         let invalid_message = json!({"incomplete": "message"});
         let result = buffer.record_incoming(invalid_message);
@@ -506,7 +548,7 @@ mod tests {
             "error_code": constants::error_code::ERROR_CODE_UNSPECIFIED,
             "note": "test"
         });
-        
+
         let ack_result = buffer.ack(&ack_for_missing);
         assert!(ack_result.is_none());
     }

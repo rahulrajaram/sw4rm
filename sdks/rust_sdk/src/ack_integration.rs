@@ -1,7 +1,7 @@
-use crate::activity_buffer::PersistentActivityBuffer;
 use crate::acks::{build_ack_envelope, map_error_to_error_code};
-use crate::clients::RouterClient;
+use crate::activity_buffer::PersistentActivityBuffer;
 use crate::clients::router::RouterLike;
+use crate::clients::RouterClient;
 use crate::constants::*;
 use crate::envelope::EnvelopeData;
 use crate::persistence::PersistentActivityRecord;
@@ -73,9 +73,9 @@ impl AckLifecycleManager {
         let message_id = envelope.message_id.clone();
 
         // Record outgoing message
-        let activity_record = self.buffer.record_outgoing(
-            serde_json::to_value(&envelope).map_err(Error::Serialization)?
-        )?;
+        let activity_record = self
+            .buffer
+            .record_outgoing(serde_json::to_value(&envelope).map_err(Error::Serialization)?)?;
 
         match self._send_message_internal(&envelope).await {
             Ok((accepted, reason)) => {
@@ -86,7 +86,7 @@ impl AckLifecycleManager {
                     } else {
                         ack_stage::REJECTED
                     };
-                    
+
                     let error_code = if accepted {
                         error_code::ERROR_CODE_UNSPECIFIED
                     } else {
@@ -144,13 +144,17 @@ impl AckLifecycleManager {
     }
 
     /// Process an incoming ACK message
-    pub fn process_incoming_ack(&self, envelope: &EnvelopeData) -> Result<Option<PersistentActivityRecord>> {
+    pub fn process_incoming_ack(
+        &self,
+        envelope: &EnvelopeData,
+    ) -> Result<Option<PersistentActivityRecord>> {
         if envelope.message_type != message_type::ACKNOWLEDGEMENT {
             return Ok(None);
         }
 
         // Parse ACK from envelope payload
-        let ack_data: Value = envelope.json_payload()
+        let ack_data: Value = envelope
+            .json_payload()
             .map_err(|e| Error::InvalidEnvelope(format!("Invalid ACK payload: {}", e)))?;
 
         // Update activity buffer
@@ -200,11 +204,11 @@ impl AckLifecycleManager {
         let pending: Vec<PersistentActivityRecord> = unacked
             .into_iter()
             .filter(|record| {
-                record.direction == "in" && 
-                matches!(record.ack_stage, 
-                    ack_stage::ACK_STAGE_UNSPECIFIED | 
-                    ack_stage::RECEIVED
-                )
+                record.direction == "in"
+                    && matches!(
+                        record.ack_stage,
+                        ack_stage::ACK_STAGE_UNSPECIFIED | ack_stage::RECEIVED
+                    )
             })
             .collect();
         Ok(pending)
@@ -234,12 +238,8 @@ impl AckLifecycleManager {
         self.buffer.record_incoming(envelope_json)?;
 
         // Send RECEIVED ACK
-        self.send_ack(
-            envelope.message_id.clone(),
-            ack_stage::RECEIVED,
-            None,
-            None,
-        ).await
+        self.send_ack(envelope.message_id.clone(), ack_stage::RECEIVED, None, None)
+            .await
     }
 
     /// Send READ ACK to indicate message has been processed
@@ -248,8 +248,13 @@ impl AckLifecycleManager {
     }
 
     /// Send FULFILLED ACK to indicate successful processing
-    pub async fn auto_ack_fulfilled(&self, message_id: String, note: Option<String>) -> Result<SendResult> {
-        self.send_ack(message_id, ack_stage::FULFILLED, None, note).await
+    pub async fn auto_ack_fulfilled(
+        &self,
+        message_id: String,
+        note: Option<String>,
+    ) -> Result<SendResult> {
+        self.send_ack(message_id, ack_stage::FULFILLED, None, note)
+            .await
     }
 
     /// Send REJECTED ACK to indicate processing rejection
@@ -260,7 +265,8 @@ impl AckLifecycleManager {
         error_code: Option<i32>,
     ) -> Result<SendResult> {
         let code = error_code.unwrap_or(error_code::VALIDATION_ERROR);
-        self.send_ack(message_id, ack_stage::REJECTED, Some(code), Some(reason)).await
+        self.send_ack(message_id, ack_stage::REJECTED, Some(code), Some(reason))
+            .await
     }
 
     /// Send FAILED ACK to indicate processing failure
@@ -271,7 +277,8 @@ impl AckLifecycleManager {
             ack_stage::FAILED,
             Some(error_code),
             Some(error.to_string()),
-        ).await
+        )
+        .await
     }
 }
 
@@ -296,7 +303,8 @@ impl MessageProcessor {
     where
         F: Fn(&EnvelopeData) -> Result<Value> + Send + Sync + 'static,
     {
-        self.message_handlers.insert(message_type, Box::new(handler));
+        self.message_handlers
+            .insert(message_type, Box::new(handler));
     }
 
     /// Set a default handler for unregistered message types
@@ -336,20 +344,22 @@ impl MessageProcessor {
         } else if let Some(default_handler) = &self.default_handler {
             default_handler(envelope)
         } else {
-            return self.ack_manager.auto_ack_rejected(
-                message_id,
-                format!("No handler for message type {}", message_type),
-                Some(error_code::UNSUPPORTED_MESSAGE_TYPE),
-            ).await;
+            return self
+                .ack_manager
+                .auto_ack_rejected(
+                    message_id,
+                    format!("No handler for message type {}", message_type),
+                    Some(error_code::UNSUPPORTED_MESSAGE_TYPE),
+                )
+                .await;
         };
 
         match handler_result {
             Ok(_result) => {
                 // Send FULFILLED ACK on successful processing
-                self.ack_manager.auto_ack_fulfilled(
-                    message_id,
-                    Some("Processed successfully".to_string()),
-                ).await
+                self.ack_manager
+                    .auto_ack_fulfilled(message_id, Some("Processed successfully".to_string()))
+                    .await
             }
             Err(e) => {
                 // Send FAILED ACK on processing error
@@ -362,18 +372,18 @@ impl MessageProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::persistence::JsonFilePersistence;
-    use tempfile::NamedTempFile;
-    use async_trait::async_trait;
     use crate::constants;
     use crate::envelope::EnvelopeBuilder;
+    use crate::persistence::JsonFilePersistence;
+    use async_trait::async_trait;
+    use tempfile::NamedTempFile;
 
     #[tokio::test]
     async fn test_ack_lifecycle_manager() {
         let temp_file = NamedTempFile::new().unwrap();
         let persistence = Box::new(JsonFilePersistence::new(temp_file.path()));
         let _buffer = PersistentActivityBuffer::new(1000, Some(persistence)).unwrap();
-        
+
         // Note: We can't easily test with a real RouterClient without a running server
         // This is a placeholder for the pattern
         // let router = RouterClient::new("http://localhost:50052").await.unwrap();
@@ -388,8 +398,14 @@ mod tests {
 
     #[async_trait]
     impl crate::clients::router::RouterLike for FakeRouter {
-        async fn route_send(&mut self, _envelope: &EnvelopeData) -> Result<crate::clients::router::SendResult> {
-            Ok(crate::clients::router::SendResult { accepted: self.accepted, reason: self.reason.clone() })
+        async fn route_send(
+            &mut self,
+            _envelope: &EnvelopeData,
+        ) -> Result<crate::clients::router::SendResult> {
+            Ok(crate::clients::router::SendResult {
+                accepted: self.accepted,
+                reason: self.reason.clone(),
+            })
         }
     }
 
@@ -399,8 +415,17 @@ mod tests {
         let persistence = Box::new(JsonFilePersistence::new(temp_file.path()));
         let buffer = PersistentActivityBuffer::new(100, Some(persistence)).unwrap();
 
-        let fake = FakeRouter { accepted: false, reason: "validation failed".to_string() };
-        let manager = AckLifecycleManager::new_for_test(Box::new(fake), buffer, "agent-1".to_string(), true, 5);
+        let fake = FakeRouter {
+            accepted: false,
+            reason: "validation failed".to_string(),
+        };
+        let manager = AckLifecycleManager::new_for_test(
+            Box::new(fake),
+            buffer,
+            "agent-1".to_string(),
+            true,
+            5,
+        );
 
         let envelope = EnvelopeBuilder::new("agent-1".to_string(), constants::message_type::DATA)
             .with_json_payload(&serde_json::json!({"hello": "world"}))

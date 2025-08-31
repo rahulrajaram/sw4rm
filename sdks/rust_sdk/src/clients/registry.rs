@@ -1,15 +1,13 @@
+use crate::proto::sw4rm::common::AgentState;
 use crate::proto::sw4rm::registry::registry_service_client::RegistryServiceClient;
 use crate::proto::sw4rm::registry::{
-    RegisterAgentRequest, RegisterAgentResponse,
-    HeartbeatRequest, HeartbeatResponse,
-    DeregisterAgentRequest, DeregisterAgentResponse,
-    AgentDescriptor as ProtoAgentDescriptor,
+    AgentDescriptor as ProtoAgentDescriptor, DeregisterAgentRequest, DeregisterAgentResponse,
+    HeartbeatRequest, HeartbeatResponse, RegisterAgentRequest, RegisterAgentResponse,
 };
-use crate::proto::sw4rm::common::AgentState;
 use crate::types::AgentDescriptor;
 use crate::{Error, Result};
-use tonic::transport::{Channel, Endpoint};
 use std::collections::HashMap;
+use tonic::transport::{Channel, Endpoint};
 use tracing::{debug, error, info};
 
 /// Client for interacting with the SW4RM Registry service
@@ -26,7 +24,7 @@ impl RegistryClient {
     /// Create a new registry client
     pub async fn new(endpoint: &str) -> Result<Self> {
         debug!("Creating registry client for endpoint: {}", endpoint);
-        
+
         let channel = Endpoint::from_shared(endpoint.to_string())
             .map_err(|e| Error::Config(format!("Invalid registry endpoint: {}", e)))?
             .connect()
@@ -51,7 +49,6 @@ impl RegistryClient {
             endpoint,
         }
     }
-
 
     /// Register an agent with the registry
     pub async fn register(&mut self, agent: &AgentDescriptor) -> Result<RegisterAgentResponse> {
@@ -78,7 +75,10 @@ impl RegistryClient {
                 if inner.accepted {
                     info!("Agent {} registered successfully", agent.agent_id);
                 } else {
-                    error!("Agent {} registration rejected: {}", agent.agent_id, inner.reason);
+                    error!(
+                        "Agent {} registration rejected: {}",
+                        agent.agent_id, inner.reason
+                    );
                 }
                 Ok(inner)
             }
@@ -91,12 +91,15 @@ impl RegistryClient {
 
     /// Send heartbeat for an agent
     pub async fn heartbeat(
-        &mut self, 
-        agent_id: &str, 
-        state: AgentState, 
-        health: Option<HashMap<String, String>>
+        &mut self,
+        agent_id: &str,
+        state: AgentState,
+        health: Option<HashMap<String, String>>,
     ) -> Result<HeartbeatResponse> {
-        debug!("Sending heartbeat for agent: {} (state: {:?})", agent_id, state);
+        debug!(
+            "Sending heartbeat for agent: {} (state: {:?})",
+            agent_id, state
+        );
 
         let request = tonic::Request::new(HeartbeatRequest {
             agent_id: agent_id.to_string(),
@@ -118,7 +121,11 @@ impl RegistryClient {
     }
 
     /// Deregister an agent
-    pub async fn deregister(&mut self, agent_id: &str, reason: Option<&str>) -> Result<DeregisterAgentResponse> {
+    pub async fn deregister(
+        &mut self,
+        agent_id: &str,
+        reason: Option<&str>,
+    ) -> Result<DeregisterAgentResponse> {
         info!("Deregistering agent: {} (reason: {:?})", agent_id, reason);
 
         let request = tonic::Request::new(DeregisterAgentRequest {
@@ -151,9 +158,12 @@ impl RegistryClient {
     /// Check if the client connection is healthy (basic connectivity test)
     pub async fn health_check(&mut self) -> Result<bool> {
         debug!("Performing health check for registry client");
-        
+
         // Try a simple heartbeat with a test agent to check connectivity
-        match self.heartbeat("health-check", AgentState::Initializing, None).await {
+        match self
+            .heartbeat("health-check", AgentState::Initializing, None)
+            .await
+        {
             Ok(_) => Ok(true),
             Err(Error::Status(status)) => {
                 // Expect NOT_FOUND or similar for health check agent
@@ -184,14 +194,14 @@ mod tests {
         let endpoint = "http://localhost:50051";
         let channel = Endpoint::from_static("http://localhost:50051").connect_lazy();
         let client = RegistryClient::with_channel(channel, endpoint.to_string());
-        
+
         assert_eq!(client.endpoint(), endpoint);
     }
 
     #[test]
     fn test_agent_descriptor_conversion() {
         let agent = AgentDescriptor::new("test-agent".to_string(), "Test Agent".to_string());
-        
+
         // Test that we can convert to proto format
         let proto_agent = ProtoAgentDescriptor {
             agent_id: agent.agent_id.clone(),
@@ -203,7 +213,7 @@ mod tests {
             reasoning_connectors: Vec::new(),
             public_key: Vec::new(),
         };
-        
+
         assert_eq!(proto_agent.agent_id, "test-agent");
         assert_eq!(proto_agent.name, "Test Agent");
     }

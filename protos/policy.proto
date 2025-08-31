@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package sw4rm.policy;
 
-message WagglePolicy {
+message NegotiationPolicy {
   uint32 max_rounds = 1;
   float score_threshold = 2;      // 0..1
   float diff_tolerance = 3;       // 0..1
@@ -17,7 +17,7 @@ message WagglePolicy {
 }
 
 message AgentPreferences {
-  // Same fields as WagglePolicy but advisory; scheduler clamps to guardrails
+  // Same fields as NegotiationPolicy but advisory; scheduler clamps to guardrails
   uint32 max_rounds = 1;
   float score_threshold = 2;
   float diff_tolerance = 3;
@@ -28,13 +28,13 @@ message AgentPreferences {
 }
 
 message EffectivePolicy {
-  WagglePolicy policy = 1;                // derived authoritative policy
+  NegotiationPolicy policy = 1;                // derived authoritative policy
   map<string, AgentPreferences> applied = 2; // per-agent clamped prefs (optional)
 }
 
 message PolicyProfile {
   string name = 1;            // e.g., LOW/MEDIUM/HIGH
-  WagglePolicy policy = 2;
+  NegotiationPolicy policy = 2;
 }
 
 message DeltaSummary { float magnitude = 1; repeated string changed_paths = 2; }
@@ -53,4 +53,3 @@ message DecisionReport {
   string rationale = 3;
   string stop_reason = 4; // threshold_met|max_rounds|oscillation|budget|timeout
 }
-

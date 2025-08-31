@@ -1,10 +1,10 @@
+use crate::proto::sw4rm::common::DebateIntensity;
 use crate::proto::sw4rm::negotiation::negotiation_service_client::NegotiationServiceClient;
 use crate::proto::sw4rm::negotiation::{
-    NegotiationOpen, Proposal, CounterProposal, Evaluation, Decision, AbortRequest
+    AbortRequest, CounterProposal, Decision, Evaluation, NegotiationOpen, Proposal,
 };
-use crate::proto::sw4rm::common::DebateIntensity;
-use prost_types;
 use crate::{Error, Result};
+use prost_types;
 use tonic::transport::{Channel, Endpoint};
 
 /// Client for interacting with the SW4RM Negotiation service
@@ -131,11 +131,7 @@ impl NegotiationClient {
     }
 
     /// Abort a negotiation
-    pub async fn abort(
-        &mut self,
-        negotiation_id: &str,
-        reason: &str,
-    ) -> Result<()> {
+    pub async fn abort(&mut self, negotiation_id: &str, reason: &str) -> Result<()> {
         let request = tonic::Request::new(AbortRequest {
             negotiation_id: negotiation_id.to_string(),
             reason: reason.to_string(),

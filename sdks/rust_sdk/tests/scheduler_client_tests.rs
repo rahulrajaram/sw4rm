@@ -4,7 +4,8 @@ use tonic::{Request, Response, Status};
 
 #[derive(Default)]
 struct MockSchedulerService {
-    entries: std::sync::Mutex<std::collections::HashMap<String, Vec<sw4rm::scheduler::ActivityEntry>>>,
+    entries:
+        std::sync::Mutex<std::collections::HashMap<String, Vec<sw4rm::scheduler::ActivityEntry>>>,
 }
 
 #[tonic::async_trait]
@@ -25,21 +26,28 @@ impl sw4rm::scheduler::scheduler_service_server::SchedulerService for MockSchedu
                 description: "scheduled".to_string(),
                 timestamp: "t".to_string(),
             });
-        Ok(Response::new(sw4rm::scheduler::SubmitTaskResponse { accepted: true, reason: String::new() }))
+        Ok(Response::new(sw4rm::scheduler::SubmitTaskResponse {
+            accepted: true,
+            reason: String::new(),
+        }))
     }
 
     async fn request_preemption(
         &self,
         _request: Request<sw4rm::scheduler::PreemptRequest>,
     ) -> Result<Response<sw4rm::scheduler::PreemptResponse>, Status> {
-        Ok(Response::new(sw4rm::scheduler::PreemptResponse { enqueued: true }))
+        Ok(Response::new(sw4rm::scheduler::PreemptResponse {
+            enqueued: true,
+        }))
     }
 
     async fn shutdown_agent(
         &self,
         _request: Request<sw4rm::scheduler::ShutdownAgentRequest>,
     ) -> Result<Response<sw4rm::scheduler::ShutdownAgentResponse>, Status> {
-        Ok(Response::new(sw4rm::scheduler::ShutdownAgentResponse { ok: true }))
+        Ok(Response::new(sw4rm::scheduler::ShutdownAgentResponse {
+            ok: true,
+        }))
     }
 
     async fn poll_activity_buffer(
@@ -54,7 +62,9 @@ impl sw4rm::scheduler::scheduler_service_server::SchedulerService for MockSchedu
             .get(&agent)
             .cloned()
             .unwrap_or_default();
-        Ok(Response::new(sw4rm::scheduler::PollActivityBufferResponse { entries }))
+        Ok(Response::new(
+            sw4rm::scheduler::PollActivityBufferResponse { entries },
+        ))
     }
 
     async fn purge_activity(
@@ -67,7 +77,9 @@ impl sw4rm::scheduler::scheduler_service_server::SchedulerService for MockSchedu
         let before = v.len();
         v.retain(|e| !req.task_ids.contains(&e.task_id));
         let purged = (before - v.len()) as u32;
-        Ok(Response::new(sw4rm::scheduler::PurgeActivityResponse { purged }))
+        Ok(Response::new(sw4rm::scheduler::PurgeActivityResponse {
+            purged,
+        }))
     }
 }
 
@@ -80,7 +92,11 @@ async fn test_scheduler_client_basic_flows() {
 
     tokio::spawn(async move {
         tonic::transport::Server::builder()
-            .add_service(sw4rm::scheduler::scheduler_service_server::SchedulerServiceServer::new(MockSchedulerService::default()))
+            .add_service(
+                sw4rm::scheduler::scheduler_service_server::SchedulerServiceServer::new(
+                    MockSchedulerService::default(),
+                ),
+            )
             .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
             .await
             .unwrap();
@@ -91,7 +107,14 @@ async fn test_scheduler_client_basic_flows() {
     let agent = "agent-1";
 
     client
-        .submit_task("task-1", agent, 0, b"{}".to_vec(), "application/json", "scope")
+        .submit_task(
+            "task-1",
+            agent,
+            0,
+            b"{}".to_vec(),
+            "application/json",
+            "scope",
+        )
         .await
         .unwrap();
 
@@ -110,6 +133,8 @@ async fn test_scheduler_client_basic_flows() {
         .unwrap();
     assert_eq!(purged, 1);
 
-    client.shutdown_agent(agent, Some(std::time::Duration::from_millis(10))).await.unwrap();
+    client
+        .shutdown_agent(agent, Some(std::time::Duration::from_millis(10)))
+        .await
+        .unwrap();
 }
-

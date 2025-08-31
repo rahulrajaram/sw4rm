@@ -1,6 +1,6 @@
+use sw4rm_sdk::clients::tool::{ExecutionPolicyConfig, ToolCallParams};
 use sw4rm_sdk::clients::ToolClient;
 use sw4rm_sdk::proto::sw4rm;
-use sw4rm_sdk::clients::tool::{ExecutionPolicyConfig, ToolCallParams};
 use tokio::sync::mpsc;
 use tokio_stream::{wrappers::UnboundedReceiverStream, StreamExt};
 use tonic::{Request, Response, Status};
@@ -75,7 +75,9 @@ async fn test_tool_client_unary_and_streaming() {
 
     tokio::spawn(async move {
         tonic::transport::Server::builder()
-            .add_service(sw4rm::tool::tool_service_server::ToolServiceServer::new(MockToolService))
+            .add_service(sw4rm::tool::tool_service_server::ToolServiceServer::new(
+                MockToolService,
+            ))
             .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
             .await
             .unwrap();

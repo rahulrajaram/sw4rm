@@ -9,8 +9,8 @@ import * as scheduler_policy_pb from "./scheduler_policy_pb";
 import * as policy_pb from "./policy_pb";
 
 interface ISchedulerPolicyServiceService extends grpc.ServiceDefinition<grpc.UntypedServiceImplementation> {
-    setWagglePolicy: ISchedulerPolicyServiceService_ISetWagglePolicy;
-    getWagglePolicy: ISchedulerPolicyServiceService_IGetWagglePolicy;
+    setNegotiationPolicy: ISchedulerPolicyServiceService_ISetNegotiationPolicy;
+    getNegotiationPolicy: ISchedulerPolicyServiceService_IGetNegotiationPolicy;
     setPolicyProfiles: ISchedulerPolicyServiceService_ISetPolicyProfiles;
     listPolicyProfiles: ISchedulerPolicyServiceService_IListPolicyProfiles;
     getEffectivePolicy: ISchedulerPolicyServiceService_IGetEffectivePolicy;
@@ -18,23 +18,23 @@ interface ISchedulerPolicyServiceService extends grpc.ServiceDefinition<grpc.Unt
     hitlAction: ISchedulerPolicyServiceService_IHitlAction;
 }
 
-interface ISchedulerPolicyServiceService_ISetWagglePolicy extends grpc.MethodDefinition<scheduler_policy_pb.SetWagglePolicyRequest, scheduler_policy_pb.SetWagglePolicyResponse> {
-    path: "/sw4rm.scheduler.SchedulerPolicyService/SetWagglePolicy";
+interface ISchedulerPolicyServiceService_ISetNegotiationPolicy extends grpc.MethodDefinition<scheduler_policy_pb.SetNegotiationPolicyRequest, scheduler_policy_pb.SetNegotiationPolicyResponse> {
+    path: "/sw4rm.scheduler.SchedulerPolicyService/SetNegotiationPolicy";
     requestStream: false;
     responseStream: false;
-    requestSerialize: grpc.serialize<scheduler_policy_pb.SetWagglePolicyRequest>;
-    requestDeserialize: grpc.deserialize<scheduler_policy_pb.SetWagglePolicyRequest>;
-    responseSerialize: grpc.serialize<scheduler_policy_pb.SetWagglePolicyResponse>;
-    responseDeserialize: grpc.deserialize<scheduler_policy_pb.SetWagglePolicyResponse>;
+    requestSerialize: grpc.serialize<scheduler_policy_pb.SetNegotiationPolicyRequest>;
+    requestDeserialize: grpc.deserialize<scheduler_policy_pb.SetNegotiationPolicyRequest>;
+    responseSerialize: grpc.serialize<scheduler_policy_pb.SetNegotiationPolicyResponse>;
+    responseDeserialize: grpc.deserialize<scheduler_policy_pb.SetNegotiationPolicyResponse>;
 }
-interface ISchedulerPolicyServiceService_IGetWagglePolicy extends grpc.MethodDefinition<scheduler_policy_pb.GetWagglePolicyRequest, scheduler_policy_pb.GetWagglePolicyResponse> {
-    path: "/sw4rm.scheduler.SchedulerPolicyService/GetWagglePolicy";
+interface ISchedulerPolicyServiceService_IGetNegotiationPolicy extends grpc.MethodDefinition<scheduler_policy_pb.GetNegotiationPolicyRequest, scheduler_policy_pb.GetNegotiationPolicyResponse> {
+    path: "/sw4rm.scheduler.SchedulerPolicyService/GetNegotiationPolicy";
     requestStream: false;
     responseStream: false;
-    requestSerialize: grpc.serialize<scheduler_policy_pb.GetWagglePolicyRequest>;
-    requestDeserialize: grpc.deserialize<scheduler_policy_pb.GetWagglePolicyRequest>;
-    responseSerialize: grpc.serialize<scheduler_policy_pb.GetWagglePolicyResponse>;
-    responseDeserialize: grpc.deserialize<scheduler_policy_pb.GetWagglePolicyResponse>;
+    requestSerialize: grpc.serialize<scheduler_policy_pb.GetNegotiationPolicyRequest>;
+    requestDeserialize: grpc.deserialize<scheduler_policy_pb.GetNegotiationPolicyRequest>;
+    responseSerialize: grpc.serialize<scheduler_policy_pb.GetNegotiationPolicyResponse>;
+    responseDeserialize: grpc.deserialize<scheduler_policy_pb.GetNegotiationPolicyResponse>;
 }
 interface ISchedulerPolicyServiceService_ISetPolicyProfiles extends grpc.MethodDefinition<scheduler_policy_pb.SetPolicyProfilesRequest, scheduler_policy_pb.SetPolicyProfilesResponse> {
     path: "/sw4rm.scheduler.SchedulerPolicyService/SetPolicyProfiles";
@@ -85,8 +85,8 @@ interface ISchedulerPolicyServiceService_IHitlAction extends grpc.MethodDefiniti
 export const SchedulerPolicyServiceService: ISchedulerPolicyServiceService;
 
 export interface ISchedulerPolicyServiceServer extends grpc.UntypedServiceImplementation {
-    setWagglePolicy: grpc.handleUnaryCall<scheduler_policy_pb.SetWagglePolicyRequest, scheduler_policy_pb.SetWagglePolicyResponse>;
-    getWagglePolicy: grpc.handleUnaryCall<scheduler_policy_pb.GetWagglePolicyRequest, scheduler_policy_pb.GetWagglePolicyResponse>;
+    setNegotiationPolicy: grpc.handleUnaryCall<scheduler_policy_pb.SetNegotiationPolicyRequest, scheduler_policy_pb.SetNegotiationPolicyResponse>;
+    getNegotiationPolicy: grpc.handleUnaryCall<scheduler_policy_pb.GetNegotiationPolicyRequest, scheduler_policy_pb.GetNegotiationPolicyResponse>;
     setPolicyProfiles: grpc.handleUnaryCall<scheduler_policy_pb.SetPolicyProfilesRequest, scheduler_policy_pb.SetPolicyProfilesResponse>;
     listPolicyProfiles: grpc.handleUnaryCall<scheduler_policy_pb.ListPolicyProfilesRequest, scheduler_policy_pb.ListPolicyProfilesResponse>;
     getEffectivePolicy: grpc.handleUnaryCall<scheduler_policy_pb.GetEffectivePolicyRequest, scheduler_policy_pb.GetEffectivePolicyResponse>;
@@ -95,12 +95,12 @@ export interface ISchedulerPolicyServiceServer extends grpc.UntypedServiceImplem
 }
 
 export interface ISchedulerPolicyServiceClient {
-    setWagglePolicy(request: scheduler_policy_pb.SetWagglePolicyRequest, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetWagglePolicyResponse) => void): grpc.ClientUnaryCall;
-    setWagglePolicy(request: scheduler_policy_pb.SetWagglePolicyRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetWagglePolicyResponse) => void): grpc.ClientUnaryCall;
-    setWagglePolicy(request: scheduler_policy_pb.SetWagglePolicyRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetWagglePolicyResponse) => void): grpc.ClientUnaryCall;
-    getWagglePolicy(request: scheduler_policy_pb.GetWagglePolicyRequest, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.GetWagglePolicyResponse) => void): grpc.ClientUnaryCall;
-    getWagglePolicy(request: scheduler_policy_pb.GetWagglePolicyRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.GetWagglePolicyResponse) => void): grpc.ClientUnaryCall;
-    getWagglePolicy(request: scheduler_policy_pb.GetWagglePolicyRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.GetWagglePolicyResponse) => void): grpc.ClientUnaryCall;
+    setNegotiationPolicy(request: scheduler_policy_pb.SetNegotiationPolicyRequest, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetNegotiationPolicyResponse) => void): grpc.ClientUnaryCall;
+    setNegotiationPolicy(request: scheduler_policy_pb.SetNegotiationPolicyRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetNegotiationPolicyResponse) => void): grpc.ClientUnaryCall;
+    setNegotiationPolicy(request: scheduler_policy_pb.SetNegotiationPolicyRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetNegotiationPolicyResponse) => void): grpc.ClientUnaryCall;
+    getNegotiationPolicy(request: scheduler_policy_pb.GetNegotiationPolicyRequest, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.GetNegotiationPolicyResponse) => void): grpc.ClientUnaryCall;
+    getNegotiationPolicy(request: scheduler_policy_pb.GetNegotiationPolicyRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.GetNegotiationPolicyResponse) => void): grpc.ClientUnaryCall;
+    getNegotiationPolicy(request: scheduler_policy_pb.GetNegotiationPolicyRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.GetNegotiationPolicyResponse) => void): grpc.ClientUnaryCall;
     setPolicyProfiles(request: scheduler_policy_pb.SetPolicyProfilesRequest, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetPolicyProfilesResponse) => void): grpc.ClientUnaryCall;
     setPolicyProfiles(request: scheduler_policy_pb.SetPolicyProfilesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetPolicyProfilesResponse) => void): grpc.ClientUnaryCall;
     setPolicyProfiles(request: scheduler_policy_pb.SetPolicyProfilesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetPolicyProfilesResponse) => void): grpc.ClientUnaryCall;
@@ -120,12 +120,12 @@ export interface ISchedulerPolicyServiceClient {
 
 export class SchedulerPolicyServiceClient extends grpc.Client implements ISchedulerPolicyServiceClient {
     constructor(address: string, credentials: grpc.ChannelCredentials, options?: Partial<grpc.ClientOptions>);
-    public setWagglePolicy(request: scheduler_policy_pb.SetWagglePolicyRequest, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetWagglePolicyResponse) => void): grpc.ClientUnaryCall;
-    public setWagglePolicy(request: scheduler_policy_pb.SetWagglePolicyRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetWagglePolicyResponse) => void): grpc.ClientUnaryCall;
-    public setWagglePolicy(request: scheduler_policy_pb.SetWagglePolicyRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetWagglePolicyResponse) => void): grpc.ClientUnaryCall;
-    public getWagglePolicy(request: scheduler_policy_pb.GetWagglePolicyRequest, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.GetWagglePolicyResponse) => void): grpc.ClientUnaryCall;
-    public getWagglePolicy(request: scheduler_policy_pb.GetWagglePolicyRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.GetWagglePolicyResponse) => void): grpc.ClientUnaryCall;
-    public getWagglePolicy(request: scheduler_policy_pb.GetWagglePolicyRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.GetWagglePolicyResponse) => void): grpc.ClientUnaryCall;
+    public setNegotiationPolicy(request: scheduler_policy_pb.SetNegotiationPolicyRequest, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetNegotiationPolicyResponse) => void): grpc.ClientUnaryCall;
+    public setNegotiationPolicy(request: scheduler_policy_pb.SetNegotiationPolicyRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetNegotiationPolicyResponse) => void): grpc.ClientUnaryCall;
+    public setNegotiationPolicy(request: scheduler_policy_pb.SetNegotiationPolicyRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetNegotiationPolicyResponse) => void): grpc.ClientUnaryCall;
+    public getNegotiationPolicy(request: scheduler_policy_pb.GetNegotiationPolicyRequest, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.GetNegotiationPolicyResponse) => void): grpc.ClientUnaryCall;
+    public getNegotiationPolicy(request: scheduler_policy_pb.GetNegotiationPolicyRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.GetNegotiationPolicyResponse) => void): grpc.ClientUnaryCall;
+    public getNegotiationPolicy(request: scheduler_policy_pb.GetNegotiationPolicyRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.GetNegotiationPolicyResponse) => void): grpc.ClientUnaryCall;
     public setPolicyProfiles(request: scheduler_policy_pb.SetPolicyProfilesRequest, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetPolicyProfilesResponse) => void): grpc.ClientUnaryCall;
     public setPolicyProfiles(request: scheduler_policy_pb.SetPolicyProfilesRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetPolicyProfilesResponse) => void): grpc.ClientUnaryCall;
     public setPolicyProfiles(request: scheduler_policy_pb.SetPolicyProfilesRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: scheduler_policy_pb.SetPolicyProfilesResponse) => void): grpc.ClientUnaryCall;

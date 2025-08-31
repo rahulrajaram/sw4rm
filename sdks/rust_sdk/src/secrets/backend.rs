@@ -9,11 +9,21 @@ pub trait SecretsBackend: Send + Sync {
     fn list(&self, scope: Option<&Scope>) -> Result<HashMap<(Option<String>, String), String>>;
 }
 
-pub struct Secrets<B: SecretsBackend> { pub backend: B }
+pub struct Secrets<B: SecretsBackend> {
+    pub backend: B,
+}
 
 impl<B: SecretsBackend> Secrets<B> {
-    pub fn new(backend: B) -> Self { Self { backend } }
-    pub fn set(&self, scope: &Scope, key: &SecretKey, value: &SecretValue) -> Result<()> { self.backend.set(scope, key, value) }
-    pub fn get(&self, scope: &Scope, key: &SecretKey) -> Result<String> { self.backend.get(scope, key) }
-    pub fn list(&self, scope: Option<&Scope>) -> Result<HashMap<(Option<String>, String), String>> { self.backend.list(scope) }
+    pub fn new(backend: B) -> Self {
+        Self { backend }
+    }
+    pub fn set(&self, scope: &Scope, key: &SecretKey, value: &SecretValue) -> Result<()> {
+        self.backend.set(scope, key, value)
+    }
+    pub fn get(&self, scope: &Scope, key: &SecretKey) -> Result<String> {
+        self.backend.get(scope, key)
+    }
+    pub fn list(&self, scope: Option<&Scope>) -> Result<HashMap<(Option<String>, String), String>> {
+        self.backend.list(scope)
+    }
 }

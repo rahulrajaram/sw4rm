@@ -1,7 +1,5 @@
 use crate::proto::sw4rm::worktree::worktree_service_client::WorktreeServiceClient;
-use crate::proto::sw4rm::worktree::{
-    BindRequest, UnbindRequest, SwitchRequest, StatusRequest
-};
+use crate::proto::sw4rm::worktree::{BindRequest, StatusRequest, SwitchRequest, UnbindRequest};
 use crate::{Error, Result};
 use tonic::transport::{Channel, Endpoint};
 

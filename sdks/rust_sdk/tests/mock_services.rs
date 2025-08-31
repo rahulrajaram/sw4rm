@@ -1,12 +1,12 @@
 //! Mock SW4RM services for integration testing
 
+use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 use sw4rm_sdk::proto::sw4rm;
-use tonic::{transport::Server, Request, Response, Status};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::net::SocketAddr;
+use tonic::{transport::Server, Request, Response, Status};
 
 /// Mock registry service that tracks registered agents
 #[derive(Debug, Default)]
@@ -41,10 +41,13 @@ impl sw4rm::registry::registry_service_server::RegistryService for MockRegistryS
         request: Request<sw4rm::registry::RegisterAgentRequest>,
     ) -> Result<Response<sw4rm::registry::RegisterAgentResponse>, Status> {
         let req = request.into_inner();
-        
+
         if let Some(agent) = req.agent {
-            println!("Mock Registry: Registering agent {} ({})", agent.agent_id, agent.name);
-            
+            println!(
+                "Mock Registry: Registering agent {} ({})",
+                agent.agent_id, agent.name
+            );
+
             // Simulate validation
             if agent.agent_id.is_empty() || agent.name.is_empty() {
                 return Ok(Response::new(sw4rm::registry::RegisterAgentResponse {
@@ -54,7 +57,10 @@ impl sw4rm::registry::registry_service_server::RegistryService for MockRegistryS
             }
 
             // Store agent
-            self.agents.lock().unwrap().insert(agent.agent_id.clone(), agent);
+            self.agents
+                .lock()
+                .unwrap()
+                .insert(agent.agent_id.clone(), agent);
 
             Ok(Response::new(sw4rm::registry::RegisterAgentResponse {
                 accepted: true,
@@ -73,20 +79,30 @@ impl sw4rm::registry::registry_service_server::RegistryService for MockRegistryS
         request: Request<sw4rm::registry::HeartbeatRequest>,
     ) -> Result<Response<sw4rm::registry::HeartbeatResponse>, Status> {
         let req = request.into_inner();
-        
-        println!("Mock Registry: Heartbeat from agent {} (state: {})", req.agent_id, req.state);
-        
+
+        println!(
+            "Mock Registry: Heartbeat from agent {} (state: {})",
+            req.agent_id, req.state
+        );
+
         // Check if agent is registered
         let agents = self.agents.lock().unwrap();
         if !agents.contains_key(&req.agent_id) {
-            return Ok(Response::new(sw4rm::registry::HeartbeatResponse { ok: false }));
+            return Ok(Response::new(sw4rm::registry::HeartbeatResponse {
+                ok: false,
+            }));
         }
 
         // Store heartbeat
         let mut heartbeats = self.heartbeats.lock().unwrap();
-        heartbeats.entry(req.agent_id.clone()).or_default().push(req);
+        heartbeats
+            .entry(req.agent_id.clone())
+            .or_default()
+            .push(req);
 
-        Ok(Response::new(sw4rm::registry::HeartbeatResponse { ok: true }))
+        Ok(Response::new(sw4rm::registry::HeartbeatResponse {
+            ok: true,
+        }))
     }
 
     async fn deregister_agent(
@@ -94,11 +110,14 @@ impl sw4rm::registry::registry_service_server::RegistryService for MockRegistryS
         request: Request<sw4rm::registry::DeregisterAgentRequest>,
     ) -> Result<Response<sw4rm::registry::DeregisterAgentResponse>, Status> {
         let req = request.into_inner();
-        
-        println!("Mock Registry: Deregistering agent {} (reason: {})", req.agent_id, req.reason);
-        
+
+        println!(
+            "Mock Registry: Deregistering agent {} (reason: {})",
+            req.agent_id, req.reason
+        );
+
         let was_registered = self.agents.lock().unwrap().remove(&req.agent_id).is_some();
-        
+
         Ok(Response::new(sw4rm::registry::DeregisterAgentResponse {
             ok: was_registered,
         }))
@@ -133,7 +152,9 @@ impl MockRouterService {
     pub fn send_test_message_to_agent(&self, agent_id: &str, envelope: sw4rm::common::Envelope) {
         let streams = self.streams.lock().unwrap();
         if let Some(sender) = streams.get(agent_id) {
-            let stream_item = sw4rm::router::StreamItem { msg: Some(envelope) };
+            let stream_item = sw4rm::router::StreamItem {
+                msg: Some(envelope),
+            };
             let _ = sender.send(stream_item);
         }
     }
@@ -146,11 +167,13 @@ impl sw4rm::router::router_service_server::RouterService for MockRouterService {
         request: Request<sw4rm::router::SendMessageRequest>,
     ) -> Result<Response<sw4rm::router::SendMessageResponse>, Status> {
         let req = request.into_inner();
-        
+
         if let Some(envelope) = req.msg {
-            println!("Mock Router: Received message {} from {}", 
-                    envelope.message_id, envelope.producer_id);
-            
+            println!(
+                "Mock Router: Received message {} from {}",
+                envelope.message_id, envelope.producer_id
+            );
+
             // Store message
             self.messages.lock().unwrap().push(envelope.clone());
 
@@ -178,14 +201,14 @@ impl sw4rm::router::router_service_server::RouterService for MockRouterService {
     ) -> Result<Response<Self::StreamIncomingStream>, Status> {
         let req = request.into_inner();
         let agent_id = req.agent_id;
-        
+
         println!("Mock Router: Starting stream for agent {}", agent_id);
-        
+
         let (tx, rx) = mpsc::unbounded_channel();
-        
+
         // Convert sender to handle Result<StreamItem, Status>
         let (result_tx, result_rx) = mpsc::unbounded_channel();
-        
+
         tokio::spawn(async move {
             let mut receiver = rx;
             while let Some(item) = receiver.recv().await {
@@ -222,14 +245,20 @@ impl MockServer {
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
 
         let server = Server::builder()
-            .add_service(sw4rm::registry::registry_service_server::RegistryServiceServer::new(registry_service))
-            .add_service(sw4rm::router::router_service_server::RouterServiceServer::new(router_service))
+            .add_service(
+                sw4rm::registry::registry_service_server::RegistryServiceServer::new(
+                    registry_service,
+                ),
+            )
+            .add_service(
+                sw4rm::router::router_service_server::RouterServiceServer::new(router_service),
+            )
             .serve_with_incoming_shutdown(
                 tokio_stream::wrappers::TcpListenerStream::new(listener),
                 async {
                     shutdown_rx.await.ok();
                     println!("Mock server shutting down");
-                }
+                },
             );
 
         tokio::spawn(server);
@@ -268,7 +297,8 @@ impl MockServer {
 
     /// Send a test envelope to an agent's stream via the router
     pub fn send_to_agent(&self, agent_id: &str, envelope: sw4rm::common::Envelope) {
-        self.router_handle.send_test_message_to_agent(agent_id, envelope);
+        self.router_handle
+            .send_test_message_to_agent(agent_id, envelope);
     }
 }
 
@@ -284,38 +314,42 @@ impl Drop for MockServer {
 mod tests {
     use super::*;
     use sw4rm_sdk::clients::{RegistryClient, RouterClient};
-    use sw4rm_sdk::types::AgentDescriptor;
-    use sw4rm_sdk::envelope::EnvelopeBuilder;
     use sw4rm_sdk::constants;
+    use sw4rm_sdk::envelope::EnvelopeBuilder;
+    use sw4rm_sdk::types::AgentDescriptor;
 
     #[tokio::test]
     async fn test_mock_registry_service() {
         let mock_server = MockServer::start().await.unwrap();
-        
+
         let mut client = RegistryClient::new(&mock_server.registry_endpoint())
             .await
             .unwrap();
 
         // Test agent registration
-        let agent = AgentDescriptor::new(
-            "test-agent-mock".to_string(),
-            "Mock Test Agent".to_string()
-        );
+        let agent =
+            AgentDescriptor::new("test-agent-mock".to_string(), "Mock Test Agent".to_string());
 
         let response = client.register(&agent).await.unwrap();
         assert!(response.accepted);
         assert_eq!(response.reason, "Agent registered successfully");
 
         // Test heartbeat
-        let heartbeat_response = client.heartbeat(
-            "test-agent-mock",
-            sw4rm_sdk::proto::sw4rm::common::AgentState::Running,
-            None
-        ).await.unwrap();
+        let heartbeat_response = client
+            .heartbeat(
+                "test-agent-mock",
+                sw4rm_sdk::proto::sw4rm::common::AgentState::Running,
+                None,
+            )
+            .await
+            .unwrap();
         assert!(heartbeat_response.ok);
 
         // Test deregistration
-        let dereg_response = client.deregister("test-agent-mock", Some("Test complete")).await.unwrap();
+        let dereg_response = client
+            .deregister("test-agent-mock", Some("Test complete"))
+            .await
+            .unwrap();
         assert!(dereg_response.ok);
 
         mock_server.shutdown().await;
@@ -324,19 +358,17 @@ mod tests {
     #[tokio::test]
     async fn test_mock_router_service() {
         let mock_server = MockServer::start().await.unwrap();
-        
+
         let mut client = RouterClient::new(&mock_server.router_endpoint())
             .await
             .unwrap();
 
         // Test message sending
-        let envelope = EnvelopeBuilder::new(
-            "test-producer".to_string(),
-            constants::message_type::DATA
-        )
-        .with_json_payload(&serde_json::json!({"test": "router message"}))
-        .unwrap()
-        .build();
+        let envelope =
+            EnvelopeBuilder::new("test-producer".to_string(), constants::message_type::DATA)
+                .with_json_payload(&serde_json::json!({"test": "router message"}))
+                .unwrap()
+                .build();
 
         let send_result = client.send_message(&envelope).await.unwrap();
         assert!(send_result.accepted);
@@ -345,50 +377,59 @@ mod tests {
         mock_server.shutdown().await;
     }
 
-    #[tokio::test] 
+    #[tokio::test]
     async fn test_end_to_end_with_mock_services() {
         let mock_server = MockServer::start().await.unwrap();
-        
+
         // Create clients
-        let mut registry_client = RegistryClient::new(&mock_server.registry_endpoint()).await.unwrap();
-        let mut router_client = RouterClient::new(&mock_server.router_endpoint()).await.unwrap();
+        let mut registry_client = RegistryClient::new(&mock_server.registry_endpoint())
+            .await
+            .unwrap();
+        let mut router_client = RouterClient::new(&mock_server.router_endpoint())
+            .await
+            .unwrap();
 
         // Register agent
         let agent = AgentDescriptor::new(
             "e2e-test-agent".to_string(),
-            "End-to-End Test Agent".to_string()
+            "End-to-End Test Agent".to_string(),
         );
 
         let reg_response = registry_client.register(&agent).await.unwrap();
         assert!(reg_response.accepted);
 
         // Send heartbeat
-        let hb_response = registry_client.heartbeat(
-            "e2e-test-agent",
-            sw4rm_sdk::proto::sw4rm::common::AgentState::Running,
-            Some(std::collections::HashMap::from([
-                ("status".to_string(), "healthy".to_string())
-            ]))
-        ).await.unwrap();
+        let hb_response = registry_client
+            .heartbeat(
+                "e2e-test-agent",
+                sw4rm_sdk::proto::sw4rm::common::AgentState::Running,
+                Some(std::collections::HashMap::from([(
+                    "status".to_string(),
+                    "healthy".to_string(),
+                )])),
+            )
+            .await
+            .unwrap();
         assert!(hb_response.ok);
 
         // Send test message
-        let test_message = EnvelopeBuilder::new(
-            "e2e-test-agent".to_string(),
-            constants::message_type::DATA
-        )
-        .with_json_payload(&serde_json::json!({
-            "message": "End-to-end test message",
-            "timestamp": chrono::Utc::now().to_rfc3339()
-        }))
-        .unwrap()
-        .build();
+        let test_message =
+            EnvelopeBuilder::new("e2e-test-agent".to_string(), constants::message_type::DATA)
+                .with_json_payload(&serde_json::json!({
+                    "message": "End-to-end test message",
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                }))
+                .unwrap()
+                .build();
 
         let send_result = router_client.send_message(&test_message).await.unwrap();
         assert!(send_result.accepted);
 
         // Clean up
-        let dereg_response = registry_client.deregister("e2e-test-agent", Some("Test complete")).await.unwrap();
+        let dereg_response = registry_client
+            .deregister("e2e-test-agent", Some("Test complete"))
+            .await
+            .unwrap();
         assert!(dereg_response.ok);
 
         mock_server.shutdown().await;

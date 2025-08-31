@@ -6,43 +6,43 @@
 
 import * as jspb from "google-protobuf";
 
-export class WagglePolicy extends jspb.Message { 
+export class NegotiationPolicy extends jspb.Message { 
     getMaxRounds(): number;
-    setMaxRounds(value: number): WagglePolicy;
+    setMaxRounds(value: number): NegotiationPolicy;
     getScoreThreshold(): number;
-    setScoreThreshold(value: number): WagglePolicy;
+    setScoreThreshold(value: number): NegotiationPolicy;
     getDiffTolerance(): number;
-    setDiffTolerance(value: number): WagglePolicy;
+    setDiffTolerance(value: number): NegotiationPolicy;
     getRoundTimeoutMs(): number;
-    setRoundTimeoutMs(value: number): WagglePolicy;
+    setRoundTimeoutMs(value: number): NegotiationPolicy;
     getTokenBudgetPerRound(): number;
-    setTokenBudgetPerRound(value: number): WagglePolicy;
+    setTokenBudgetPerRound(value: number): NegotiationPolicy;
     getTotalTokenBudget(): number;
-    setTotalTokenBudget(value: number): WagglePolicy;
+    setTotalTokenBudget(value: number): NegotiationPolicy;
     getOscillationLimit(): number;
-    setOscillationLimit(value: number): WagglePolicy;
+    setOscillationLimit(value: number): NegotiationPolicy;
 
     hasHitl(): boolean;
     clearHitl(): void;
-    getHitl(): WagglePolicy.Hitl | undefined;
-    setHitl(value?: WagglePolicy.Hitl): WagglePolicy;
+    getHitl(): NegotiationPolicy.Hitl | undefined;
+    setHitl(value?: NegotiationPolicy.Hitl): NegotiationPolicy;
 
     hasScoring(): boolean;
     clearScoring(): void;
-    getScoring(): WagglePolicy.Scoring | undefined;
-    setScoring(value?: WagglePolicy.Scoring): WagglePolicy;
+    getScoring(): NegotiationPolicy.Scoring | undefined;
+    setScoring(value?: NegotiationPolicy.Scoring): NegotiationPolicy;
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): WagglePolicy.AsObject;
-    static toObject(includeInstance: boolean, msg: WagglePolicy): WagglePolicy.AsObject;
+    toObject(includeInstance?: boolean): NegotiationPolicy.AsObject;
+    static toObject(includeInstance: boolean, msg: NegotiationPolicy): NegotiationPolicy.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: WagglePolicy, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): WagglePolicy;
-    static deserializeBinaryFromReader(message: WagglePolicy, reader: jspb.BinaryReader): WagglePolicy;
+    static serializeBinaryToWriter(message: NegotiationPolicy, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): NegotiationPolicy;
+    static deserializeBinaryFromReader(message: NegotiationPolicy, reader: jspb.BinaryReader): NegotiationPolicy;
 }
 
-export namespace WagglePolicy {
+export namespace NegotiationPolicy {
     export type AsObject = {
         maxRounds: number,
         scoreThreshold: number,
@@ -51,8 +51,8 @@ export namespace WagglePolicy {
         tokenBudgetPerRound: number,
         totalTokenBudget: number,
         oscillationLimit: number,
-        hitl?: WagglePolicy.Hitl.AsObject,
-        scoring?: WagglePolicy.Scoring.AsObject,
+        hitl?: NegotiationPolicy.Hitl.AsObject,
+        scoring?: NegotiationPolicy.Scoring.AsObject,
     }
 
 
@@ -146,8 +146,8 @@ export class EffectivePolicy extends jspb.Message {
 
     hasPolicy(): boolean;
     clearPolicy(): void;
-    getPolicy(): WagglePolicy | undefined;
-    setPolicy(value?: WagglePolicy): EffectivePolicy;
+    getPolicy(): NegotiationPolicy | undefined;
+    setPolicy(value?: NegotiationPolicy): EffectivePolicy;
 
     getAppliedMap(): jspb.Map<string, AgentPreferences>;
     clearAppliedMap(): void;
@@ -164,7 +164,7 @@ export class EffectivePolicy extends jspb.Message {
 
 export namespace EffectivePolicy {
     export type AsObject = {
-        policy?: WagglePolicy.AsObject,
+        policy?: NegotiationPolicy.AsObject,
 
         appliedMap: Array<[string, AgentPreferences.AsObject]>,
     }
@@ -176,8 +176,8 @@ export class PolicyProfile extends jspb.Message {
 
     hasPolicy(): boolean;
     clearPolicy(): void;
-    getPolicy(): WagglePolicy | undefined;
-    setPolicy(value?: WagglePolicy): PolicyProfile;
+    getPolicy(): NegotiationPolicy | undefined;
+    setPolicy(value?: NegotiationPolicy): PolicyProfile;
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): PolicyProfile.AsObject;
@@ -192,7 +192,7 @@ export class PolicyProfile extends jspb.Message {
 export namespace PolicyProfile {
     export type AsObject = {
         name: string,
-        policy?: WagglePolicy.AsObject,
+        policy?: NegotiationPolicy.AsObject,
     }
 }
 

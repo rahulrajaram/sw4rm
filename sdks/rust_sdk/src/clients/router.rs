@@ -1,16 +1,13 @@
-use crate::proto::sw4rm::router::router_service_client::RouterServiceClient;
-use crate::proto::sw4rm::router::{
-    SendMessageRequest,
-    StreamRequest,
-};
-use crate::proto::sw4rm::common::Envelope as ProtoEnvelope;
 use crate::envelope::EnvelopeData;
+use crate::proto::sw4rm::common::Envelope as ProtoEnvelope;
+use crate::proto::sw4rm::router::router_service_client::RouterServiceClient;
+use crate::proto::sw4rm::router::{SendMessageRequest, StreamRequest};
 use crate::{Error, Result};
-use tonic::transport::{Channel, Endpoint};
-use tokio_stream::Stream;
-use std::pin::Pin;
-use tracing::{debug, error, info, warn};
 use async_trait::async_trait;
+use std::pin::Pin;
+use tokio_stream::Stream;
+use tonic::transport::{Channel, Endpoint};
+use tracing::{debug, error, info, warn};
 
 /// Response from sending a message
 #[derive(Debug, Clone)]
@@ -36,7 +33,7 @@ impl RouterClient {
     /// Create a new router client
     pub async fn new(endpoint: &str) -> Result<Self> {
         debug!("Creating router client for endpoint: {}", endpoint);
-        
+
         let channel = Endpoint::from_shared(endpoint.to_string())
             .map_err(|e| Error::Config(format!("Invalid router endpoint: {}", e)))?
             .connect()
@@ -62,11 +59,12 @@ impl RouterClient {
         }
     }
 
-
     /// Send a message through the router
     pub async fn send_message(&mut self, envelope: &EnvelopeData) -> Result<SendResult> {
-        debug!("Sending message {} from {} (type: {})", 
-               envelope.message_id, envelope.producer_id, envelope.message_type);
+        debug!(
+            "Sending message {} from {} (type: {})",
+            envelope.message_id, envelope.producer_id, envelope.message_type
+        );
 
         let proto_envelope = ProtoEnvelope {
             message_id: envelope.message_id.clone(),
@@ -97,13 +95,16 @@ impl RouterClient {
                     accepted: inner.accepted,
                     reason: inner.reason.clone(),
                 };
-                
+
                 if inner.accepted {
                     debug!("Message {} accepted by router", envelope.message_id);
                 } else {
-                    warn!("Message {} rejected by router: {}", envelope.message_id, inner.reason);
+                    warn!(
+                        "Message {} rejected by router: {}",
+                        envelope.message_id, inner.reason
+                    );
                 }
-                
+
                 Ok(result)
             }
             Err(status) => {
@@ -124,46 +125,45 @@ impl RouterClient {
             agent_id: agent_id.to_string(),
         });
 
-        let response = self.client.stream_incoming(request).await
-            .map_err(|e| {
-                error!("Failed to start stream for agent {}: {}", agent_id, e);
-                Error::Status(e)
-            })?;
+        let response = self.client.stream_incoming(request).await.map_err(|e| {
+            error!("Failed to start stream for agent {}: {}", agent_id, e);
+            Error::Status(e)
+        })?;
 
         let stream = response.into_inner();
         debug!("Message stream established for agent: {}", agent_id);
 
-        let mapped_stream = tokio_stream::StreamExt::map(stream, |result| {
-            match result {
-                Ok(stream_item) => {
-                    if let Some(envelope) = stream_item.msg {
-                        debug!("Received message {} for agent", envelope.message_id);
-                        
-                        Ok(EnvelopeData {
-                            message_id: envelope.message_id,
-                            idempotency_token: envelope.idempotency_token,
-                            producer_id: envelope.producer_id,
-                            correlation_id: envelope.correlation_id,
-                            sequence_number: envelope.sequence_number,
-                            retry_count: envelope.retry_count,
-                            message_type: envelope.message_type,
-                            content_type: envelope.content_type,
-                            content_length: envelope.content_length,
-                            repo_id: envelope.repo_id,
-                            worktree_id: envelope.worktree_id,
-                            hlc_timestamp: envelope.hlc_timestamp,
-                            ttl_ms: envelope.ttl_ms,
-                            payload: envelope.payload,
-                        })
-                    } else {
-                        error!("Received stream item without envelope");
-                        Err(Error::Protocol("Missing envelope in stream item".to_string()))
-                    }
+        let mapped_stream = tokio_stream::StreamExt::map(stream, |result| match result {
+            Ok(stream_item) => {
+                if let Some(envelope) = stream_item.msg {
+                    debug!("Received message {} for agent", envelope.message_id);
+
+                    Ok(EnvelopeData {
+                        message_id: envelope.message_id,
+                        idempotency_token: envelope.idempotency_token,
+                        producer_id: envelope.producer_id,
+                        correlation_id: envelope.correlation_id,
+                        sequence_number: envelope.sequence_number,
+                        retry_count: envelope.retry_count,
+                        message_type: envelope.message_type,
+                        content_type: envelope.content_type,
+                        content_length: envelope.content_length,
+                        repo_id: envelope.repo_id,
+                        worktree_id: envelope.worktree_id,
+                        hlc_timestamp: envelope.hlc_timestamp,
+                        ttl_ms: envelope.ttl_ms,
+                        payload: envelope.payload,
+                    })
+                } else {
+                    error!("Received stream item without envelope");
+                    Err(Error::Protocol(
+                        "Missing envelope in stream item".to_string(),
+                    ))
                 }
-                Err(status) => {
-                    warn!("Stream error: {}", status);
-                    Err(Error::Status(status))
-                }
+            }
+            Err(status) => {
+                warn!("Stream error: {}", status);
+                Err(Error::Status(status))
             }
         });
 
@@ -178,10 +178,10 @@ impl RouterClient {
     /// Check router health by attempting to send a ping message
     pub async fn health_check(&mut self) -> Result<bool> {
         debug!("Performing health check for router client");
-        
-        use crate::envelope::EnvelopeBuilder;
+
         use crate::constants;
-        
+        use crate::envelope::EnvelopeBuilder;
+
         // Create a minimal ping message
         let ping_envelope = EnvelopeBuilder::new(
             "health-check".to_string(),
@@ -193,7 +193,10 @@ impl RouterClient {
 
         match self.send_message(&ping_envelope).await {
             Ok(result) => {
-                debug!("Router health check result: accepted={}, reason={}", result.accepted, result.reason);
+                debug!(
+                    "Router health check result: accepted={}, reason={}",
+                    result.accepted, result.reason
+                );
                 Ok(true)
             }
             Err(Error::Status(status)) => {
@@ -224,26 +227,24 @@ impl RouterLike for RouterClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::envelope::EnvelopeBuilder;
     use crate::constants;
+    use crate::envelope::EnvelopeBuilder;
 
     #[tokio::test(flavor = "current_thread")]
     async fn test_router_client_creation() {
         let endpoint = "http://localhost:50052";
         let channel = Endpoint::from_static("http://localhost:50052").connect_lazy();
         let client = RouterClient::with_channel(channel, endpoint.to_string());
-        
+
         assert_eq!(client.endpoint(), endpoint);
     }
 
     #[test]
     fn test_envelope_conversion() {
-        let envelope = EnvelopeBuilder::new(
-            "test-producer".to_string(),
-            constants::message_type::DATA,
-        )
-        .with_payload(b"test data".to_vec())
-        .build();
+        let envelope =
+            EnvelopeBuilder::new("test-producer".to_string(), constants::message_type::DATA)
+                .with_payload(b"test data".to_vec())
+                .build();
 
         // Test conversion to proto format
         let proto_envelope = ProtoEnvelope {

@@ -1,2 +1,3 @@
-#[cfg(feature = "keyring")] pub mod keyring;
 pub mod file;
+#[cfg(feature = "keyring")]
+pub mod keyring;

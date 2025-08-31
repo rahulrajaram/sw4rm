@@ -4,7 +4,7 @@
 
 All three SDKs (Rust, Python, JavaScript/TypeScript) implement the full client surface for core services and the additive policy/artifact services. Test suites are green across the board.
 
-Status (2025-08-17)
+Status (2025-08-31)
 - Rust SDK: ✅ Complete client surface; cargo test passing
 - Python SDK: ✅ Complete client surface; pytest suite passing
 - JavaScript SDK: ✅ Complete client surface; vitest suite passing
@@ -36,6 +36,38 @@ Recent updates
 | Activity (additive) | ✅ | ✅ | ✅ |
 
 All clients are present and typed in each SDK.
+
+## 0.3.0 SDK Update Checklist (Spec + proto rename)
+
+This release (0.3.0) renames negotiation policy to `NegotiationPolicy` across the spec and canonical protos (`protos/policy.proto`, `protos/scheduler_policy.proto`). Wire fields are unchanged; only message/RPC names changed. SDKs must regenerate stubs and update imports.
+
+Proto changes applied
+- `policy.proto`: `message NegotiationPolicy` (was `WagglePolicy`)
+- `scheduler_policy.proto` RPC/messages:
+  - `SetNegotiationPolicyRequest/Response` (was `SetWagglePolicy*`)
+  - `GetNegotiationPolicyRequest/Response` (was `GetWagglePolicy*`)
+  - `EffectivePolicy.policy`: type `NegotiationPolicy` (was `WagglePolicy`)
+  - `PolicyProfile.policy`: type `NegotiationPolicy` (was `WagglePolicy`)
+
+Python SDK steps
+- Regenerate stubs (`grpc_tools.protoc`) and update imports:
+  - `from sw4rm.policy_pb2 import NegotiationPolicy`
+  - `from sw4rm.scheduler_policy_pb2 import SetNegotiationPolicyRequest` and corresponding Get* types
+- Update references to field types in `EffectivePolicy` and `PolicyProfile`.
+- Update negotiation helpers: event schema remains `policy: {...}`; only the documented type name changes.
+- Run tests: negotiation policy client, evaluation submit, effective policy fetch.
+
+JS/TS SDK steps
+- Rebuild protos (`npm run build:proto`) and update imports/types accordingly.
+- Update unit tests covering policy clients and negotiation helpers.
+
+Rust SDK steps
+- Rebuild (`cargo build`), update module paths if generated names change.
+- Update references to policy types and RPCs in clients; run tests.
+
+Other clarifications in 0.3.0 (no code change required)
+- Sections 10/11/13/15/18 expanded for operational clarity (activity buffer purpose, message fields, buffer NACK example and metrics, HITL expectations, MCP/tool calling). These do not change wire contracts.
+- §5.1 clarifies canonical `.proto` source, SDK packaging expectations, and artifact reference.
 
 ---
 

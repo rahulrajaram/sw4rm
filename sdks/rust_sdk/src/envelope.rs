@@ -168,8 +168,9 @@ mod tests {
     fn test_envelope_builder_basic_creation() {
         let envelope = EnvelopeBuilder::new(
             "test-agent".to_string(),
-            crate::constants::message_type::DATA
-        ).build();
+            crate::constants::message_type::DATA,
+        )
+        .build();
 
         assert_eq!(envelope.producer_id, "test-agent");
         assert_eq!(envelope.message_type, crate::constants::message_type::DATA);
@@ -184,7 +185,7 @@ mod tests {
         let test_payload = b"Hello, World!".to_vec();
         let envelope = EnvelopeBuilder::new(
             "test-agent".to_string(),
-            crate::constants::message_type::DATA
+            crate::constants::message_type::DATA,
         )
         .with_payload(test_payload.clone())
         .build();
@@ -204,7 +205,7 @@ mod tests {
 
         let envelope = EnvelopeBuilder::new(
             "test-agent".to_string(),
-            crate::constants::message_type::DATA
+            crate::constants::message_type::DATA,
         )
         .with_json_payload(&test_data)
         .unwrap()
@@ -228,7 +229,7 @@ mod tests {
 
         let envelope = EnvelopeBuilder::new(
             "serialize-test".to_string(),
-            crate::constants::message_type::DATA
+            crate::constants::message_type::DATA,
         )
         .with_json_payload(&original_data)
         .unwrap()
@@ -253,7 +254,7 @@ mod tests {
         let json_data = json!({"message": "JSON test", "number": 42});
         let json_envelope = EnvelopeBuilder::new(
             "test-agent".to_string(),
-            crate::constants::message_type::DATA
+            crate::constants::message_type::DATA,
         )
         .with_json_payload(&json_data)
         .unwrap()
@@ -268,7 +269,7 @@ mod tests {
         // Test invalid JSON payload extraction
         let bad_json_envelope = EnvelopeBuilder::new(
             "test-agent".to_string(),
-            crate::constants::message_type::DATA
+            crate::constants::message_type::DATA,
         )
         .with_payload(b"invalid json {".to_vec())
         .with_content_type("application/json".to_string())

@@ -99,10 +99,10 @@ pub mod hitl_reason_type {
 }
 
 // Re-export for convenience
-pub use message_type::*;
 pub use ack_stage::*;
-pub use error_code::*;
 pub use agent_state::*;
 pub use communication_class::*;
 pub use debate_intensity::*;
+pub use error_code::*;
 pub use hitl_reason_type::*;
+pub use message_type::*;

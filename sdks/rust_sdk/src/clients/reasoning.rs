@@ -1,8 +1,6 @@
 use crate::proto::sw4rm::reasoning::reasoning_proxy_client::ReasoningProxyClient;
 use crate::proto::sw4rm::reasoning::{
-    ParallelismCheckRequest,
-    DebateEvaluateRequest,
-    SummarizeRequest, TextSegment
+    DebateEvaluateRequest, ParallelismCheckRequest, SummarizeRequest, TextSegment,
 };
 use crate::{Error, Result};
 use tonic::transport::{Channel, Endpoint};
@@ -53,12 +51,17 @@ impl ReasoningClient {
         segments: Vec<(String, String, i64, String)>, // (kind, content, seq, at)
         max_tokens: u32,
         mode: &str,
-) -> Result<RemoteSummary> {
+    ) -> Result<RemoteSummary> {
         let request = tonic::Request::new(SummarizeRequest {
             session_id: session_id.to_string(),
             segments: segments
                 .into_iter()
-                .map(|(kind, content, seq, at)| TextSegment { kind, content, seq, at })
+                .map(|(kind, content, seq, at)| TextSegment {
+                    kind,
+                    content,
+                    seq,
+                    at,
+                })
                 .collect(),
             max_tokens,
             mode: mode.to_string(),

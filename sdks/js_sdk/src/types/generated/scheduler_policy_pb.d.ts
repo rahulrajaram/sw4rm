@@ -7,89 +7,89 @@
 import * as jspb from "google-protobuf";
 import * as policy_pb from "./policy_pb";
 
-export class SetWagglePolicyRequest extends jspb.Message { 
+export class SetNegotiationPolicyRequest extends jspb.Message { 
 
     hasPolicy(): boolean;
     clearPolicy(): void;
-    getPolicy(): policy_pb.WagglePolicy | undefined;
-    setPolicy(value?: policy_pb.WagglePolicy): SetWagglePolicyRequest;
+    getPolicy(): policy_pb.NegotiationPolicy | undefined;
+    setPolicy(value?: policy_pb.NegotiationPolicy): SetNegotiationPolicyRequest;
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): SetWagglePolicyRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: SetWagglePolicyRequest): SetWagglePolicyRequest.AsObject;
+    toObject(includeInstance?: boolean): SetNegotiationPolicyRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: SetNegotiationPolicyRequest): SetNegotiationPolicyRequest.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: SetWagglePolicyRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): SetWagglePolicyRequest;
-    static deserializeBinaryFromReader(message: SetWagglePolicyRequest, reader: jspb.BinaryReader): SetWagglePolicyRequest;
+    static serializeBinaryToWriter(message: SetNegotiationPolicyRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SetNegotiationPolicyRequest;
+    static deserializeBinaryFromReader(message: SetNegotiationPolicyRequest, reader: jspb.BinaryReader): SetNegotiationPolicyRequest;
 }
 
-export namespace SetWagglePolicyRequest {
+export namespace SetNegotiationPolicyRequest {
     export type AsObject = {
-        policy?: policy_pb.WagglePolicy.AsObject,
+        policy?: policy_pb.NegotiationPolicy.AsObject,
     }
 }
 
-export class SetWagglePolicyResponse extends jspb.Message { 
+export class SetNegotiationPolicyResponse extends jspb.Message { 
     getOk(): boolean;
-    setOk(value: boolean): SetWagglePolicyResponse;
+    setOk(value: boolean): SetNegotiationPolicyResponse;
     getReason(): string;
-    setReason(value: string): SetWagglePolicyResponse;
+    setReason(value: string): SetNegotiationPolicyResponse;
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): SetWagglePolicyResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: SetWagglePolicyResponse): SetWagglePolicyResponse.AsObject;
+    toObject(includeInstance?: boolean): SetNegotiationPolicyResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: SetNegotiationPolicyResponse): SetNegotiationPolicyResponse.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: SetWagglePolicyResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): SetWagglePolicyResponse;
-    static deserializeBinaryFromReader(message: SetWagglePolicyResponse, reader: jspb.BinaryReader): SetWagglePolicyResponse;
+    static serializeBinaryToWriter(message: SetNegotiationPolicyResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SetNegotiationPolicyResponse;
+    static deserializeBinaryFromReader(message: SetNegotiationPolicyResponse, reader: jspb.BinaryReader): SetNegotiationPolicyResponse;
 }
 
-export namespace SetWagglePolicyResponse {
+export namespace SetNegotiationPolicyResponse {
     export type AsObject = {
         ok: boolean,
         reason: string,
     }
 }
 
-export class GetWagglePolicyRequest extends jspb.Message { 
+export class GetNegotiationPolicyRequest extends jspb.Message { 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): GetWagglePolicyRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: GetWagglePolicyRequest): GetWagglePolicyRequest.AsObject;
+    toObject(includeInstance?: boolean): GetNegotiationPolicyRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: GetNegotiationPolicyRequest): GetNegotiationPolicyRequest.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: GetWagglePolicyRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): GetWagglePolicyRequest;
-    static deserializeBinaryFromReader(message: GetWagglePolicyRequest, reader: jspb.BinaryReader): GetWagglePolicyRequest;
+    static serializeBinaryToWriter(message: GetNegotiationPolicyRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetNegotiationPolicyRequest;
+    static deserializeBinaryFromReader(message: GetNegotiationPolicyRequest, reader: jspb.BinaryReader): GetNegotiationPolicyRequest;
 }
 
-export namespace GetWagglePolicyRequest {
+export namespace GetNegotiationPolicyRequest {
     export type AsObject = {
     }
 }
 
-export class GetWagglePolicyResponse extends jspb.Message { 
+export class GetNegotiationPolicyResponse extends jspb.Message { 
 
     hasPolicy(): boolean;
     clearPolicy(): void;
-    getPolicy(): policy_pb.WagglePolicy | undefined;
-    setPolicy(value?: policy_pb.WagglePolicy): GetWagglePolicyResponse;
+    getPolicy(): policy_pb.NegotiationPolicy | undefined;
+    setPolicy(value?: policy_pb.NegotiationPolicy): GetNegotiationPolicyResponse;
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): GetWagglePolicyResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: GetWagglePolicyResponse): GetWagglePolicyResponse.AsObject;
+    toObject(includeInstance?: boolean): GetNegotiationPolicyResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: GetNegotiationPolicyResponse): GetNegotiationPolicyResponse.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: GetWagglePolicyResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): GetWagglePolicyResponse;
-    static deserializeBinaryFromReader(message: GetWagglePolicyResponse, reader: jspb.BinaryReader): GetWagglePolicyResponse;
+    static serializeBinaryToWriter(message: GetNegotiationPolicyResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GetNegotiationPolicyResponse;
+    static deserializeBinaryFromReader(message: GetNegotiationPolicyResponse, reader: jspb.BinaryReader): GetNegotiationPolicyResponse;
 }
 
-export namespace GetWagglePolicyResponse {
+export namespace GetNegotiationPolicyResponse {
     export type AsObject = {
-        policy?: policy_pb.WagglePolicy.AsObject,
+        policy?: policy_pb.NegotiationPolicy.AsObject,
     }
 }
 

@@ -108,8 +108,14 @@ mod tests {
             stage: Some("generate".into()),
             success: Some(true),
             files: Some(vec![
-                AgentReportFileV1 { path: "..\\generated_app\\..//src/../src//main.js".into(), b64: "".into() },
-                AgentReportFileV1 { path: "./frontend/./src//App.tsx".into(), b64: "".into() },
+                AgentReportFileV1 {
+                    path: "..\\generated_app\\..//src/../src//main.js".into(),
+                    b64: "".into(),
+                },
+                AgentReportFileV1 {
+                    path: "./frontend/./src//App.tsx".into(),
+                    b64: "".into(),
+                },
             ]),
             logs: None,
             error: None,

@@ -1,7 +1,7 @@
 use crate::proto::sw4rm::logging::logging_service_client::LoggingServiceClient;
-use crate::proto::sw4rm::logging::{LogEvent as ProtoLogEvent, IngestResponse};
-use prost_types;
+use crate::proto::sw4rm::logging::{IngestResponse, LogEvent as ProtoLogEvent};
 use crate::{Error, Result};
+use prost_types;
 use tonic::transport::{Channel, Endpoint};
 
 /// Client for interacting with the SW4RM Logging service
@@ -58,7 +58,8 @@ impl LoggingClient {
             event_type.to_string(),
             level.to_string(),
             details_json.to_string(),
-        ).with_correlation_id(correlation_id.unwrap_or("").to_string());
+        )
+        .with_correlation_id(correlation_id.unwrap_or("").to_string());
 
         self.ingest(event).await
     }

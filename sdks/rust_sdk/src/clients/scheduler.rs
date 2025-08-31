@@ -1,11 +1,11 @@
 use crate::proto::sw4rm::scheduler::scheduler_service_client::SchedulerServiceClient;
 use crate::proto::sw4rm::scheduler::{
-    SubmitTaskRequest, PreemptRequest, ShutdownAgentRequest,
-    PurgeActivityRequest, PollActivityBufferRequest, ActivityEntry
+    ActivityEntry, PollActivityBufferRequest, PreemptRequest, PurgeActivityRequest,
+    ShutdownAgentRequest, SubmitTaskRequest,
 };
 use crate::{Error, Result};
-use tonic::transport::{Channel, Endpoint};
 use prost_types;
+use tonic::transport::{Channel, Endpoint};
 
 /// Client for interacting with the SW4RM Scheduler service
 #[derive(Debug, Clone)]
@@ -50,7 +50,12 @@ impl SchedulerClient {
     }
 
     /// Request preemption for an agent
-    pub async fn request_preemption(&mut self, agent_id: &str, task_id: &str, reason: &str) -> Result<()> {
+    pub async fn request_preemption(
+        &mut self,
+        agent_id: &str,
+        task_id: &str,
+        reason: &str,
+    ) -> Result<()> {
         let request = tonic::Request::new(PreemptRequest {
             agent_id: agent_id.to_string(),
             task_id: task_id.to_string(),
@@ -63,15 +68,15 @@ impl SchedulerClient {
 
     /// Request agent shutdown
     pub async fn shutdown_agent(
-        &mut self, 
-        agent_id: &str, 
-        grace_period: Option<std::time::Duration>
+        &mut self,
+        agent_id: &str,
+        grace_period: Option<std::time::Duration>,
     ) -> Result<()> {
         let grace_period = grace_period.map(|d| prost_types::Duration {
             seconds: d.as_secs() as i64,
             nanos: d.subsec_nanos() as i32,
         });
-        
+
         let request = tonic::Request::new(ShutdownAgentRequest {
             agent_id: agent_id.to_string(),
             grace_period,
@@ -82,11 +87,7 @@ impl SchedulerClient {
     }
 
     /// Purge activities for specific task IDs
-    pub async fn purge_activities(
-        &mut self,
-        agent_id: &str,
-        task_ids: Vec<String>,
-    ) -> Result<u32> {
+    pub async fn purge_activities(&mut self, agent_id: &str, task_ids: Vec<String>) -> Result<u32> {
         let request = tonic::Request::new(PurgeActivityRequest {
             agent_id: agent_id.to_string(),
             task_ids,
@@ -97,10 +98,7 @@ impl SchedulerClient {
     }
 
     /// Get activity buffer for an agent
-    pub async fn get_activity_buffer(
-        &mut self,
-        agent_id: &str,
-    ) -> Result<Vec<ActivityEntry>> {
+    pub async fn get_activity_buffer(&mut self, agent_id: &str) -> Result<Vec<ActivityEntry>> {
         let request = tonic::Request::new(PollActivityBufferRequest {
             agent_id: agent_id.to_string(),
         });

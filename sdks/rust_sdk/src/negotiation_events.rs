@@ -3,14 +3,54 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum NegotiationEvent {
-    #[serde(rename = "open")] Open { ts: Option<String>, topic: String, corr: String },
-    #[serde(rename = "policy")] Policy { ts: Option<String>, negotiation_id: String, profile: Option<String>, policy: serde_json::Value },
-    #[serde(rename = "propose")] Propose { ts: Option<String>, from: String, ct: String, payload_b64: Option<String> },
-    #[serde(rename = "counter")] Counter { ts: Option<String>, from: String, ct: String, payload_b64: Option<String> },
-    #[serde(rename = "evaluate")] Evaluate { ts: Option<String>, from: String, score: Option<f64>, notes: Option<String> },
-    #[serde(rename = "decide")] Decide { ts: Option<String>, by: String, ct: String, result_b64: Option<String> },
-    #[serde(rename = "abort")] Abort { ts: Option<String>, reason: Option<String> },
-    #[serde(other)] Unknown,
+    #[serde(rename = "open")]
+    Open {
+        ts: Option<String>,
+        topic: String,
+        corr: String,
+    },
+    #[serde(rename = "policy")]
+    Policy {
+        ts: Option<String>,
+        negotiation_id: String,
+        profile: Option<String>,
+        policy: serde_json::Value,
+    },
+    #[serde(rename = "propose")]
+    Propose {
+        ts: Option<String>,
+        from: String,
+        ct: String,
+        payload_b64: Option<String>,
+    },
+    #[serde(rename = "counter")]
+    Counter {
+        ts: Option<String>,
+        from: String,
+        ct: String,
+        payload_b64: Option<String>,
+    },
+    #[serde(rename = "evaluate")]
+    Evaluate {
+        ts: Option<String>,
+        from: String,
+        score: Option<f64>,
+        notes: Option<String>,
+    },
+    #[serde(rename = "decide")]
+    Decide {
+        ts: Option<String>,
+        by: String,
+        ct: String,
+        result_b64: Option<String>,
+    },
+    #[serde(rename = "abort")]
+    Abort {
+        ts: Option<String>,
+        reason: Option<String>,
+    },
+    #[serde(other)]
+    Unknown,
 }
 
 pub fn parse_negotiation_event(raw: &[u8]) -> Option<NegotiationEvent> {
@@ -18,7 +58,9 @@ pub fn parse_negotiation_event(raw: &[u8]) -> Option<NegotiationEvent> {
 }
 
 pub fn decode_b64(s: &Option<String>) -> Option<Vec<u8>> {
-    s.as_ref().and_then(|b| base64::decode(b).ok())
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+    s.as_ref().and_then(|b| STANDARD.decode(b).ok())
 }
 
 #[cfg(test)]

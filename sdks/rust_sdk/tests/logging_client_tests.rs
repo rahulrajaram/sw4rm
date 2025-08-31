@@ -28,7 +28,11 @@ async fn test_logging_client_ingest() {
 
     tokio::spawn(async move {
         tonic::transport::Server::builder()
-            .add_service(sw4rm::logging::logging_service_server::LoggingServiceServer::new(MockLoggingService::default()))
+            .add_service(
+                sw4rm::logging::logging_service_server::LoggingServiceServer::new(
+                    MockLoggingService::default(),
+                ),
+            )
             .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
             .await
             .unwrap();
@@ -49,4 +53,3 @@ async fn test_logging_client_ingest() {
         .unwrap();
     assert!(resp.ok);
 }
-

@@ -1,9 +1,15 @@
 use crate::secrets::backend::SecretsBackend;
-use crate::secrets::errors::{Result, SecretError};
 use crate::secrets::backends::file::FileBackend;
+use crate::secrets::errors::Result;
+#[cfg(not(feature = "keyring"))]
+use crate::secrets::errors::SecretError;
 
 #[derive(Debug, Clone, Copy)]
-pub enum BackendMode { Auto, File, Keyring }
+pub enum BackendMode {
+    Auto,
+    File,
+    Keyring,
+}
 
 impl BackendMode {
     pub fn from_env() -> Self {
@@ -15,7 +21,9 @@ impl BackendMode {
     }
 }
 
-pub fn select_backend(mode: Option<BackendMode>) -> Result<(Box<dyn SecretsBackend>, &'static str)> {
+pub fn select_backend(
+    mode: Option<BackendMode>,
+) -> Result<(Box<dyn SecretsBackend>, &'static str)> {
     let mode = mode.unwrap_or_else(BackendMode::from_env);
     match mode {
         BackendMode::File => Ok((Box::new(FileBackend::new(None)?), "file")),

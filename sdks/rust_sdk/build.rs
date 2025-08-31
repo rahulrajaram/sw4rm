@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use std::env;
+use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -15,15 +15,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         // sdks/rust_sdk -> workspace root
         let candidate = manifest_dir.join("..").join("..").join("protos");
-        if candidate.exists() { candidate } else { manifest_dir.join("../../protos") }
+        if candidate.exists() {
+            candidate
+        } else {
+            manifest_dir.join("../../protos")
+        }
     };
 
     // Check if proto files exist
     let wanted = [
-        "common.proto","registry.proto","router.proto","scheduler.proto","hitl.proto",
-        "worktree.proto","tool.proto","connector.proto","negotiation.proto","reasoning.proto","logging.proto",
+        "common.proto",
+        "registry.proto",
+        "router.proto",
+        "scheduler.proto",
+        "hitl.proto",
+        "worktree.proto",
+        "tool.proto",
+        "connector.proto",
+        "negotiation.proto",
+        "reasoning.proto",
+        "logging.proto",
         // Additive policy/negotiation artifacts and activity APIs
-        "policy.proto","scheduler_policy.proto","activity.proto",
+        "policy.proto",
+        "scheduler_policy.proto",
+        "activity.proto",
     ];
     let mut existing_files = Vec::new();
     for file in &wanted {

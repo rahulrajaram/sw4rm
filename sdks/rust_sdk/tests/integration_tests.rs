@@ -1,8 +1,8 @@
 //! Integration tests for the SW4RM Rust SDK
 
+use serde_json::json;
 use sw4rm_sdk::*;
 use tempfile::NamedTempFile;
-use serde_json::json;
 
 #[cfg(test)]
 mod envelope_tests {
@@ -10,14 +10,15 @@ mod envelope_tests {
 
     #[test]
     fn test_envelope_builder() {
-        let envelope = EnvelopeBuilder::new("test-producer".to_string(), constants::message_type::DATA)
-            .with_content_type("application/json".to_string())
-            .with_json_payload(&json!({"test": "data"}))
-            .unwrap()
-            .with_repo_id("repo-123".to_string())
-            .with_worktree_id("tree-456".to_string())
-            .with_ttl_ms(30000)
-            .build();
+        let envelope =
+            EnvelopeBuilder::new("test-producer".to_string(), constants::message_type::DATA)
+                .with_content_type("application/json".to_string())
+                .with_json_payload(&json!({"test": "data"}))
+                .unwrap()
+                .with_repo_id("repo-123".to_string())
+                .with_worktree_id("tree-456".to_string())
+                .with_ttl_ms(30000)
+                .build();
 
         assert_eq!(envelope.producer_id, "test-producer");
         assert_eq!(envelope.message_type, constants::message_type::DATA);
@@ -154,7 +155,10 @@ mod acks_tests {
 
         assert_eq!(ack["ack_for_message_id"], "original-message-id");
         assert_eq!(ack["ack_stage"], constants::ack_stage::FULFILLED);
-        assert_eq!(ack["error_code"], constants::error_code::ERROR_CODE_UNSPECIFIED);
+        assert_eq!(
+            ack["error_code"],
+            constants::error_code::ERROR_CODE_UNSPECIFIED
+        );
         assert_eq!(ack["note"], "Processing completed");
     }
 
@@ -168,17 +172,24 @@ mod acks_tests {
             Some("Invalid input".to_string()),
             None,
             None,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(envelope.producer_id, "ack-producer");
-        assert_eq!(envelope.message_type, constants::message_type::ACKNOWLEDGEMENT);
+        assert_eq!(
+            envelope.message_type,
+            constants::message_type::ACKNOWLEDGEMENT
+        );
         assert_eq!(envelope.content_type, "application/json");
 
         // Parse and verify ACK payload
         let ack_payload: serde_json::Value = envelope.json_payload().unwrap();
         assert_eq!(ack_payload["ack_for_message_id"], "target-message");
         assert_eq!(ack_payload["ack_stage"], constants::ack_stage::REJECTED);
-        assert_eq!(ack_payload["error_code"], constants::error_code::VALIDATION_ERROR);
+        assert_eq!(
+            ack_payload["error_code"],
+            constants::error_code::VALIDATION_ERROR
+        );
         assert_eq!(ack_payload["note"], "Invalid input");
     }
 
@@ -190,11 +201,15 @@ mod acks_tests {
             "original-msg".to_string(),
             true,
             "Success".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let payload: serde_json::Value = success_ack.json_payload().unwrap();
         assert_eq!(payload["ack_stage"], constants::ack_stage::FULFILLED);
-        assert_eq!(payload["error_code"], constants::error_code::ERROR_CODE_UNSPECIFIED);
+        assert_eq!(
+            payload["error_code"],
+            constants::error_code::ERROR_CODE_UNSPECIFIED
+        );
 
         // Test failed result
         let failed_ack = ack_for_send_result(
@@ -202,31 +217,44 @@ mod acks_tests {
             "original-msg".to_string(),
             false,
             "Validation failed".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let payload: serde_json::Value = failed_ack.json_payload().unwrap();
         assert_eq!(payload["ack_stage"], constants::ack_stage::REJECTED);
-        assert_eq!(payload["error_code"], constants::error_code::VALIDATION_ERROR);
+        assert_eq!(
+            payload["error_code"],
+            constants::error_code::VALIDATION_ERROR
+        );
     }
 
     #[test]
     fn test_error_mapping() {
         let timeout_error = Error::Timeout("Request timed out".to_string());
-        assert_eq!(map_error_to_error_code(&timeout_error), constants::error_code::ACK_TIMEOUT);
+        assert_eq!(
+            map_error_to_error_code(&timeout_error),
+            constants::error_code::ACK_TIMEOUT
+        );
 
         let connection_error = Error::Connection("Failed to connect".to_string());
-        assert_eq!(map_error_to_error_code(&connection_error), constants::error_code::NO_ROUTE);
+        assert_eq!(
+            map_error_to_error_code(&connection_error),
+            constants::error_code::NO_ROUTE
+        );
 
         let validation_error = Error::InvalidEnvelope("Invalid message".to_string());
-        assert_eq!(map_error_to_error_code(&validation_error), constants::error_code::VALIDATION_ERROR);
+        assert_eq!(
+            map_error_to_error_code(&validation_error),
+            constants::error_code::VALIDATION_ERROR
+        );
     }
 }
 
 #[cfg(test)]
 mod worktree_tests {
     use super::*;
-    use sw4rm_sdk::worktree_state::*;
     use std::collections::HashMap;
+    use sw4rm_sdk::worktree_state::*;
 
     #[test]
     fn test_worktree_binding() {
@@ -295,7 +323,9 @@ mod worktree_tests {
 
         // Test binding
         assert!(!state.is_bound());
-        assert!(state.bind("repo-1".to_string(), "tree-1".to_string(), None).unwrap());
+        assert!(state
+            .bind("repo-1".to_string(), "tree-1".to_string(), None)
+            .unwrap());
         assert!(state.is_bound());
 
         let current = state.current().unwrap();
@@ -313,7 +343,9 @@ mod worktree_tests {
         assert!(state.current().is_none());
 
         // Test switching
-        assert!(state.switch("repo-2".to_string(), "tree-2".to_string(), None).unwrap());
+        assert!(state
+            .switch("repo-2".to_string(), "tree-2".to_string(), None)
+            .unwrap());
         assert!(state.is_bound());
         assert_eq!(state.current().unwrap().repo_id, "repo-2");
     }
@@ -331,7 +363,10 @@ mod config_tests {
 
         assert_eq!(config.agent_id, "test-agent");
         assert_eq!(config.name, "Test Agent");
-        assert_eq!(config.description, Some("A test agent for SW4RM".to_string()));
+        assert_eq!(
+            config.description,
+            Some("A test agent for SW4RM".to_string())
+        );
         assert_eq!(config.capabilities, vec!["test", "demo"]);
         assert_eq!(config.version, "0.1.0");
     }
@@ -339,7 +374,7 @@ mod config_tests {
     #[test]
     fn test_endpoints_default() {
         let endpoints = Endpoints::default();
-        
+
         assert_eq!(endpoints.registry, "http://localhost:50051");
         assert_eq!(endpoints.router, "http://localhost:50052");
         assert_eq!(endpoints.scheduler, "http://localhost:50053");
@@ -386,7 +421,7 @@ mod types_tests {
     #[test]
     fn test_sequence_tracker() {
         let tracker = SequenceTracker::new(10);
-        
+
         assert_eq!(tracker.next(), 10);
         assert_eq!(tracker.next(), 11);
         assert_eq!(tracker.next(), 12);
@@ -396,7 +431,7 @@ mod types_tests {
     fn test_uuid_generation() {
         let uuid1 = new_uuid();
         let uuid2 = new_uuid();
-        
+
         assert_ne!(uuid1, uuid2);
         assert_eq!(uuid1.len(), 36); // Standard UUID length with hyphens
     }
@@ -406,10 +441,10 @@ mod types_tests {
         let ts1 = now_hlc_stub();
         std::thread::sleep(std::time::Duration::from_millis(1));
         let ts2 = now_hlc_stub();
-        
+
         // Should be different timestamps
         assert_ne!(ts1, ts2);
-        
+
         // Should be numeric strings
         assert!(ts1.parse::<i64>().is_ok());
         assert!(ts2.parse::<i64>().is_ok());

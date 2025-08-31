@@ -78,3 +78,6 @@ tmp_readme_check/
 tmp_*/
 
 .workmerge/
+
+# Ignore reference RFC guide (not part of source)
+RFC_INSTRUCTIONS.md

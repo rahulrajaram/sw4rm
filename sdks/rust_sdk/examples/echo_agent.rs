@@ -1,8 +1,7 @@
-use sw4rm_sdk::prelude::*;
 use serde_json::json;
 use std::time::Duration;
+use sw4rm_sdk::prelude::*;
 use tokio::time::sleep;
-use tracing_subscriber;
 
 /// Simple echo agent that demonstrates SW4RM protocol usage
 struct EchoAgent {
@@ -40,7 +39,7 @@ impl Agent for EchoAgent {
 
     async fn on_message(&mut self, envelope: EnvelopeData) -> Result<()> {
         self.message_count += 1;
-        
+
         tracing::info!(
             "📨 Message #{} received: {} (type: {})",
             self.message_count,
@@ -60,7 +59,7 @@ impl Agent for EchoAgent {
                 match envelope.json_payload::<serde_json::Value>() {
                     Ok(data) => {
                         tracing::info!("📄 JSON payload: {}", data);
-                        
+
                         // Echo back the data with additional info
                         let echo_data = json!({
                             "echo": data,
@@ -68,7 +67,7 @@ impl Agent for EchoAgent {
                             "message_count": self.message_count,
                             "timestamp": chrono::Utc::now().to_rfc3339()
                         });
-                        
+
                         tracing::info!("🔄 Echoing: {}", echo_data);
                     }
                     Err(e) => {
@@ -76,23 +75,21 @@ impl Agent for EchoAgent {
                     }
                 }
             }
-            "text/plain" | _ => {
-                match envelope.string_payload() {
-                    Ok(text) => {
-                        tracing::info!("📝 Text payload: {}", text);
-                        tracing::info!("🔄 Echoing: {}", text);
-                    }
-                    Err(e) => {
-                        tracing::warn!("⚠️ Failed to decode payload as text: {}", e);
-                        tracing::info!("🔢 Raw payload ({} bytes)", envelope.payload.len());
-                    }
+            _ => match envelope.string_payload() {
+                Ok(text) => {
+                    tracing::info!("📝 Text payload: {}", text);
+                    tracing::info!("🔄 Echoing: {}", text);
                 }
-            }
+                Err(e) => {
+                    tracing::warn!("⚠️ Failed to decode payload as text: {}", e);
+                    tracing::info!("🔢 Raw payload ({} bytes)", envelope.payload.len());
+                }
+            },
         }
 
         // Simulate processing time
         sleep(Duration::from_millis(100)).await;
-        
+
         tracing::info!("✅ Message processed successfully");
         Ok(())
     }
@@ -105,16 +102,18 @@ impl Agent for EchoAgent {
                 if let Some(msg_type) = body.get("type").and_then(|v| v.as_str()) {
                     match msg_type {
                         "PREEMPT_REQUEST" => {
-                            let reason = body.get("reason")
+                            let reason = body
+                                .get("reason")
                                 .and_then(|v| v.as_str())
                                 .map(|s| s.to_string());
-                            
+
                             tracing::warn!("🛑 Preemption requested: {:?}", reason);
                             self.preemption.request_preemption(reason);
                         }
                         "SHUTDOWN" => {
                             tracing::warn!("🔚 Shutdown requested");
-                            self.preemption.request_preemption(Some("Shutdown requested".to_string()));
+                            self.preemption
+                                .request_preemption(Some("Shutdown requested".to_string()));
                         }
                         "PING" => {
                             tracing::info!("🏓 Ping received - agent is alive!");
@@ -132,11 +131,11 @@ impl Agent for EchoAgent {
 
     async fn on_tool_call(&mut self, envelope: EnvelopeData) -> Result<()> {
         tracing::info!("🔧 Tool call received: {}", envelope.message_id);
-        
+
         if let Ok(call_data) = envelope.json_payload::<serde_json::Value>() {
             if let Some(tool_name) = call_data.get("tool_name").and_then(|v| v.as_str()) {
                 tracing::info!("🛠️ Tool: {}", tool_name);
-                
+
                 match tool_name {
                     "echo" => {
                         let empty = json!({});
@@ -158,7 +157,7 @@ impl Agent for EchoAgent {
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -217,7 +216,7 @@ async fn main() -> Result<()> {
     tracing::info!("📤 Created test envelope: {}", test_envelope.message_id);
 
     // Test activity buffer
-    let activity_buffer = sw4rm_sdk::activity_buffer::ActivityBuffer::new(100);
+    let _activity_buffer = sw4rm_sdk::activity_buffer::ActivityBuffer::new(100);
     tracing::info!("📊 Activity buffer initialized with capacity 100");
 
     // Test worktree state
@@ -243,7 +242,7 @@ async fn main() -> Result<()> {
     // Simulate message processing
     tracing::info!("🔄 Simulating message processing...");
     let mut demo_agent = agent;
-    
+
     // Process the test message
     demo_agent.on_message(test_envelope).await?;
 
@@ -272,7 +271,7 @@ async fn main() -> Result<()> {
 
     tracing::info!("🎉 Demo completed successfully!");
     tracing::info!("📈 Agent processed {} messages", demo_agent.message_count);
-    
+
     // Show final status
     demo_agent.on_shutdown().await?;
 

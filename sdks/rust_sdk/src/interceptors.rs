@@ -123,7 +123,7 @@ where
     fn call(&mut self, request: Request<ReqBody>) -> Self::Future {
         let start = Instant::now();
         let method = "grpc_method".to_string(); // gRPC doesn't expose HTTP URI directly
-        
+
         TimingFuture {
             inner: self.inner.call(request),
             start,
@@ -155,11 +155,7 @@ where
         match this.inner.poll(cx) {
             std::task::Poll::Ready(result) => {
                 let duration = this.start.elapsed();
-                tracing::debug!(
-                    "gRPC call {} completed in {:?}",
-                    this.method,
-                    duration
-                );
+                tracing::debug!("gRPC call {} completed in {:?}", this.method, duration);
                 std::task::Poll::Ready(result)
             }
             std::task::Poll::Pending => std::task::Poll::Pending,
@@ -324,7 +320,7 @@ where
     fn call(&mut self, request: Request<ReqBody>) -> Self::Future {
         let start = Instant::now();
         let method = "grpc_method".to_string(); // gRPC doesn't expose HTTP URI directly
-        
+
         MetricsFuture {
             inner: self.inner.call(request),
             start,
@@ -358,25 +354,17 @@ where
         match this.inner.poll(cx) {
             std::task::Poll::Ready(result) => {
                 let duration = this.start.elapsed();
-                
+
                 // Log metrics (in a real implementation, you'd send to a metrics backend)
                 match &result {
                     Ok(_) => {
-                        tracing::info!(
-                            "gRPC call {} succeeded in {:?}",
-                            this.method,
-                            duration
-                        );
+                        tracing::info!("gRPC call {} succeeded in {:?}", this.method, duration);
                     }
                     Err(_) => {
-                        tracing::warn!(
-                            "gRPC call {} failed in {:?}",
-                            this.method,
-                            duration
-                        );
+                        tracing::warn!("gRPC call {} failed in {:?}", this.method, duration);
                     }
                 }
-                
+
                 if *this.enable_histogram {
                     // In a real implementation, record histogram metrics here
                     tracing::debug!(
@@ -385,7 +373,7 @@ where
                         duration
                     );
                 }
-                
+
                 std::task::Poll::Ready(result)
             }
             std::task::Poll::Pending => std::task::Poll::Pending,
@@ -444,13 +432,15 @@ impl InterceptedChannelBuilder {
     }
 
     pub async fn connect(self) -> Result<Channel> {
-        let channel = self.endpoint.connect().await
-            .map_err(Error::Transport)?;
+        let channel = self.endpoint.connect().await.map_err(Error::Transport)?;
 
         // Note: Interceptors are applied at the client level, not channel level
         // Each gRPC client service will apply interceptors when created
         if self.correlation_id.is_some() {
-            tracing::debug!("Channel configured with correlation_id: {:?}", self.correlation_id);
+            tracing::debug!(
+                "Channel configured with correlation_id: {:?}",
+                self.correlation_id
+            );
         }
         let intercepted_channel = channel;
 
@@ -475,13 +465,16 @@ impl MetadataInterceptor {
 }
 
 impl tonic::service::Interceptor for MetadataInterceptor {
-    fn call(&mut self, mut request: tonic::Request<()>) -> std::result::Result<tonic::Request<()>, tonic::Status> {
+    fn call(
+        &mut self,
+        mut request: tonic::Request<()>,
+    ) -> std::result::Result<tonic::Request<()>, tonic::Status> {
         // Add correlation ID header if present
         if let Some(ref correlation_id) = self.correlation_id {
             request.metadata_mut().insert(
                 "x-correlation-id",
                 tonic::metadata::MetadataValue::try_from(correlation_id.as_str())
-                    .map_err(|_| tonic::Status::invalid_argument("Invalid correlation ID"))?
+                    .map_err(|_| tonic::Status::invalid_argument("Invalid correlation ID"))?,
             );
         }
 
@@ -489,7 +482,7 @@ impl tonic::service::Interceptor for MetadataInterceptor {
         request.metadata_mut().insert(
             "user-agent",
             tonic::metadata::MetadataValue::try_from(self.user_agent.as_str())
-                .map_err(|_| tonic::Status::invalid_argument("Invalid user-agent"))?
+                .map_err(|_| tonic::Status::invalid_argument("Invalid user-agent"))?,
         );
 
         // Add request ID for tracing
@@ -497,7 +490,7 @@ impl tonic::service::Interceptor for MetadataInterceptor {
         request.metadata_mut().insert(
             "x-request-id",
             tonic::metadata::MetadataValue::try_from(request_id.as_str())
-                .map_err(|_| tonic::Status::invalid_argument("Invalid request ID"))?
+                .map_err(|_| tonic::Status::invalid_argument("Invalid request ID"))?,
         );
 
         tracing::debug!(
@@ -568,13 +561,31 @@ mod tests {
     fn test_is_retryable_error() {
         use tonic::{Code, Status};
 
-        assert!(is_retryable_error(&Status::new(Code::Unavailable, "service unavailable")));
-        assert!(is_retryable_error(&Status::new(Code::DeadlineExceeded, "timeout")));
-        assert!(is_retryable_error(&Status::new(Code::ResourceExhausted, "rate limited")));
+        assert!(is_retryable_error(&Status::new(
+            Code::Unavailable,
+            "service unavailable"
+        )));
+        assert!(is_retryable_error(&Status::new(
+            Code::DeadlineExceeded,
+            "timeout"
+        )));
+        assert!(is_retryable_error(&Status::new(
+            Code::ResourceExhausted,
+            "rate limited"
+        )));
         assert!(is_retryable_error(&Status::new(Code::Aborted, "aborted")));
 
-        assert!(!is_retryable_error(&Status::new(Code::InvalidArgument, "bad request")));
-        assert!(!is_retryable_error(&Status::new(Code::NotFound, "not found")));
-        assert!(!is_retryable_error(&Status::new(Code::PermissionDenied, "forbidden")));
+        assert!(!is_retryable_error(&Status::new(
+            Code::InvalidArgument,
+            "bad request"
+        )));
+        assert!(!is_retryable_error(&Status::new(
+            Code::NotFound,
+            "not found"
+        )));
+        assert!(!is_retryable_error(&Status::new(
+            Code::PermissionDenied,
+            "forbidden"
+        )));
     }
 }

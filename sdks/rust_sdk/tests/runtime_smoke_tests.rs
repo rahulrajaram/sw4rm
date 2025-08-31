@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use sw4rm_sdk::{prelude::*, proto::sw4rm};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -12,25 +13,39 @@ impl sw4rm::registry::registry_service_server::RegistryService for MockRegistryS
         &self,
         _request: Request<sw4rm::registry::RegisterAgentRequest>,
     ) -> std::result::Result<Response<sw4rm::registry::RegisterAgentResponse>, Status> {
-        Ok(Response::new(sw4rm::registry::RegisterAgentResponse { accepted: true, reason: String::new() }))
+        Ok(Response::new(sw4rm::registry::RegisterAgentResponse {
+            accepted: true,
+            reason: String::new(),
+        }))
     }
     async fn heartbeat(
         &self,
         _request: Request<sw4rm::registry::HeartbeatRequest>,
     ) -> std::result::Result<Response<sw4rm::registry::HeartbeatResponse>, Status> {
-        Ok(Response::new(sw4rm::registry::HeartbeatResponse { ok: true }))
+        Ok(Response::new(sw4rm::registry::HeartbeatResponse {
+            ok: true,
+        }))
     }
     async fn deregister_agent(
         &self,
         _request: Request<sw4rm::registry::DeregisterAgentRequest>,
     ) -> std::result::Result<Response<sw4rm::registry::DeregisterAgentResponse>, Status> {
-        Ok(Response::new(sw4rm::registry::DeregisterAgentResponse { ok: true }))
+        Ok(Response::new(sw4rm::registry::DeregisterAgentResponse {
+            ok: true,
+        }))
     }
 }
 
 #[derive(Debug, Clone, Default)]
 struct MockRouterService {
-    streams: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<String, mpsc::UnboundedSender<std::result::Result<sw4rm::router::StreamItem, Status>>>>>,
+    streams: std::sync::Arc<
+        std::sync::Mutex<
+            std::collections::HashMap<
+                String,
+                mpsc::UnboundedSender<std::result::Result<sw4rm::router::StreamItem, Status>>,
+            >,
+        >,
+    >,
 }
 
 impl MockRouterService {
@@ -47,17 +62,22 @@ impl sw4rm::router::router_service_server::RouterService for MockRouterService {
         &self,
         _request: Request<sw4rm::router::SendMessageRequest>,
     ) -> std::result::Result<Response<sw4rm::router::SendMessageResponse>, Status> {
-        Ok(Response::new(sw4rm::router::SendMessageResponse { accepted: true, reason: String::new() }))
+        Ok(Response::new(sw4rm::router::SendMessageResponse {
+            accepted: true,
+            reason: String::new(),
+        }))
     }
 
-    type StreamIncomingStream = UnboundedReceiverStream<std::result::Result<sw4rm::router::StreamItem, Status>>;
+    type StreamIncomingStream =
+        UnboundedReceiverStream<std::result::Result<sw4rm::router::StreamItem, Status>>;
 
     async fn stream_incoming(
         &self,
         request: Request<sw4rm::router::StreamRequest>,
     ) -> std::result::Result<Response<Self::StreamIncomingStream>, Status> {
         let agent_id = request.into_inner().agent_id;
-        let (tx, rx) = mpsc::unbounded_channel::<std::result::Result<sw4rm::router::StreamItem, Status>>();
+        let (tx, rx) =
+            mpsc::unbounded_channel::<std::result::Result<sw4rm::router::StreamItem, Status>>();
         self.streams.lock().unwrap().insert(agent_id, tx);
         Ok(Response::new(UnboundedReceiverStream::new(rx)))
     }
@@ -77,16 +97,26 @@ impl MockServer {
         let router_clone = router.clone();
         tokio::spawn(async move {
             tonic::transport::Server::builder()
-                .add_service(sw4rm::registry::registry_service_server::RegistryServiceServer::new(MockRegistryService))
-                .add_service(sw4rm::router::router_service_server::RouterServiceServer::new(router_clone))
+                .add_service(
+                    sw4rm::registry::registry_service_server::RegistryServiceServer::new(
+                        MockRegistryService,
+                    ),
+                )
+                .add_service(
+                    sw4rm::router::router_service_server::RouterServiceServer::new(router_clone),
+                )
                 .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
                 .await
                 .unwrap();
         });
         Self { addr, router }
     }
-    fn endpoint(&self) -> String { format!("http://{}", self.addr) }
-    fn send_to_agent(&self, agent_id: &str, env: sw4rm::common::Envelope) { self.router.send_to(agent_id, env); }
+    fn endpoint(&self) -> String {
+        format!("http://{}", self.addr)
+    }
+    fn send_to_agent(&self, agent_id: &str, env: sw4rm::common::Envelope) {
+        self.router.send_to(agent_id, env);
+    }
 }
 
 struct SmokeAgent {
@@ -101,8 +131,12 @@ impl Agent for SmokeAgent {
         self.msgs.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Ok(())
     }
-    fn config(&self) -> &AgentConfig { &self.config }
-    fn preemption_manager(&self) -> &PreemptionManager { &self.preemption }
+    fn config(&self) -> &AgentConfig {
+        &self.config
+    }
+    fn preemption_manager(&self) -> &PreemptionManager {
+        &self.preemption
+    }
 }
 
 #[tokio::test]
@@ -122,9 +156,14 @@ async fn test_runtime_stream_and_preemption() {
         logging: server.endpoint(),
     };
 
-    let config = AgentConfig::new("smoke-agent".to_string(), "Smoke".to_string()).with_endpoints(endpoints);
+    let config =
+        AgentConfig::new("smoke-agent".to_string(), "Smoke".to_string()).with_endpoints(endpoints);
     let msgs = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let agent = SmokeAgent { config: config.clone(), preemption: PreemptionManager::new(), msgs: msgs.clone() };
+    let agent = SmokeAgent {
+        config: config.clone(),
+        preemption: PreemptionManager::new(),
+        msgs: msgs.clone(),
+    };
 
     let mut runtime = AgentRuntime::new(config);
 
@@ -162,7 +201,9 @@ async fn test_runtime_stream_and_preemption() {
     assert_eq!(msgs.load(std::sync::atomic::Ordering::SeqCst), 1);
 
     // Trigger preemption by sending a CONTROL JSON message
-    let control_payload = serde_json::to_vec(&serde_json::json!({"type": "PREEMPT_REQUEST", "reason": "test"})).unwrap();
+    let control_payload =
+        serde_json::to_vec(&serde_json::json!({"type": "PREEMPT_REQUEST", "reason": "test"}))
+            .unwrap();
     let ctrl = sw4rm::common::Envelope {
         message_id: "m2".to_string(),
         idempotency_token: String::new(),

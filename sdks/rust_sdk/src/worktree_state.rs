@@ -1,9 +1,9 @@
 use crate::{Error, Result};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use chrono::Utc;
 
 /// Actions that can be taken on worktree bindings
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -185,8 +185,7 @@ impl WorktreePersistence for JsonWorktreePersistence {
 
         // Atomic write
         let temp_path = self.file_path.with_extension("tmp");
-        let json_data = serde_json::to_string_pretty(&data)
-            .map_err(Error::Serialization)?;
+        let json_data = serde_json::to_string_pretty(&data).map_err(Error::Serialization)?;
 
         fs::write(&temp_path, json_data).map_err(Error::Io)?;
         fs::rename(temp_path, &self.file_path).map_err(Error::Io)?;
@@ -200,8 +199,8 @@ impl WorktreePersistence for JsonWorktreePersistence {
         }
 
         let content = fs::read_to_string(&self.file_path).map_err(Error::Io)?;
-        let data: WorktreePersistenceData = serde_json::from_str(&content)
-            .map_err(Error::Serialization)?;
+        let data: WorktreePersistenceData =
+            serde_json::from_str(&content).map_err(Error::Serialization)?;
 
         Ok(data.binding)
     }
@@ -226,12 +225,9 @@ impl PersistentWorktreeState {
         persistence: Option<Box<dyn WorktreePersistence>>,
         policy: Option<Box<dyn WorktreePolicyHook>>,
     ) -> Result<Self> {
-        let mut persistence = persistence.unwrap_or_else(|| {
-            Box::new(JsonWorktreePersistence::default())
-        });
-        let policy = policy.unwrap_or_else(|| {
-            Box::new(DefaultWorktreePolicy::default())
-        });
+        let mut persistence =
+            persistence.unwrap_or_else(|| Box::new(JsonWorktreePersistence::default()));
+        let policy = policy.unwrap_or_else(|| Box::new(DefaultWorktreePolicy::default()));
 
         // Load existing binding on initialization
         let binding = persistence.load_binding().unwrap_or_else(|e| {
@@ -255,7 +251,8 @@ impl PersistentWorktreeState {
     }
 
     fn save_to_persistence(&mut self) -> Result<()> {
-        self.persistence.save_binding(self.binding.as_ref())
+        self.persistence
+            .save_binding(self.binding.as_ref())
             .map_err(|e| {
                 tracing::error!("Failed to save worktree binding to persistence: {}", e);
                 e
@@ -270,7 +267,10 @@ impl PersistentWorktreeState {
         metadata: Option<HashMap<String, String>>,
     ) -> Result<bool> {
         // Call before_bind hook
-        if !self.policy.before_bind(&repo_id, &worktree_id, self.binding.as_ref()) {
+        if !self
+            .policy
+            .before_bind(&repo_id, &worktree_id, self.binding.as_ref())
+        {
             return Ok(false);
         }
 
@@ -280,7 +280,7 @@ impl PersistentWorktreeState {
 
         // Update state
         self.binding = Some(new_binding.clone());
-        
+
         match self.save_to_persistence() {
             Ok(()) => {
                 // Call after_bind hook
@@ -397,9 +397,7 @@ mod tests {
     #[test]
     fn test_worktree_binding() {
         let binding = WorktreeBinding::new("repo1".to_string(), "tree1".to_string())
-            .with_metadata(HashMap::from([
-                ("key1".to_string(), "value1".to_string())
-            ]));
+            .with_metadata(HashMap::from([("key1".to_string(), "value1".to_string())]));
 
         assert_eq!(binding.repo_id, "repo1");
         assert_eq!(binding.worktree_id, "tree1");

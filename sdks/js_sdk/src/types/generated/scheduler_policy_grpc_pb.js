@@ -27,26 +27,26 @@ function deserialize_sw4rm_scheduler_GetEffectivePolicyResponse(buffer_arg) {
   return scheduler_policy_pb.GetEffectivePolicyResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
-function serialize_sw4rm_scheduler_GetWagglePolicyRequest(arg) {
-  if (!(arg instanceof scheduler_policy_pb.GetWagglePolicyRequest)) {
-    throw new Error('Expected argument of type sw4rm.scheduler.GetWagglePolicyRequest');
+function serialize_sw4rm_scheduler_GetNegotiationPolicyRequest(arg) {
+  if (!(arg instanceof scheduler_policy_pb.GetNegotiationPolicyRequest)) {
+    throw new Error('Expected argument of type sw4rm.scheduler.GetNegotiationPolicyRequest');
   }
   return Buffer.from(arg.serializeBinary());
 }
 
-function deserialize_sw4rm_scheduler_GetWagglePolicyRequest(buffer_arg) {
-  return scheduler_policy_pb.GetWagglePolicyRequest.deserializeBinary(new Uint8Array(buffer_arg));
+function deserialize_sw4rm_scheduler_GetNegotiationPolicyRequest(buffer_arg) {
+  return scheduler_policy_pb.GetNegotiationPolicyRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
-function serialize_sw4rm_scheduler_GetWagglePolicyResponse(arg) {
-  if (!(arg instanceof scheduler_policy_pb.GetWagglePolicyResponse)) {
-    throw new Error('Expected argument of type sw4rm.scheduler.GetWagglePolicyResponse');
+function serialize_sw4rm_scheduler_GetNegotiationPolicyResponse(arg) {
+  if (!(arg instanceof scheduler_policy_pb.GetNegotiationPolicyResponse)) {
+    throw new Error('Expected argument of type sw4rm.scheduler.GetNegotiationPolicyResponse');
   }
   return Buffer.from(arg.serializeBinary());
 }
 
-function deserialize_sw4rm_scheduler_GetWagglePolicyResponse(buffer_arg) {
-  return scheduler_policy_pb.GetWagglePolicyResponse.deserializeBinary(new Uint8Array(buffer_arg));
+function deserialize_sw4rm_scheduler_GetNegotiationPolicyResponse(buffer_arg) {
+  return scheduler_policy_pb.GetNegotiationPolicyResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_sw4rm_scheduler_HitlActionRequest(arg) {
@@ -93,6 +93,28 @@ function deserialize_sw4rm_scheduler_ListPolicyProfilesResponse(buffer_arg) {
   return scheduler_policy_pb.ListPolicyProfilesResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_sw4rm_scheduler_SetNegotiationPolicyRequest(arg) {
+  if (!(arg instanceof scheduler_policy_pb.SetNegotiationPolicyRequest)) {
+    throw new Error('Expected argument of type sw4rm.scheduler.SetNegotiationPolicyRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_sw4rm_scheduler_SetNegotiationPolicyRequest(buffer_arg) {
+  return scheduler_policy_pb.SetNegotiationPolicyRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_sw4rm_scheduler_SetNegotiationPolicyResponse(arg) {
+  if (!(arg instanceof scheduler_policy_pb.SetNegotiationPolicyResponse)) {
+    throw new Error('Expected argument of type sw4rm.scheduler.SetNegotiationPolicyResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_sw4rm_scheduler_SetNegotiationPolicyResponse(buffer_arg) {
+  return scheduler_policy_pb.SetNegotiationPolicyResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_sw4rm_scheduler_SetPolicyProfilesRequest(arg) {
   if (!(arg instanceof scheduler_policy_pb.SetPolicyProfilesRequest)) {
     throw new Error('Expected argument of type sw4rm.scheduler.SetPolicyProfilesRequest');
@@ -113,28 +135,6 @@ function serialize_sw4rm_scheduler_SetPolicyProfilesResponse(arg) {
 
 function deserialize_sw4rm_scheduler_SetPolicyProfilesResponse(buffer_arg) {
   return scheduler_policy_pb.SetPolicyProfilesResponse.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_sw4rm_scheduler_SetWagglePolicyRequest(arg) {
-  if (!(arg instanceof scheduler_policy_pb.SetWagglePolicyRequest)) {
-    throw new Error('Expected argument of type sw4rm.scheduler.SetWagglePolicyRequest');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_sw4rm_scheduler_SetWagglePolicyRequest(buffer_arg) {
-  return scheduler_policy_pb.SetWagglePolicyRequest.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_sw4rm_scheduler_SetWagglePolicyResponse(arg) {
-  if (!(arg instanceof scheduler_policy_pb.SetWagglePolicyResponse)) {
-    throw new Error('Expected argument of type sw4rm.scheduler.SetWagglePolicyResponse');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_sw4rm_scheduler_SetWagglePolicyResponse(buffer_arg) {
-  return scheduler_policy_pb.SetWagglePolicyResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_sw4rm_scheduler_SubmitEvaluationRequest(arg) {
@@ -161,27 +161,27 @@ function deserialize_sw4rm_scheduler_SubmitEvaluationResponse(buffer_arg) {
 
 
 var SchedulerPolicyServiceService = exports.SchedulerPolicyServiceService = {
-  setWagglePolicy: {
-    path: '/sw4rm.scheduler.SchedulerPolicyService/SetWagglePolicy',
+  setNegotiationPolicy: {
+    path: '/sw4rm.scheduler.SchedulerPolicyService/SetNegotiationPolicy',
     requestStream: false,
     responseStream: false,
-    requestType: scheduler_policy_pb.SetWagglePolicyRequest,
-    responseType: scheduler_policy_pb.SetWagglePolicyResponse,
-    requestSerialize: serialize_sw4rm_scheduler_SetWagglePolicyRequest,
-    requestDeserialize: deserialize_sw4rm_scheduler_SetWagglePolicyRequest,
-    responseSerialize: serialize_sw4rm_scheduler_SetWagglePolicyResponse,
-    responseDeserialize: deserialize_sw4rm_scheduler_SetWagglePolicyResponse,
+    requestType: scheduler_policy_pb.SetNegotiationPolicyRequest,
+    responseType: scheduler_policy_pb.SetNegotiationPolicyResponse,
+    requestSerialize: serialize_sw4rm_scheduler_SetNegotiationPolicyRequest,
+    requestDeserialize: deserialize_sw4rm_scheduler_SetNegotiationPolicyRequest,
+    responseSerialize: serialize_sw4rm_scheduler_SetNegotiationPolicyResponse,
+    responseDeserialize: deserialize_sw4rm_scheduler_SetNegotiationPolicyResponse,
   },
-  getWagglePolicy: {
-    path: '/sw4rm.scheduler.SchedulerPolicyService/GetWagglePolicy',
+  getNegotiationPolicy: {
+    path: '/sw4rm.scheduler.SchedulerPolicyService/GetNegotiationPolicy',
     requestStream: false,
     responseStream: false,
-    requestType: scheduler_policy_pb.GetWagglePolicyRequest,
-    responseType: scheduler_policy_pb.GetWagglePolicyResponse,
-    requestSerialize: serialize_sw4rm_scheduler_GetWagglePolicyRequest,
-    requestDeserialize: deserialize_sw4rm_scheduler_GetWagglePolicyRequest,
-    responseSerialize: serialize_sw4rm_scheduler_GetWagglePolicyResponse,
-    responseDeserialize: deserialize_sw4rm_scheduler_GetWagglePolicyResponse,
+    requestType: scheduler_policy_pb.GetNegotiationPolicyRequest,
+    responseType: scheduler_policy_pb.GetNegotiationPolicyResponse,
+    requestSerialize: serialize_sw4rm_scheduler_GetNegotiationPolicyRequest,
+    requestDeserialize: deserialize_sw4rm_scheduler_GetNegotiationPolicyRequest,
+    responseSerialize: serialize_sw4rm_scheduler_GetNegotiationPolicyResponse,
+    responseDeserialize: deserialize_sw4rm_scheduler_GetNegotiationPolicyResponse,
   },
   setPolicyProfiles: {
     path: '/sw4rm.scheduler.SchedulerPolicyService/SetPolicyProfiles',

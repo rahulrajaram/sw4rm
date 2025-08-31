@@ -1,5 +1,5 @@
-use crate::envelope::EnvelopeBuilder;
 use crate::constants::*;
+use crate::envelope::EnvelopeBuilder;
 use crate::{Error, Result};
 use serde_json::{json, Value};
 
@@ -145,7 +145,8 @@ mod tests {
             Some("success".to_string()),
             None,
             None,
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(envelope.producer_id, "producer-123");
         assert_eq!(envelope.message_type, message_type::ACKNOWLEDGEMENT);
@@ -166,7 +167,8 @@ mod tests {
             "original-msg".to_string(),
             true,
             "".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let payload: Value = serde_json::from_slice(&envelope.payload).unwrap();
         assert_eq!(payload["ack_stage"], ack_stage::FULFILLED);
@@ -178,7 +180,8 @@ mod tests {
             "original-msg".to_string(),
             false,
             "validation failed".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let payload: Value = serde_json::from_slice(&envelope.payload).unwrap();
         assert_eq!(payload["ack_stage"], ack_stage::REJECTED);

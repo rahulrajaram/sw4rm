@@ -1,142 +1,481 @@
-# RFC: Interruptible, Message-Driven CLI Agent Framework (Consolidated)
+# RFC: SW4RM - Interruptible, Message-Driven Agent Coordination Protocol
 
-Version: 0.2.0 (2025-08-17)
+Version: 0.3.0 (2025-08-31)
 
 ## Versioning and Changelog
 
-- Versioning: Pre-1.0 SemVer. Normative/implementer-impacting changes = MINOR; editorial/format-only = PATCH; pure moves/renames = no bump.
-- Scope: Applies to this document and its canonical proto namespace guidance (`sw4rm.*`).
-- Stability: Until 1.0, MINOR may contain breaking changes; such cases are called out explicitly.
+This specification follows semantic versioning principles adapted for pre-1.0 development. Normative changes that impact implementers trigger MINOR version increments, while editorial and formatting changes use PATCH increments. Pure structural reorganizations do not require version bumps.
 
-Changelog
+The versioning scope encompasses this document and the canonical protocol buffer namespace guidance (`sw4rm.*`). Until version 1.0, MINOR releases MAY introduce breaking changes, which are explicitly documented and called out in migration guidance.
 
-- 0.2.0 (2025-08-17): Canonicalize `sw4rm.*` package; add negotiation event fanout (JSON), room semantics (`correlation_id=negotiation_id`), policy broadcast (WagglePolicy/EffectivePolicy), validation/diff/scoring guidance; add optional policy/activity proto stubs. No known wire breaks vs 0.1.x beyond namespace canonicalization.
-- 0.1.1 (2025-08-08): Editorial updates and proto formatting notes. No normative changes.
-- 0.1.0 (2025-08-08): Initial specification document.
+**Changelog:**
+
+- **0.3.0 (2025-08-31)**: RFC rigor pass (BCP 14, imperative voice, ASCII), expanded sections 10 (Activity Buffer), 11 (Messaging Model readability), 13 (Buffers and Back-Pressure with examples and metrics), 15 (HITL expectations and message shapes), and 18 (MCP/Tool Calling with discovery, invocation, retries, security). Renamed negotiation policy terminology to NegotiationPolicy (formerly “Waggle/Pheromone” naming) in this document and example stubs; clarified canonical proto packaging policy in §5.1. Note: canonical proto identifiers will be updated to match NegotiationPolicy in a subsequent proto release.
+- **0.2.0 (2025-08-17)**: Canonicalized `sw4rm.*` package namespace; enhanced negotiation protocol with event fanout (JSON), room-based correlation semantics (`correlation_id=negotiation_id`), policy broadcast mechanisms (NegotiationPolicy/EffectivePolicy), comprehensive validation/diff/scoring guidance; introduced optional policy and activity protocol buffer stubs. This release maintains wire compatibility with 0.1.x implementations beyond the namespace canonicalization requirement.
+- **0.1.1 (2025-08-08)**: Editorial clarifications and protocol buffer formatting improvements. No normative behavioral changes.
+- **0.1.0 (2025-08-08)**: Initial specification release establishing core framework concepts and requirements.
 
 ## 1. Status of this Memo
 
-This document specifies a protocol and runtime architecture for a CLI framework that schedules, routes, and supervises interruptible, message-driven agents. Distribution is unlimited. Implementations that claim conformance MUST satisfy all normative requirements herein.
+This document specifies the SW4RM (pronounced "swarm") protocol for interruptible, message-driven Agent coordination. It defines normative requirements for conformant implementations and provides implementation guidance.
+
+This specification targets implementers of Agent coordination systems, distributed task schedulers, and automation frameworks.
+
+Distribution of this memo is unlimited.
 
 ## 2. Abstract
 
-The framework defines a central scheduler that orders and preempts task execution, a routed messaging plane with explicit lifecycles and acknowledgements, a Human-In-The-Loop (HITL) escalation channel, first-class repository/worktree isolation, an inter-agent negotiation protocol, and MCP-compatible tool calling. Agents are process-isolated participants that register capabilities, exchange typed messages, and MAY run multiple instances subject to concurrency policy. A technology-agnostic **Reasoning Engine** provides contextual analysis when requested. The system is suitable for single-node deployment and MUST be extensible to distributed environments.
+This document defines the SW4RM protocol for coordinating interruptible, message-driven agents in distributed computing environments. The protocol enables automated task orchestration with human oversight capabilities.
+
+The framework comprises: a central Scheduler for task ordering and preemption; a routed messaging plane with explicit lifecycle management; Human-In-The-Loop (HITL) escalation; worktree isolation for concurrent operations; inter-agent negotiation protocols; and MCP-compatible tool calling.
+
+Agents are process-isolated, register capabilities with the Scheduler, and communicate through typed messages. The system supports both single-node and distributed deployments.
 
 ## 3. Terminology
 
-The key words “MUST”, “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL NOT”, “SHOULD”, “SHOULD NOT”, “RECOMMENDED”, “MAY”, and “OPTIONAL” follow RFC 2119.
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in BCP 14 (RFC 2119 and RFC 8174) when, and only when, they appear in all capitals, as shown here. These terms indicate the relative requirements of protocol elements, with "MUST" indicating absolute requirements and "MAY" indicating truly optional elements.
 
-**Agent**: execution participant supervised by the Scheduler.
+This section defines core SW4RM concepts and entities.
 
-**Task**: unit of work enqueued to an Agent.
+### Core Entities
 
-**Message**: routed unit of communication with normative lifecycle.
+**Agent**: Process-isolated execution participant supervised by the Scheduler. Registers capabilities, receives task assignments, and executes work. Maintains own execution context and MAY specialize in specific operations.
 
-**Scheduler**: sole authority for ordering, preemption, routing, and HITL invocation.
+**Task**: Unit of work executed by an Agent. Carries priority, resource requirements, and scope metadata. Tasks MAY be interdependent and MAY generate additional tasks.
 
-**Reasoning Engine**: external decision service; MAY be deterministic or not; SHOULD return `confidence_score` when consulted for parallelism checks or negotiation evaluation; MUST NOT mutate Agent/Scheduler state directly.
+**Message**: Routed communication unit with defined lifecycle (creation to completion/failure). Carries typed payloads and correlation identifiers for tracking.
 
-**Tool**: external capability invoked via routing; MCP optional, MCP-like required.
+**Scheduler**: Central authority for task ordering, preemption, message routing, and HITL invocations. Authoritative source for system state and policy enforcement.
 
-**Worktree**: Git worktree bound to an Agent.
+### Supporting Components
 
-**Communication Class**: agent-level preference for routing (PRIVILEGED, STANDARD, BULK).
+**Inference Engine**: Decision support service that an Agent uses to inform its own state changes and decision-making. Each Agent MAY have its own Inference Engine that employs algorithms, ML models, LLMs, or rule systems. An Agent's Inference Engine MUST NOT directly mutate other Agents' or the Scheduler's state. The Inference Engine SHOULD return confidence scores for its recommendations to the Agent.
 
-**Connector**: binding to a Tool provider or Reasoning Engine.
+**Tool**: External capability invokable by Agents. Enables interaction with external systems, databases, or APIs. Tools MUST expose MCP-like descriptive interfaces that Agents use for capability discovery and invocation.
+
+**Worktree**: Git worktree bound to specific Agent. Provides isolated filesystem access for repository operations, enabling safe concurrent operations on shared codebases.
+
+### Communication and Coordination
+
+**Communication Class**: Agent routing preference affecting message priority and delivery. Three classes: PRIVILEGED (high-priority, low-latency), STANDARD (normal traffic), BULK (high-volume, latency-tolerant).
+
+**Connector**: Protocol adapter for Tool/Inference Engine integration. Handles protocol translation, capability negotiation, and lifecycle management.
 
 ## 4. Architecture
 
-Components: Scheduler, Agents, routed Messaging plane, HITL service, optional Tool/Connector layer, Observability sink. All inter-component RPCs SHALL use gRPC. The Scheduler maintains authoritative task and message state, performs reconciliation, and is the only entity that may preempt execution or escalate to HITL. Routing is **unicast** in this version. HLC MAY be enabled for causal analysis.
+The SW4RM framework employs a hub-and-spoke architectural pattern with the Scheduler serving as the central coordination hub and Agents operating as autonomous spokes. This design choice prioritizes system-wide consistency and coordination over fully distributed decision-making, reflecting the framework's focus on managing complex, interdependent tasks that require careful orchestration.
+
+### Core Components
+
+The architecture comprises several key components that work together to provide reliable, coordinated task execution:
+
+**Scheduler (Central Hub)**: The Scheduler serves as the authoritative coordinator for all system operations. It maintains definitive state for both task queues and message routing, performs system-wide reconciliation operations, and serves as the exclusive authority for execution preemption and Human-In-The-Loop escalations. This centralized approach ensures global consistency and enables sophisticated scheduling policies that consider system-wide resource constraints and task dependencies.
+
+**Agents (Execution Nodes)**: Agents operate as semi-autonomous execution environments that register their capabilities with the Scheduler, receive task assignments, and execute work within their designated domains. Each Agent maintains its own execution context and local state while participating in the broader coordination protocols. Agents communicate exclusively through the central routing infrastructure, ensuring that all interactions are observable and controllable by the Scheduler.
+
+**Routed Messaging Plane**: The messaging infrastructure provides reliable, ordered communication between all framework components. Messages follow explicit lifecycle protocols from creation through terminal states, enabling robust error handling and system recovery. The routing layer enforces communication policies, manages message priorities based on Communication Classes, and provides the foundation for system observability.
+
+**Human-In-The-Loop (HITL)**: Capability for human operator intervention when escalation conditions are met. The Scheduler MUST provide interfaces for handling policy violations, conflict resolution scenarios, security approvals, and other situations requiring human judgment or oversight.
+
+**Tool and Connector Layer (Optional)**: Layer for Agents to interact with external systems through standardized interfaces. Tools provide specific capabilities (database access, API integration, specialized processing), while Connectors handle the protocol adaptation and lifecycle management required for these integrations.
+
+**Observability Sink**: Observability infrastructure captures, correlates, and stores telemetry data from all framework components. This enables system monitoring, debugging, audit trails, and performance analysis across the distributed system.
+
+### Communication Protocols
+
+All inter-component communication operates over gRPC protocols, providing strong typing, efficient serialization, and robust error handling. This choice enables reliable communication patterns while supporting both unary request-response interactions and streaming data flows as needed for different operational scenarios.
+
+The current architecture specification defines **unicast** routing semantics, where each message is delivered to a single designated recipient. This design simplification reduces complexity in the initial protocol version while maintaining the architectural foundation needed to support multicast or broadcast patterns in future iterations.
+
+### State Management and Consistency
+
+The Scheduler maintains authoritative state for all system-wide concerns, including task queues, agent registrations, message routing tables, and policy configurations. This centralized state management approach enables strong consistency guarantees and simplifies reasoning about system behavior, particularly important for managing complex task dependencies and resource conflicts.
+
+### Optional Enhancements
+
+**Hybrid Logical Clocks (HLC)**: Implementations MAY enable HLC timestamping to support causal relationship analysis across the distributed system. This capability can enhance debugging, audit trails, and system analysis without impacting the core coordination protocols.
+
+For example, when Agent A sends a task completion message that triggers Agent B to start a related task, HLC timestamps enable precise causal ordering analysis:
+
+```
+Agent A completes task: HLC="1725552000.000001.node-a"
+Agent B receives notification: HLC="1725552000.000002.node-b" 
+Agent B starts dependent task: HLC="1725552000.000003.node-b"
+```
+
+The HLC format combines physical time (Unix microseconds), logical counter, and node identifier, enabling operators to reconstruct the precise causal chain even when wall-clock times differ across hosts. This is particularly valuable for debugging race conditions and analyzing complex multi-agent interaction patterns.
 
 ## 5. Transport
 
-gRPC unary + server-streaming. Define `.proto` contracts for Registry, Scheduler control, Routing, HITL, Logging, ToolService, ConnectorService, Negotiation, Worktree. Messages and streams SHALL carry `correlation_id` and MAY include an HLC timestamp.
+The framework's transport layer builds upon gRPC to provide reliable, type-safe communication between all system components. This choice reflects the need for robust inter-process communication that can handle both request-response patterns and streaming data flows while maintaining strong typing and efficient serialization.
 
-### 5.1. Service Health (Non‑Normative Recommendation)
+### 5.1. Protocol Foundation
 
-While this protocol does not mandate a health signaling mechanism, we RECOMMEND implementing the gRPC Health Checking Protocol (`grpc.health.v1.Health`) for service readiness/liveness integration. This enables:
+The transport layer employs a hybrid approach combining gRPC unary RPCs for synchronous operations and server-streaming RPCs for scenarios requiring real-time data delivery or long-lived connections. This combination provides the flexibility needed for diverse communication patterns within the framework while maintaining the benefits of gRPC's protocol buffers and HTTP/2 foundation.
 
-- Kubernetes gRPC probes for `readinessProbe`/`livenessProbe` where supported.
-- CLI checks with `grpcurl` or `grpc-health-probe`.
+**HTTP Version Requirements**: While gRPC implementations typically prefer HTTP/2 for optimal performance (multiplexing, header compression, flow control), the framework MUST support HTTP/1.1 fallback to ensure broad deployment compatibility. Many enterprise environments, proxy configurations, and network appliances may not fully support HTTP/2, making HTTP/1.1 compatibility essential for production deployments. However, implementations SHOULD prefer HTTP/2 when available to benefit from improved performance characteristics.
 
-Implementations that cannot adopt gRPC Health SHOULD expose a minimal HTTP `/healthz` endpoint for basic liveness.
+All framework components MUST expose interfaces that conform to the canonical protobuf contracts. The canonical `.proto` files are versioned with this specification and serve as the single source of truth. Official SW4RM SDKs SHOULD distribute generated stubs by default and MAY include the canonical `.proto` sources for consumers who wish to regenerate. Each SDK release SHOULD reference the canonical proto artifact for the same version (for example, a tarball attached to the spec release). Implementations MUST NOT modify canonical messages or services; extensions MUST use separate packages or namespaces.
+
+**Core Process Interfaces:**
+
+- **Registry Service**: Agent registration, capability advertisement, and discovery (separate process)
+- **Scheduler Interface**: Task submission, priority management, execution control, and message routing (single process combining scheduler and router functions)
+- **HITL Interface**: Human intervention and escalation handling capability
+
+**Embedded Component Interfaces:**
+
+- **Observability Interface**: Telemetry collection, audit trails, and observability data (adapters embedded in each process)
+- **Tool Interface**: External capability invocation and result handling (adapters embedded within agents)
+- **Connector Interface**: Integration adapter management and protocol translation (embedded adapters for external services)
+- **Worktree Interface**: Repository isolation and workspace management (component embedded within agents)
+
+**Protocol-Level Interfaces:**
+
+- **Negotiation Protocol**: Inter-agent collaboration and consensus building (direct agent-to-agent communication coordinated by scheduler, not a separate service)
+
+### 5.2. Message Correlation and Tracing
+
+All messages and stream communications MUST include a `correlation_id` field that enables tracking of related operations across component boundaries. This correlation mechanism is essential for debugging distributed operations, implementing proper error handling, and maintaining audit trails for complex multi-step processes.
+
+Implementations MAY include Hybrid Logical Clock (HLC) timestamps in messages to support sophisticated causal analysis and ordering relationships. When HLC timestamps are enabled, they provide valuable debugging and analysis capabilities without impacting the core functional requirements of the protocol.
+
+### 5.3. Service Health and Readiness (Implementation Guidance)
+
+While this protocol specification does not mandate specific health signaling mechanisms, operational deployments benefit significantly from standardized health checking. Implementations SHOULD implement the gRPC Health Checking Protocol (`grpc.health.v1.Health`) to enable seamless integration with modern deployment and orchestration platforms.
+
+This approach provides several operational benefits:
+
+- **Container Orchestration Integration**: Kubernetes and similar platforms can leverage gRPC health probes for `readinessProbe` and `livenessProbe` configurations where supported, enabling more sophisticated health monitoring than simple TCP connectivity checks.
+
+- **Administrative Tooling**: Command-line administrative tools can use standard utilities like `grpcurl` or `grpc-health-probe` to verify service status and diagnose connectivity issues without requiring framework-specific tooling.
+
+- **Load Balancer Integration**: gRPC-aware load balancers can use health check results to make intelligent routing decisions, improving overall system reliability.
+
+For implementations that cannot adopt the standard gRPC Health Checking Protocol due to technical constraints, implementations SHOULD expose a minimal HTTP `/healthz` endpoint that provides basic liveness indication. This fallback approach ensures that even simplified implementations can integrate with standard monitoring and orchestration tooling.
 
 ## 6. Identity and Security
 
-Stable `agent_id`. Signing is pluggable: MAY be disabled locally; MUST be enabled in distributed/multi-tenant mode (Ed25519/ECDSA over metadata+payload; keys via registry handshake). ACLs MUST constrain message types and tools. Worktree confinement MUST be enforced at the syscall boundary.
+Security within the SW4RM framework operates on multiple layers to provide comprehensive protection while maintaining operational flexibility. The security model adapts to different deployment scenarios, from single-user development environments to multi-tenant production systems, ensuring that appropriate security measures are applied based on the threat model and operational requirements.
 
-## 7. Scheduler: Priority, Ordering, Cooperative Preemption
+### 6.1. Agent Identity Management
 
-**Task** priority: −19 (highest) to 20 (lowest); default 0. Order by priority then FIFO. If a new task has strictly higher priority, the Scheduler MUST preempt the running task. **Cooperative** by default: agents implement safe points; agents MAY declare bounded **non-preemptible sections** for critical regions; Scheduler defers preemption until section closes or timeout elapses. Forced preemption MAY be issued (soft terminate with grace → hard kill), marking task FAILED with `error_code=forced_preemption`.
+Each Agent within the framework maintains a stable `agent_id` that serves as its persistent identity across system restarts, reconnections, and other operational events. This stable identity enables consistent policy application, audit trail correlation, and long-term operational tracking.
 
-**Communication Class**: PRIVILEGED messages insert into an urgent lane to run **next after** the in-flight message (no hard preempt). Rate-limit urgent bursts; overflow falls back to normal insertion.
+The Agent identity system is designed to support various authentication mechanisms depending on the deployment context and security requirements. In single-user, localhost deployments where the threat model primarily concerns operational safety rather than adversarial security, simpler identity schemes MAY be appropriate. However, distributed deployments and multi-tenant environments require more robust identity assurance mechanisms.
 
-## 8. Agent Lifecycle
+### 6.2. Message Authentication and Integrity
 
-States: INITIALIZING, RUNNABLE, SCHEDULED, RUNNING, WAITING, WAITING\_RESOURCES, SUSPENDED, RESUMED, COMPLETED, FAILED, SHUTTING\_DOWN, RECOVERING. In SHUTTING\_DOWN the agent MAY finish its current task; Scheduler MUST NOT dispatch new tasks/messages; on grace timeout mark FAILED (`agent_shutdown_timeout`).
+The framework provides a pluggable message signing architecture that MAY be adapted to different security requirements:
 
-## 9. Concurrency Model and Reasoning
+**Development and Single-User Deployments**: Message signing MAY be disabled in environments where all components operate within a trusted boundary (such as a developer's local machine). This reduces operational complexity and performance overhead while maintaining the framework's coordination and safety properties.
 
-`max_parallel_instances` per agent. Two instances MUST NOT process the same job unless HITL authorizes. Jobs carry a **scope** descriptor for conflict assessment. For potentially overlapping work, the Scheduler SHOULD consult the Reasoning Engine. If a returned `confidence_score` is below threshold, escalate via HITL (`CONFLICT`). If engine is down, act conservatively and escalate unless policy allows unconditional parallelism.
+**Distributed and Multi-Tenant Deployments**: Message signing MUST be enabled when the framework operates across network boundaries or supports multiple tenants. The signing mechanism employs modern cryptographic algorithms (Ed25519 or ECDSA) applied over both message metadata and payload content. Cryptographic keys are distributed and managed through the registry handshake process, ensuring that all participants can verify message authenticity and integrity.
+
+The choice of cryptographic algorithms reflects current best practices in secure communications, with Ed25519 preferred for its performance characteristics and ECDSA available for environments requiring NIST-approved algorithms.
+
+### 6.3. Access Control and Authorization
+
+The framework MAY implement comprehensive Access Control Lists (ACLs) that constrain multiple dimensions of system access:
+
+**Message Type Authorization**: ACLs MAY control which Agents can send and receive specific message types. This prevents unauthorized Agents from sending privileged control messages or accessing sensitive data channels.
+
+**Tool Access Control**: ACLs MAY govern which Agents can invoke specific Tools and with what parameters. This is particularly critical for Tools that interact with external systems, modify persistent state, or access sensitive resources.
+
+**Resource Scope Authorization**: ACLs MAY consider the scope and context of operations, enabling fine-grained control over what resources each Agent can access and modify.
+
+### 6.4. Worktree Isolation and Confinement
+
+Implementations SHOULD restrict agent filesystem access to designated worktree directories and prevent unauthorized access to system files or other agents' data:
+
+**Application-Level Enforcement**: Implementations MUST validate that Agent filesystem operations remain within designated worktree boundaries through path canonicalization and access validation. This provides basic protection against accidental misuse and programming errors.
+
+**Operating System Isolation**: Implementations MAY leverage operating system mechanisms for additional confinement, such as chroot jails, filesystem namespaces, container isolation, or security policy frameworks (AppArmor, SELinux). The choice of mechanism depends on deployment requirements, platform capabilities, and security posture.
+
+**Path Traversal Protection**: All implementations MUST prevent path traversal attacks (e.g., "../../../etc/passwd") through input validation and path canonicalization before performing filesystem operations.
+
+**Additional Resource Considerations**: Implementations MAY extend confinement beyond filesystem access to include network access restrictions, process spawning limitations, and inter-process communication controls, depending on the deployment threat model and operational requirements.
+
+### 6.5. Security Considerations for Different Deployment Models
+
+The framework's security requirements vary significantly based on deployment context and threat model. Implementations SHOULD adapt their security posture to match the operational environment while maintaining a baseline level of protection appropriate to the deployment scenario.
+
+**Single-User Development Deployments**: In environments where a single developer operates all framework components on a trusted local system, implementations MAY relax authentication requirements and focus security measures on operational safety. The primary security concerns in this context are preventing accidental data corruption, resource exhaustion, and configuration errors that could impact system stability. Message signing MAY be disabled, and access controls MAY be simplified to reduce operational overhead.
+
+**Multi-User Shared System Deployments**: When multiple users share framework resources on a common system, implementations MUST implement user-to-user isolation mechanisms. Each user's Agents MUST operate within distinct security boundaries that prevent access to other users' data, configurations, or system resources. Implementations SHOULD enforce process-level isolation, filesystem access controls, and resource quotas to ensure fair sharing and prevent interference between users.
+
+**Multi-Tenant Production Deployments**: Production environments serving multiple organizational tenants require comprehensive security measures. Implementations MUST provide strong authentication for all participants, comprehensive authorization controls for all operations, complete audit trails for compliance and forensic analysis, and defense-in-depth protections against both external attackers and malicious insiders. All communications MUST be signed and optionally encrypted, and all access decisions MUST be logged and auditable.
+
+## 7. Scheduler: Priority, Ordering, and Cooperative Preemption
+
+The Scheduler component serves as the central coordination authority for task execution, implementing sophisticated priority management and preemption policies that balance system responsiveness with operational stability. The design philosophy emphasizes cooperative coordination over forceful interruption, reflecting the framework's focus on maintaining system consistency and data integrity during complex, long-running operations.
+
+### 7.1. Task Priority System
+
+Implementations MUST support a task priority system with integer values ranging from -19 (highest priority) to 20 (lowest priority). The default priority level MUST be 0. This priority range provides 40 distinct priority levels, enabling fine-grained scheduling control while maintaining compatibility with Unix process priority conventions.
+
+**Priority-Based Task Ordering**: The Scheduler MUST order tasks first by numerical priority value (lower numbers indicating higher priority), then by arrival time within each priority level using First-In-First-Out (FIFO) semantics. Tasks with priority -19 MUST be scheduled before tasks with priority -18, and so forth. Within a single priority level, tasks MUST be ordered by their submission timestamp.
+
+**Preemption Requirements**: When a new task is submitted with a priority value numerically lower (higher priority) than the currently executing task's priority, the Scheduler MUST initiate a preemption sequence for the running task. The Scheduler MUST NOT initiate preemption for tasks of equal or lower priority. This requirement ensures that urgent tasks receive immediate scheduling attention without unnecessary interruption of equal-priority work.
+
+### 7.2. Cooperative Preemption Model
+
+Implementations MUST implement cooperative preemption mechanisms that prioritize data integrity and system consistency over immediate task termination. Schedulers MUST NOT forcefully terminate tasks without first attempting cooperative preemption sequences, as abrupt termination can result in data corruption, resource leaks, or inconsistent system state.
+
+**Safe Point Requirements**: Agents MUST implement designated safe points within their execution logic where preemption can occur without compromising data integrity or system consistency. Safe points MUST be positioned at transaction boundaries, after completing discrete operations, or at other points where the Agent's state remains consistent if execution is interrupted. Agents MUST respond to preemption requests when execution reaches a safe point.
+
+**Non-Preemptible Section Declaration**: Agents MAY declare bounded non-preemptible sections for critical regions where interruption would cause data corruption or violate safety invariants. When declaring a non-preemptible section, Agents MUST specify a maximum duration timeout. Non-preemptible sections SHOULD be used sparingly and only for operations such as database transactions, atomic file system operations, or critical sections that maintain data structure invariants.
+
+**Scheduler Preemption Deferral**: The Scheduler MUST defer preemption requests when an Agent has declared a non-preemptible section that has not exceeded its specified timeout. The Scheduler MUST enforce the maximum duration limits declared by Agents. When a non-preemptible section exceeds its declared timeout, the Scheduler MAY escalate to forced preemption to maintain system responsiveness.
+
+**Forced Preemption Protocol**: When cooperative preemption fails or exceeds acceptable time limits, the Scheduler MAY initiate forced preemption. The forced preemption process MUST follow this sequence: first, the Scheduler MUST send a soft termination signal with a specified grace period; if the Agent fails to terminate within the grace period, the Scheduler MUST proceed to hard termination. Tasks terminated through forced preemption MUST be marked as FAILED with `error_code=forced_preemption` to distinguish them from normal task failures.
+
+### 7.3. Communication Class Priority Lanes
+
+Implementations MUST support differentiated message processing based on Communication Class designations. The message routing system MUST implement separate processing lanes for different traffic classes to provide Quality of Service guarantees.
+
+**PRIVILEGED Lane Requirements**: Messages marked with PRIVILEGED Communication Class MUST receive expedited processing through a dedicated urgent lane. The Scheduler MUST process PRIVILEGED messages immediately after the currently executing message completes, without initiating preemption of ongoing operations. PRIVILEGED messages MUST NOT cause hard preemption but MAY trigger cooperative preemption sequences.
+
+**Rate Limiting Requirements**: Implementations MUST implement rate limiting on the PRIVILEGED lane to prevent starvation of STANDARD and BULK traffic classes. When PRIVILEGED message traffic exceeds configured thresholds, implementations MUST redirect overflow messages to STANDARD processing queues. The rate limiting thresholds SHOULD be configurable by administrators.
+
+**Traffic Class Isolation**: The routing system MUST ensure that no single Communication Class can monopolize system resources. Implementations SHOULD implement fair queuing algorithms or weighted round-robin scheduling to balance resource allocation across all Communication Classes while respecting priority relationships.
+
+## 8. Agent Lifecycle Management
+
+Implementations MUST implement a comprehensive Agent lifecycle state machine that governs Agent behavior from startup through termination. The state machine MUST provide predictable state transitions and clear operational semantics for coordination between Agents and the Scheduler.
+
+### 8.1. Agent State Transitions
+
+Implementations MUST support the following Agent lifecycle states with their specified behavioral requirements and transition conditions:
+
+**INITIALIZING**: Agents in this state MUST perform initial configuration, capability discovery, and system integration. Agents MUST establish their identity, register with the Scheduler, and prepare their execution environment. Agents in INITIALIZING state MUST NOT accept task assignments from the Scheduler.
+
+**RUNNABLE**: Agents in this state MUST be available to receive task assignments from the Scheduler. This represents the normal idle state where Agents MUST indicate their readiness to accept work but are not currently executing tasks.
+
+**SCHEDULED**: Agents in this state have received a task assignment from the Scheduler but MUST NOT begin task execution until transitioning to RUNNING state. This intermediate state allows for scheduling coordination and resource preparation.
+
+**RUNNING**: Agents in this state MUST actively execute their assigned task. Agents MAY interact with Tools and external systems during execution and SHOULD communicate progress updates to the Scheduler. This is the primary productive state for Agent operations.
+
+**WAITING**: Agents in this state MUST temporarily suspend task execution while waiting for external events (user input, external service responses, or coordination with other Agents). The task assignment MUST remain with the Agent, but execution MUST be suspended until the awaited event occurs.
+
+**WAITING_RESOURCES**: Agents in this state MUST suspend execution when required resources (memory, disk space, exclusive locks) are unavailable. This state enables resource-aware scheduling and prevents resource exhaustion. Agents MUST transition to RUNNING when resources become available.
+
+**SUSPENDED**: Agents in this state MUST pause execution in response to Scheduler requests, typically for higher-priority task preemption or system maintenance. Agents MUST preserve their execution state and MUST be capable of resuming when conditions permit.
+
+**RESUMED**: Agents in this state MUST transition back to active execution after being suspended. This intermediate state allows for state reconstruction and coordination before returning to the RUNNING state.
+
+**COMPLETED**: Agents in this state have successfully finished their assigned task and MUST perform cleanup operations and result reporting before transitioning to RUNNABLE state.
+
+**FAILED**: Agents in this state have encountered an unrecoverable error. Failed Agents MAY attempt automatic recovery or MAY require administrative intervention, depending on the failure type and configured policies.
+
+**SHUTTING_DOWN**: Agents in this state MUST perform graceful termination procedures. Agents MAY complete their current task if time permits, but the Scheduler MUST NOT dispatch new tasks to Agents in this state.
+
+**RECOVERING**: Agents in this state MUST attempt to recover from a previous failure. Recovery procedures MAY involve restarting processes, reconnecting to services, or rebuilding corrupted state. Recovery implementations SHOULD follow established patterns for reliability and MUST transition to either RUNNABLE (on success) or FAILED (on recovery failure).
+
+### 8.2. Shutdown and Grace Period Management
+
+Implementations MUST provide comprehensive shutdown procedures that maintain system reliability and data integrity:
+
+**Graceful Shutdown Requirements**: When an Agent transitions to SHUTTING_DOWN state, implementations MUST provide a configurable grace period during which the Agent MAY complete its current task. The Agent MUST NOT accept new task assignments during the grace period. If task completion would extend beyond the configured timeout, the Agent MUST terminate the task and report its incomplete status.
+
+**Grace Timeout Handling**: Implementations MUST monitor Agents in SHUTTING_DOWN state for grace period compliance. If an Agent exceeds its configured grace timeout, the Scheduler MUST mark it as FAILED with the error code `agent_shutdown_timeout`. This error code MUST be distinct from other failure modes to enable appropriate remediation.
+
+**Resource Cleanup Requirements**: Implementations MUST ensure complete cleanup of Agent-associated resources regardless of shutdown method (graceful or timeout). Resource cleanup MUST include temporary files, network connections, locks, and any other system resources. Implementations SHOULD implement resource tracking to ensure comprehensive cleanup.
+
+## 9. Concurrency Model and Inference Engine Integration
+
+Implementations MUST provide a comprehensive concurrency control system that prevents conflicts, data corruption, and inconsistent results when multiple Agents operate on potentially related tasks. The concurrency model is particularly critical in environments where Agents access shared resources such as code repositories, databases, or external systems.
+
+### 9.1. Parallel Instance Management
+
+Implementations MUST support configurable concurrency limits for Agent types through a `max_parallel_instances` parameter that constrains simultaneous execution of Agent instances of the same type.
+
+**Resource Protection Requirements**: The Scheduler MUST enforce `max_parallel_instances` limits to prevent resource exhaustion scenarios. When the limit is reached, additional task assignments for that Agent type MUST be queued until running instances complete or fail.
+
+**Concurrency Enforcement**: The Scheduler MUST track active instances per Agent type and MUST reject task assignments that would exceed the configured limit. The system MUST provide feedback to requesters when tasks are queued due to concurrency limits.
+
+**Configuration Requirements**: Implementations MUST allow administrators to configure `max_parallel_instances` values per Agent type. The system SHOULD provide reasonable defaults based on system capabilities and MAY adjust limits dynamically based on resource availability.
+
+### 9.2. Conflict Detection and Resolution
+
+Implementations MUST provide conflict detection mechanisms to prevent interference between concurrent Agent operations:
+
+**Job Uniqueness Enforcement**: The Scheduler MUST prevent two Agent instances from processing identical jobs simultaneously. Implementations MUST define job identity criteria and MUST reject duplicate job submissions unless explicitly authorized through Human-In-The-Loop intervention.
+
+**Scope-Based Conflict Analysis**: All task submissions MUST include descriptive scope metadata identifying resources, repositories, file paths, or other entities the task will access or modify. The Scheduler MUST analyze scope overlap between concurrent tasks to identify potential conflicts.
+
+**Conflict Resolution Requirements**: When the Scheduler detects potential scope conflicts between tasks, implementations SHOULD consult the Inference Engine for sophisticated conflict assessment. If Inference Engine consultation is unavailable, implementations MUST use conservative conflict resolution by default.
+
+### 9.3. Inference Engine Integration
+
+Implementations MAY integrate with external Inference Engines to provide sophisticated conflict analysis and decision support for concurrency control:
+
+**Confidence Score Requirements**: When consulted for conflict analysis, Inference Engines MUST return a `confidence_score` value between 0.0 and 1.0 indicating the confidence that operations can proceed safely in parallel. Higher scores indicate greater confidence in parallel execution safety.
+
+**Threshold-Based Escalation**: Implementations MUST support configurable confidence score thresholds for escalation decisions. When an Inference Engine returns a confidence score below the configured threshold, the Scheduler MUST escalate the decision to Human-In-The-Loop review with reason type `CONFLICT`.
+
+**Availability Handling**: When the Inference Engine is unavailable due to network issues, service failures, or maintenance, implementations MUST implement conservative fallback behavior. Unless explicit policy configuration permits unconditional parallelism for the specific operation type, implementations MUST escalate uncertain situations to HITL review.
+
+### 9.4. Operational Requirements
+
+**Safety Prioritization**: Implementations MUST prioritize safety and correctness over maximum performance in concurrency decisions. When conflict assessment is uncertain, implementations MUST choose serialization or human escalation rather than risk conflicts or data corruption.
+
+**Policy Configuration**: Implementations SHOULD provide policy mechanisms allowing administrators to configure parallelism behavior for specific operation types or Agent combinations. Policy overrides MUST be explicitly documented and SHOULD require administrative approval.
+
+**Monitoring Requirements**: Implementations SHOULD monitor concurrency patterns, Inference Engine confidence scores, and HITL escalation rates for operational visibility. Monitoring data MAY be used to identify optimization opportunities and policy tuning needs.
+
+**Decision Tracking**: Implementations SHOULD maintain records of HITL decisions and their outcomes to support continuous improvement of conflict prediction algorithms and policy refinement.
 
 ## 10. Activity Buffer
 
-Each agent maintains `<task_id, repo_id, worktree_id, branch, timestamp, description≤200 words>`. Create before execution; remove on completion. Scheduler reconciles and purges entries for COMPLETED/FAILED/unknown tasks. Buffer is advisory and MUST NOT block scheduling.
+Implementations MUST provide an Activity Buffer mechanism for tracking active Agent operations. Each Agent MUST maintain activity entries containing `<task_id, repo_id, worktree_id, branch, timestamp, description<=200 words>`. Agents MUST create activity entries before task execution begins and MUST remove entries upon task completion. The Scheduler MUST reconcile and purge entries for tasks in COMPLETED, FAILED, or unknown states. The Activity Buffer serves an advisory role and MUST NOT block task scheduling or execution.
+
+Purpose: The Activity Buffer provides operators and automation with a consistent, queryable view of in-flight work across Agents. It enables live dashboards, conflict analysis (who is touching which repo/worktree/branch), targeted HITL interventions with context, and post-incident audit. Implementations SHOULD offer filtered reads (by `agent_id`, `repo_id`, `worktree_id`, or `task_id`) and SHOULD retain a short history of recently completed items for troubleshooting. Implementations MAY expose a streaming feed of Activity Buffer mutations for observability.
 
 ## 11. Messaging Model
 
-Lifecycle: SENT → RECEIVED → READ → FULFILLED. Errors: REJECTED, FAILED, TIMED\_OUT, RETRYING. Default 10 s to `RECEIVED`; on timeout set `TIMED_OUT` and NACK with `ack_timeout`. Late ACKs MUST be reconciled.
+Implementations MUST support a comprehensive message lifecycle with explicit acknowledgment semantics. The message lifecycle MUST follow this sequence: SENT -> RECEIVED -> READ -> FULFILLED. Error states include: REJECTED, FAILED, TIMED_OUT, RETRYING. Implementations MUST use a default acknowledgment timeout of 10 seconds to RECEIVED state; on timeout implementations MUST set state to TIMED_OUT and send NACK with error code `ack_timeout`. Late acknowledgments MUST be reconciled against current message state.
 
-Note: `RECEIVED` serves as the acknowledgement stage in this protocol. There is no separate `ACKNOWLEDGED` state; acknowledgement semantics are encoded via `AckStage.RECEIVED`.
+Note: RECEIVED serves as the acknowledgment stage in this protocol. There is no separate ACKNOWLEDGED state; acknowledgment semantics are encoded via AckStage.RECEIVED.
 
-Every message MUST include:
-`message_id` (UUIDv4 per attempt), `producer_id`, `correlation_id` (UUIDv4), `sequence_number` (monotonic per producer stream), `retry_count`, `message_type` (CONTROL, DATA, HEARTBEAT, NOTIFICATION, ACKNOWLEDGEMENT, HITL\_INVOCATION, WORKTREE\_CONTROL, NEGOTIATION, TOOL\_CALL, TOOL\_RESULT, TOOL\_ERROR), and `content_type`/`content_length` when payload present. MAY include `idempotency_token` (constant across retries of same logical op). When HLC is enabled include `hlc_timestamp`. MAY include `ttl_ms` (expired → FAILED `ttl_expired`). Core error codes include: `buffer_full`, `no_route`, `ack_timeout`, `agent_unavailable`, `agent_shutdown`, `validation_error`, `permission_denied`, `unsupported_message_type`, `oversize_payload`, `tool_timeout`, `partial_delivery`(reserved), `forced_preemption`, `internal_error`.
+Every message MUST include the following fields:
+
+- `message_id`: UUIDv4 per attempt.
+- `producer_id`: sender identity.
+- `correlation_id`: UUIDv4 for end-to-end correlation (see 5.2).
+- `sequence_number`: monotonic per producer stream.
+- `retry_count`: incremented on each retry.
+- `message_type`: one of {CONTROL, DATA, HEARTBEAT, NOTIFICATION, ACKNOWLEDGEMENT, HITL_INVOCATION, WORKTREE_CONTROL, NEGOTIATION, TOOL_CALL, TOOL_RESULT, TOOL_ERROR}.
+- `content_type` and `content_length` when a payload is present.
+
+Messages MAY include:
+
+- `idempotency_token`: constant across retries of the same logical operation.
+- `ttl_ms`: expiration in milliseconds; expired messages transition to FAILED with `ttl_expired`.
+
+When HLC is enabled, messages MUST include `hlc_timestamp`.
+
+Implementations MUST support these core error codes: `buffer_full`, `no_route`, `ack_timeout`, `agent_unavailable`, `agent_shutdown`, `validation_error`, `permission_denied`, `unsupported_message_type`, `oversize_payload`, `tool_timeout`, `partial_delivery` (reserved), `forced_preemption`, `internal_error`.
 
 ### 11.1 Idempotency Guarantees
 
-`idempotency_token` MAY be supplied for exactly-once semantics. If present, MUST be constant across retries. The Scheduler SHALL maintain a cache mapping tokens to terminal outcomes for at least `deduplication_window` (default 3600 s; persisted).
-On arrival with token:
-• Token → terminal: return cached outcome (no re-exec).
-• Token → non-terminal: do not start new execution; return `ALREADY_IN_PROGRESS`.
-• New token: record RECEIVED and proceed.
-Tokens SHOULD follow `{producer_id}:{operation_type}:{deterministic_hash}` over canonical parameters. Router dedups by token if present; else by `(producer_id, sequence_number)`. Retries MUST generate new `message_id` while preserving token.
+Implementations MAY provide exactly-once semantics through `idempotency_token` usage. When present, idempotency tokens MUST remain constant across all retries of the same logical operation. The Scheduler MUST maintain a persistent cache mapping tokens to terminal outcomes for at least the configured `deduplication_window` (default 3600 seconds).
+
+On message arrival with idempotency token, implementations MUST handle as follows:
+
+- Token maps to terminal state: return cached outcome without re-execution.
+- Token maps to non-terminal state: do not start new execution; return `ALREADY_IN_PROGRESS`.
+- New token: record RECEIVED state and proceed with normal processing.
+
+Idempotency tokens SHOULD follow the format `{producer_id}:{operation_type}:{deterministic_hash}` computed over canonical parameters. The Router MUST perform deduplication by idempotency token when present; otherwise MUST deduplicate by `(producer_id, sequence_number)`. Retry operations MUST generate new `message_id` values while preserving the original idempotency token.
 
 ## 12. Addressing and Modalities
 
-**Unicast** only in this version. Payloads MUST declare `content_type`. Support `application/json`, `application/protobuf`; SHOULD support `text/plain`; MAY support `image/*`, `audio/*`. Router enforces agent modality declarations.
+Implementations MUST support unicast message delivery only in this protocol version. All message payloads MUST declare `content_type` using standard MIME type conventions. Implementations MUST support `application/json` and `application/protobuf` content types, SHOULD support `text/plain`, and MAY support `image/*` and `audio/*` content types. The Router MUST enforce Agent modality declarations and MUST reject messages with content types not supported by the target Agent.
 
 ## 13. Buffers and Back-Pressure
 
-Default inbound buffer per agent: 10; configurable. On overflow, reject with `buffer_full` and NACK sender. No silent drops. Scheduler SHOULD surface back-pressure metrics and MAY pace senders.
+Implementations MUST provide configurable inbound message buffers for each Agent. Implementations SHOULD default the buffer capacity to 10 messages unless configured otherwise. Ten is a conservative default chosen to reduce resource exhaustion risks in small deployments; operators SHOULD tune this based on throughput, service times, and latency objectives.
+
+When buffer capacity is exceeded, implementations MUST reject incoming messages with error code `buffer_full` and MUST send a NACK to the sender. Implementations MUST NOT silently drop messages under any circumstances. The Scheduler SHOULD expose back-pressure metrics for monitoring and MAY implement sender pacing mechanisms to reduce buffer overflow conditions.
+
+Example NACK on buffer exhaustion (representative JSON payload):
+
+```json
+{
+  "message_id": "5a1d9c8e-6b3f-4a87-8f5e-91a2c0ab1234",
+  "message_type": "ACKNOWLEDGEMENT",
+  "correlation_id": "7f3f41a2-2017-4b8f-9b8b-2ad3caaee001",
+  "content_type": "application/json",
+  "payload": {
+    "ack_for_message_id": "d2b6a7a9-0e0c-4f44-b2d9-6e9e24f0abcd",
+    "ack_stage": "REJECTED",
+    "error_code": "BUFFER_FULL",
+    "note": "Inbound buffer capacity exceeded for agent=agent-42"
+  }
+}
+```
+
+Recommended back-pressure metrics (names are illustrative):
+
+- `router.inbound_queue_depth{agent_id}`: current queue depth.
+- `router.inbound_queue_capacity{agent_id}`: configured queue capacity.
+- `router.enqueue_rejects_total{agent_id,reason}`: count of rejects by reason (e.g., buffer_full, oversize_payload).
+- `router.nacks_total{agent_id,error_code}`: NACKs emitted by error code.
+- `router.enqueue_latency_seconds{agent_id}`: time from receive to enqueue.
+- `agent.dequeue_latency_seconds{agent_id}`: time from enqueue to agent fetch.
+- `agent.process_time_seconds{agent_id}`: service time per message.
+- `router.oldest_enqueued_age_seconds{agent_id}`: age of oldest message in queue.
 
 ## 14. Registry, Discovery, Heartbeats
 
-Agents register with name, ≤200-word description, capabilities, communication class, modalities, tool descriptors, ≥1 Reasoning Engine connector, and public key if signing enabled. Scheduler emits heartbeats; agents MUST respond. Join/leave broadcast; recipients maintain discovery. Debounce before removal for missed heartbeats. Deregistration MUST be explicit.
+Agents MUST register with the Registry providing: name, description (<=200 words), capabilities list, communication class, supported modalities, tool descriptors, at least one Inference Engine connector, and public key (if message signing is enabled). The Scheduler MUST emit periodic heartbeats to registered Agents. Agents MUST respond to heartbeat requests within the configured timeout period. The Registry MUST broadcast join/leave events to all participants who MUST maintain local discovery state. Implementations MUST implement debounce mechanisms before removing Agents for missed heartbeats. Agent deregistration MUST be explicit and cannot occur solely due to missed heartbeats.
 
 ## 15. Human-In-The-Loop (HITL)
 
-Scheduler issues `HITL_INVOCATION` with `reason_type` in {CONFLICT, SECURITY\_APPROVAL, TASK\_ESCALATION, MANUAL\_OVERRIDE, WORKTREE\_OVERRIDE, DEBATE\_DEADLOCK, TOOL\_PRIVILEGE\_ESCALATION, CONNECTOR\_APPROVAL}. Context SHOULD include case facts and Reasoning metadata when present. HITL responds with `HITL_DECISION`; Scheduler applies immediately and logs.
+The Scheduler MUST support Human-In-The-Loop escalation for situations requiring human judgment or approval. The Scheduler MUST issue `HITL_INVOCATION` messages with `reason_type` values from this enumeration: {CONFLICT, SECURITY_APPROVAL, TASK_ESCALATION, MANUAL_OVERRIDE, WORKTREE_OVERRIDE, DEBATE_DEADLOCK, TOOL_PRIVILEGE_ESCALATION, CONNECTOR_APPROVAL}. HITL invocations SHOULD include contextual information such as case facts and Inference Engine metadata when available. Human operators MUST respond with `HITL_DECISION` messages. The Scheduler MUST apply HITL decisions immediately upon receipt and MUST log all HITL interactions for audit purposes.
+
+### 15.1 HITL Integration Expectations
+
+Implementations MUST support a HITL integration point that:
+
+- Authenticates the operator and authorizes decisions per policy.
+- Presents sufficient context for safe decision-making (facts, diffs, risk notes, prior attempts).
+- Accepts and emits a `HITL_DECISION` with a clear action (approve/deny/modify/defer) and rationale.
+- Enforces a decision deadline; on timeout, the Scheduler MUST apply the configured fallback (deny-by-default or auto-resolve) and record the outcome.
+- Logs all interactions for audit with who, when, why, and what changed.
+
+### 15.2 Message Shapes (Non-Normative)
+
+Representations may vary by transport; the following JSON illustrates expected fields only.
+
+HITL_INVOCATION payload:
+```json
+{
+  "invocation_id": "hitl-001",
+  "reason_type": "SECURITY_APPROVAL",
+  "correlation_id": "...",
+  "subject": {"repo_id": "...", "worktree_id": "...", "task_id": "..."},
+  "context_uri": "sw4rm://hitl/context/hitl-001",
+  "suggested_action": "approve",
+  "deadline_ts": "2025-08-24T12:00:00Z"
+}
+```
+
+HITL_DECISION payload:
+```json
+{
+  "invocation_id": "hitl-001",
+  "decision": "approve",
+  "rationale": "Policy thresholds met; low risk",
+  "patch_b64": null
+}
+```
+
+### 15.3 Absence of HITL Component
+
+Deployments without a HITL component MUST define policy for how to proceed. Options include deny-by-default (safer) or automatic decisions based on thresholds. The Scheduler MUST document and log which fallback was applied. Components MUST NOT block indefinitely waiting for human input when no HITL is available.
 
 ---
 
-## Appendix A — Protobuf Package Namespace
+## Appendix A - Protobuf Package Namespace
 
-The canonical `.proto` package namespace for this specification is `sw4rm.*`. Earlier drafts may show other prefixes; use `sw4rm.*` for conformance and code generation. See the `protos/` directory and the stubs below.
+The canonical `.proto` package namespace for this specification is `sw4rm.*`. Earlier drafts MAY show other prefixes; use `sw4rm.*` for conformance and code generation. See the `protos/` directory and the stubs below.
 
 ## 16. Repository and Worktree Binding
 
-Agents operate from a single **home worktree** (`repo_id`, `worktree_id`). Enforce confinement: forbid path escapes, forbid device nodes, prefer `noexec,nodev,nosuid` mounts; on weaker platforms, enforce via in-process VFS and dirfd-relative opens with `O_NOFOLLOW`. Non-home worktree operation is forbidden by default; Scheduler MAY request switch with policy + HITL approval. Binding state machine: UNBOUND → BOUND\_HOME → SWITCH\_PENDING → BOUND\_NON\_HOME → …; log transitions. `WORKTREE_CONTROL` ops: BIND, UNBIND, SWITCH\_REQUEST, SWITCH\_APPROVE, SWITCH\_REJECT, SWITCH\_REVOKE, STATUS. Tools with `needs_worktree=true` MUST fail with `worktree_not_bound` if agent is unbound.
+Implementations MUST support Agent binding to a single home worktree identified by (`repo_id`, `worktree_id`). Implementations MUST enforce worktree confinement by: forbidding path escape attempts, forbidding device node access, and preferring mount options `noexec,nodev,nosuid` where supported. On platforms with limited mount control, implementations MUST enforce confinement through in-process VFS controls and directory file descriptor relative opens with `O_NOFOLLOW`. Non-home worktree operation is forbidden by default; the Scheduler MAY request worktree switching with policy enforcement and HITL approval. Implementations MUST implement the worktree binding state machine: UNBOUND -> BOUND_HOME -> SWITCH_PENDING -> BOUND_NON_HOME, and MUST log all state transitions. Implementations MUST support `WORKTREE_CONTROL` operations: BIND, UNBIND, SWITCH_REQUEST, SWITCH_APPROVE, SWITCH_REJECT, SWITCH_REVOKE, STATUS. Tools with `needs_worktree=true` MUST fail with error code `worktree_not_bound` when invoked by unbound Agents.
 
-## 17. Inter-Agent Negotiation (“Debate”)
+## 17. Inter-Agent Negotiation ("Debate")
 
-Negotiations are scheduler-mediated, identified by `negotiation_id`, scoped by `correlation_id` (set equal to the `negotiation_id` for room semantics). Open with topic, participants, `debate_intensity_factor ∈ {LOWEST,LOW,MEDIUM,HIGH,HIGHEST}`; map intensity to guardrails (rounds/time/thresholds). Participants exchange PROPOSAL/COUNTER/EVALUATION messages in `NEGOTIATION`. Scheduler enforces `debate_timeout`; on deadlock/timeout, apply tie-break or escalate with `DEBATE_DEADLOCK`. At minimum support two-party unanimity. Negotiation does not mutate repos; subsequent CONTROL/DATA does.
+Implementations MUST support scheduler-mediated inter-Agent negotiations identified by `negotiation_id` and scoped by `correlation_id` (set equal to `negotiation_id` for room semantics). Negotiations MUST be opened with: topic, participant list, and `debate_intensity_factor` from {LOWEST,LOW,MEDIUM,HIGH,HIGHEST}. Implementations MUST map intensity levels to appropriate guardrails including round limits, time limits, and score thresholds. Participants MUST exchange PROPOSAL/COUNTER/EVALUATION messages using `NEGOTIATION` message type. The Scheduler MUST enforce `debate_timeout` limits and MUST handle deadlock/timeout conditions by applying tie-breaking rules or escalating with `DEBATE_DEADLOCK` reason type. Implementations MUST support at minimum two-party unanimity negotiation protocols. Negotiations MUST NOT directly mutate repository content; subsequent CONTROL/DATA messages perform the agreed changes.
 
 ### 17.1 Negotiation Event Fanout (JSON over Envelopes)
 
 For interoperability with SDKs, negotiation events are carried as `NEGOTIATION` envelopes whose payload is a JSON object. Implementations MUST preserve raw payload bytes and `correlation_id`. Unknown fields MUST be ignored by receivers. The following event kinds are defined:
 
 - `open`: `{ kind, ts, topic: string, corr: string }`
-- `policy`: `{ kind, ts, negotiation_id: string, profile?: string, policy: WagglePolicy }`
+- `policy`: `{ kind, ts, negotiation_id: string, profile?: string, policy: NegotiationPolicy }`
 - `propose`: `{ kind, ts, from: string, ct: string, payload_b64: string }`
 - `counter`: `{ kind, ts, from: string, ct: string, payload_b64: string }`
 - `evaluate`: `{ kind, ts, from: string, score: number, notes: string }`
@@ -150,13 +489,13 @@ Notes:
 
 SDK interop note:
 
-- SDKs may parse these negotiation event payloads as opaque JSON and expose lightweight helpers (e.g., base64 decode for `payload_b64`/`result_b64`). Implementations MAY additionally provide convenience types for policy-related fields (e.g., WagglePolicy/EffectivePolicy) without changing the over-the-wire JSON shapes.
+- SDKs can parse these negotiation event payloads as opaque JSON and expose lightweight helpers (e.g., base64 decode for `payload_b64`/`result_b64`). Implementations MAY additionally provide convenience types for policy-related fields (e.g., NegotiationPolicy/EffectivePolicy) without changing the over-the-wire JSON shapes.
 
-### 17.2 Waggle Policy and Effective Policy
+### 17.2 Negotiation Policy and Effective Policy
 
-The Scheduler is the source of truth for negotiation policy. On `Open`, the Scheduler MUST derive an `EffectivePolicy` from a base `WagglePolicy` and any clamped `AgentPreferences`, then broadcast a `policy` event (see 17.1). Policy MAY be selected by a profile hint provided at `Open`; the authoritative policy remains in the Scheduler.
+The Scheduler is the source of truth for negotiation policy. On `Open`, the Scheduler MUST derive an `EffectivePolicy` from a base `NegotiationPolicy` and any clamped `AgentPreferences`, then broadcast a `policy` event (see 17.1). Policy MAY be selected by a profile hint provided at `Open`; the authoritative policy remains in the Scheduler.
 
-The base `WagglePolicy` includes at least: `max_rounds: u32`, `score_threshold: f32 (0..1)`, `diff_tolerance: f32 (0..1)`, `round_timeout_ms: u64`, `token_budget_per_round: u64`, optional `total_token_budget: u64`, `oscillation_limit: u32`, `hitl` gate (`None|PauseBetweenRounds|PauseOnFinalAccept`), and `scoring` knobs (`require_schema_valid`, `require_examples_pass`, `llm_weight: f32`).
+The base `NegotiationPolicy` includes at least: `max_rounds: u32`, `score_threshold: f32 (0..1)`, `diff_tolerance: f32 (0..1)`, `round_timeout_ms: u64`, `token_budget_per_round: u64`, optional `total_token_budget: u64`, `oscillation_limit: u32`, `hitl` gate (`None|PauseBetweenRounds|PauseOnFinalAccept`), and `scoring` knobs (`require_schema_valid`, `require_examples_pass`, `llm_weight: f32`).
 
 The `EffectivePolicy` is the scheduler-owned, per-negotiation policy after clamping agent preferences to scheduler guardrails. Implementations MUST persist the effective policy per room and include it in the broadcast.
 
@@ -164,7 +503,7 @@ The `EffectivePolicy` is the scheduler-owned, per-negotiation policy after clamp
 
 Implementations SHOULD support early validation of proposals using JSON Schema and executable examples. Invalid drafts MUST be rejected without consuming a round.
 
-Per round, implementations SHOULD compute and record a structural JSON `DeltaSummary` with a bounded `magnitude` and set of `changed_paths`. Deterministic scoring MUST run first; optional Reasoning/LLM confidence in [0,1] MAY be blended per policy `llm_weight`. Acceptance and stop decisions MUST follow `EffectivePolicy` (thresholds, oscillation/tokens/time budgets). Optional HITL pause is enforced per policy.
+Per round, implementations SHOULD compute and record a structural JSON `DeltaSummary` with a bounded `magnitude` and set of `changed_paths`. Deterministic scoring MUST run first; optional Inference Engine/LLM confidence in [0,1] MAY be blended per policy `llm_weight`. Acceptance and stop decisions MUST follow `EffectivePolicy` (thresholds, oscillation/tokens/time budgets). Optional HITL pause is enforced per policy.
 
 ### 17.4 Reports and Artifacts
 
@@ -172,39 +511,124 @@ Implementations SHOULD emit and persist structured records per round: `Evaluatio
 
 ## 18. MCP Integration and Tool Calling
 
-Tool calling is first-class; MCP optional, MCP-like required. `TOOL_CALL` includes `tool_name`, `provider_id`, typed `args`, `content_type`, `execution_policy` (timeout, retries, isolation, budgets), optional `stream=true`. Scheduler assigns `call_id`; provider returns `TOOL_RESULT` (frames if streaming) or `TOOL_ERROR`. Idempotent tools MUST ensure retries are safe or compensated. Providers run under invoking agent’s confinement and ACLs. MCP providers expose manifests + schema; non-MCP expose DescribeTools. Each Agent MUST register ≥1 Reasoning connector; Scheduler MAY proxy calls.
+Tool calling is a first-class feature. MCP compatibility is OPTIONAL. Implementations MUST provide MCP-like tool descriptors.
+
+### 18.1 Discovery and Descriptors
+
+Providers MUST advertise tool metadata and schemas. MCP providers SHOULD expose a manifest and JSON schemas per the Model Context Protocol. Non-MCP providers SHOULD expose an equivalent `DescribeTools` interface listing names, input/output schemas, side-effect classes, and capability requirements (filesystem paths, network egress, process spawn, GPU, etc.).
+
+### 18.2 Invocation Semantics
+
+A `TOOL_CALL` message includes `tool_name`, `provider_id`, typed `args`, `content_type`, and an `execution_policy` (timeouts, retries, isolation, budgets). Optional `stream=true` enables server-streaming results. The Scheduler assigns a `call_id` and routes the request. The provider returns `TOOL_RESULT` (frames if streaming) or `TOOL_ERROR`.
+
+Idempotent tools MUST ensure that retries are safe or compensated. Providers MUST run under the invoking Agent's confinement and ACLs. The Scheduler MAY proxy calls.
+
+Representative JSON (non-normative):
+
+```json
+{
+  "message_type": "TOOL_CALL",
+  "correlation_id": "6ae58b74-4e19-4b2f-9e7a-1a1a1fd2d001",
+  "payload": {
+    "call_id": "tool-9f5c",
+    "tool_name": "write_file",
+    "provider_id": "fs",
+    "args": {"path": "docs/README.md", "content_b64": "..."},
+    "content_type": "application/json",
+    "execution_policy": {"timeout_ms": 5000, "retries": 1, "isolation": "worktree"},
+    "stream": false
+  }
+}
+```
+
+```json
+{
+  "message_type": "TOOL_RESULT",
+  "correlation_id": "6ae58b74-4e19-4b2f-9e7a-1a1a1fd2d001",
+  "payload": {
+    "call_id": "tool-9f5c",
+    "status": "OK",
+    "result_b64": "...",
+    "content_type": "application/json"
+  }
+}
+```
+
+On error:
+
+```json
+{
+  "message_type": "TOOL_ERROR",
+  "correlation_id": "6ae58b74-4e19-4b2f-9e7a-1a1a1fd2d001",
+  "payload": {
+    "call_id": "tool-9f5c",
+    "error_code": "TOOL_TIMEOUT",
+    "note": "Execution exceeded timeout"
+  }
+}
+```
+
+### 18.3 Errors and Retries
+
+Providers MUST map failures to structured error codes (e.g., `TOOL_TIMEOUT`, `VALIDATION_ERROR`, `PERMISSION_DENIED`). Callers SHOULD implement bounded retries for transient errors and MUST NOT retry non-idempotent tools unless explicitly compensated.
+
+### 18.4 Security and Isolation
+
+Tool execution MUST honor confinement and capability policies (see 6.4 and PROTOCOL_ENHANCEMENTS.md §4.5). Default posture SHOULD be deny-by-default with explicit grants for filesystem, network, and process privileges.
 
 ## 19. Observability
 
-Log every state transition and event with timestamp (UTC ISO-8601), `correlation_id`, actor, event type, details. Flag urgent-lane dispatches; track per-agent urgent burst usage and warn on starvation risk. Streaming tool calls record frame counts + byte totals. Include `repo_id`/`worktree_id` and `negotiation_id` where relevant. For idempotency, log cache decisions and link to original attempt.
+Implementations MUST log every state transition and event with a timestamp (UTC ISO-8601), `correlation_id`, actor, event type, and details. Implementations SHOULD flag urgent-lane dispatches, track per-agent urgent burst usage, and warn on starvation risk. For streaming tool calls, implementations SHOULD record frame counts and byte totals. Logs SHOULD include `repo_id`/`worktree_id` and `negotiation_id` where relevant. For idempotent operations, implementations MUST log cache decisions and link to the original attempt.
 
 ## 20. Defaults and Operational Considerations
 
-Defaults: ACK 10s to RECEIVED; inbound buffer 10; task priority 0; idempotency `deduplication_window=3600s` (persisted). Reasoning Engine unreachable → conservative behavior: deny risky parallelism, shorten debates, escalate to HITL as policy requires.
+Defaults: ACK 10s to RECEIVED; inbound buffer 10; task priority 0; idempotency `deduplication_window=3600s` (persisted). If the Inference Engine is unreachable, implementations SHOULD adopt conservative behavior: deny risky parallelism, shorten debates, and escalate to HITL as policy requires.
 
 ## 21. Error Handling
 
-Set terminal state (REJECTED/FAILED/TIMED\_OUT) with `error_code`. NACKs include precipitating `message_id`, failed stage, error code. Late-ACK reconciliation MUST correct to truthful terminal stage. For idempotent duplicates, return `DUPLICATE_DETECTED` with original attempt ID, status, cached result/error, and `cached_at`.
+On error, implementations MUST set a terminal state (`REJECTED`, `FAILED`, or `TIMED_OUT`) and include an `error_code`. Negative acknowledgments (NACKs) MUST include the precipitating `message_id`, failed stage, and `error_code`. Late acknowledgments MUST be reconciled to the truthful terminal state. For idempotent duplicates, implementations MUST return `DUPLICATE_DETECTED` with the original attempt ID, status, cached result or error, and `cached_at`.
 
 ## 22. Conformance
 
-Implement §§7–8, §9, §10, §11–11.1, §12–§16, §17–§19. MCP compatibility is OPTIONAL; MCP-like tool descriptors are REQUIRED.
+Implement Sections 7-8, 9, 10, 11-11.1, 12-16, and 17-19. MCP compatibility is OPTIONAL. MCP-like tool descriptors MUST be provided.
 
 ## 23. Security Considerations
 
-Signing risks without key hygiene; document rotation/revocation. PRIVILEGED lane can starve; rate-limit and monitor. Worktree confinement at syscall boundary; forbid symlink escape/device nodes. HITL decisions SHOULD be authenticated. Reasoning outputs are advisory; bound by policy. Protect idempotency cache from poisoning; derive tokens from stable, authenticated parameters.
+Implementations MUST define key rotation and revocation procedures to mitigate signing risks. Deployments MUST rate-limit and monitor PRIVILEGED lane usage to prevent starvation. Worktree confinement MUST prohibit symlink traversal and device node access, and SHOULD enforce syscall-level boundaries where feasible. HITL decisions SHOULD be authenticated. Inference Engine outputs are advisory and MUST be bounded by policy. Idempotency caches MUST be protected against poisoning and MUST derive tokens from stable, authenticated parameters.
 
 ## 24. Implementation Notes (Non-Normative)
 
-Redact secrets; set retention policies. Consider hard ceilings or mandatory interleave for urgent-lane fairness. Prefer idempotent tools for mutations; gate non-idempotent with policy/HITL. HLC is advisory; document skew budgets and never use HLC alone for correctness-critical ordering. Version and log Reasoning requests/responses.
+Implementations SHOULD redact secrets and set appropriate retention policies. Consider hard ceilings or mandatory interleave for urgent-lane fairness. Prefer idempotent tools for mutations; gate non-idempotent operations with policy and HITL. HLC is advisory; document skew budgets and MUST NOT use HLC alone for correctness-critical ordering. Implementations SHOULD version and log Inference Engine requests and responses.
 
 ## 25. Future Work (Non-Normative)
 
-Scheduler HA (WAL + leader election + replay), group addressing, formal Reasoning API/circuit breaker.
+Scheduler HA (WAL + leader election + replay), group addressing, formal Inference Engine API/circuit breaker.
 
 ---
 
-## Appendix B — Architecture Diagrams (Mermaid)
+## 26. IANA Considerations
+
+This document has no IANA actions.
+
+## 27. References
+
+**Normative References**
+
+- RFC 2119: Key words for use in RFCs to Indicate Requirement Levels.
+- RFC 8174: Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words.
+- RFC 9112: HTTP/1.1 Semantics.
+- RFC 9113: HTTP/2.
+
+**Informative References**
+
+- gRPC Health Checking Protocol.
+- grpcurl utility.
+- Kubernetes liveness/readiness probe guidance.
+- Model Context Protocol (MCP) specification.
+
+---
+
+## Appendix B - Architecture Diagrams (Mermaid)
 
 ```mermaid
 flowchart LR
@@ -213,7 +637,7 @@ flowchart LR
     Q[Queues: Urgent + Normal]
     SM[State Manager (tasks/messages/idempotency)]
     HE[HITL Adapter]
-    RE[Reasoning Proxy]
+    RE[Inference Proxy]
     REG[Registry + Heartbeats]
     LOG[Observability Sink]
   end
@@ -234,7 +658,7 @@ flowchart LR
     T2[(Tool 2 - MCP)]
   end
   subgraph HITL[HITL Service/UI] end
-  subgraph Reasoning[Reasoning Engine] end
+  subgraph Inference[Inference Engine] end
 
   REG --- R
   R <--> Q
@@ -242,7 +666,7 @@ flowchart LR
   SM --- HE
   HE --- HITL
   SM --- RE
-  RE --- Reasoning
+  RE --- Inference
   SM --- LOG
 
   R -->|unicast| A_in
@@ -276,7 +700,7 @@ flowchart TB
 
 ---
 
-## Appendix C — Finite-State Diagrams (Mermaid)
+## Appendix C - Finite-State Diagrams (Mermaid)
 
 **Agent lifecycle**
 
@@ -317,7 +741,7 @@ stateDiagram-v2
 
 ---
 
-## Appendix D — Sequence Diagrams (Mermaid) and JSON Examples
+## Appendix D - Sequence Diagrams (Mermaid) and JSON Examples
 
 Below are canonical flows. All messages are **unicast** and include the RFC envelope fields.
 
@@ -440,7 +864,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant S as Scheduler
-    participant RE as Reasoning
+    participant RE as Inference
     participant H as HITL
     participant X as Agent X
     participant Y as Agent Y
@@ -490,7 +914,7 @@ sequenceDiagram
     participant S as Scheduler
     participant FE as Frontend
     participant GQL as GraphQL
-    participant RE as Reasoning
+    participant RE as Inference
     participant H as HITL
     S->>FE: NEGOTIATION OPEN (topic=/api/v3/orders, intensity=HIGH)
     FE->>S: PROPOSAL A
@@ -507,20 +931,21 @@ sequenceDiagram
 
 ---
 
-## Appendix E — Representative JSON Payloads
+## Appendix E - Representative JSON Payloads
 
-I’ve already embedded JSON for success, retry/late-ACK, buffer overflow, worktree, tool, negotiation, and HITL above. If you want these as a fixture pack, I can hand you a tarball structure later.
+This appendix lists representative JSON payloads for common scenarios. These examples are non-normative.
 
 ---
 
 # Protobuf Stubs (proto3)
 
 **Notes:**
-• All strings expecting UUIDs are plain `string` here.
-• Use `google.protobuf.Timestamp` and `Duration` where helpful.
-• Payloads are `bytes` + `content_type` for maximum flexibility (JSON or protobuf within).
-• Split into logical files for clarity; you can merge if you prefer one file.
- • The canonical proto package namespace for this specification is `sw4rm.*`. Earlier drafts and examples may have shown other prefixes; use `sw4rm.*` for conformance and code generation.
+
+- All strings expecting UUIDs are plain `string`.
+- Use `google.protobuf.Timestamp` and `Duration` where applicable.
+- Payloads use `bytes` with `content_type` for flexibility (JSON or protobuf within).
+- Split definitions into logical files for clarity. Implementations MAY merge into a single file.
+- The canonical proto package namespace for this specification is `sw4rm.*`. Earlier drafts and examples MAY have shown other prefixes; use `sw4rm.*` for conformance and code generation.
 
 ---
 
@@ -664,7 +1089,7 @@ import "common.proto";
 message AgentDescriptor {
   string agent_id = 1;
   string name = 2;
-  string description = 3; // ≤200 words
+  string description = 3; // <=200 words
   repeated string capabilities = 4;
   sw4rm.common.CommunicationClass communication_class = 5;
   repeated string modalities_supported = 6; // MIME types
@@ -1018,7 +1443,7 @@ message DebateEvaluateRequest {
 }
 message DebateEvaluateResponse { double confidence_score = 1; string notes = 2; }
 
-service ReasoningProxy {
+service InferenceProxy {
   rpc CheckParallelism(ParallelismCheckRequest) returns (ParallelismCheckResponse);
   rpc EvaluateDebate(DebateEvaluateRequest) returns (DebateEvaluateResponse);
 }
@@ -1055,7 +1480,7 @@ service LoggingService {
 
 ## Quick Python SDK Generation
 
-Once you save the above files, generate Python stubs:
+To generate Python stubs from the above files:
 
 ```bash
 python -m pip install grpcio grpcio-tools googleapis-common-protos
@@ -1067,13 +1492,13 @@ python -m grpc_tools.protoc \
   worktree.proto tool.proto connector.proto negotiation.proto reasoning.proto logging.proto
 ```
 
-You’ll get `*_pb2.py` and `*_pb2_grpc.py` modules in `./py_sdk`. From there, Claude Code (or your IDE) can scaffold client/server classes. If you want, I can also spit out a minimal Python server skeleton and a client snippet for each service on the next pass.
+The generation produces `*_pb2.py` and `*_pb2_grpc.py` modules in `./py_sdk`. From there, IDE tooling can scaffold client and server classes as needed.
 
 ---
 
 ## Additional Protobuf Stubs (additive)
 
-The following additive stubs introduce Scheduler policy control, shared Waggle policy types, and an Activity/Artifacts API. These are OPTIONAL for minimal deployments and REQUIRED for negotiations with policy broadcast, validation reports, and artifact persistence.
+The following additive stubs introduce Scheduler policy control, shared Negotiation policy types, and an Activity/Artifacts API. These are OPTIONAL for minimal deployments and MUST be implemented for negotiations with policy broadcast, validation reports, and artifact persistence.
 
 ## `scheduler_policy.proto`
 
@@ -1084,11 +1509,11 @@ package sw4rm.scheduler;
 
 import "policy.proto";
 
-message SetWagglePolicyRequest { sw4rm.policy.WagglePolicy policy = 1; }
-message SetWagglePolicyResponse { bool ok = 1; string reason = 2; }
+message SetNegotiationPolicyRequest { sw4rm.policy.NegotiationPolicy policy = 1; }
+message SetNegotiationPolicyResponse { bool ok = 1; string reason = 2; }
 
-message GetWagglePolicyRequest {}
-message GetWagglePolicyResponse { sw4rm.policy.WagglePolicy policy = 1; }
+message GetNegotiationPolicyRequest {}
+message GetNegotiationPolicyResponse { sw4rm.policy.NegotiationPolicy policy = 1; }
 
 message SetPolicyProfilesRequest { repeated sw4rm.policy.PolicyProfile profiles = 1; }
 message SetPolicyProfilesResponse { bool ok = 1; string reason = 2; }
@@ -1106,8 +1531,8 @@ message HitlActionRequest { string negotiation_id = 1; string action = 2; string
 message HitlActionResponse { bool ok = 1; string reason = 2; }
 
 service SchedulerPolicyService {
-  rpc SetWagglePolicy(SetWagglePolicyRequest) returns (SetWagglePolicyResponse);
-  rpc GetWagglePolicy(GetWagglePolicyRequest) returns (GetWagglePolicyResponse);
+  rpc SetNegotiationPolicy(SetNegotiationPolicyRequest) returns (SetNegotiationPolicyResponse);
+  rpc GetNegotiationPolicy(GetNegotiationPolicyRequest) returns (GetNegotiationPolicyResponse);
   rpc SetPolicyProfiles(SetPolicyProfilesRequest) returns (SetPolicyProfilesResponse);
   rpc ListPolicyProfiles(ListPolicyProfilesRequest) returns (ListPolicyProfilesResponse);
   rpc GetEffectivePolicy(GetEffectivePolicyRequest) returns (GetEffectivePolicyResponse);
@@ -1125,7 +1550,7 @@ syntax = "proto3";
 
 package sw4rm.policy;
 
-message WagglePolicy {
+message NegotiationPolicy {
   uint32 max_rounds = 1;
   float score_threshold = 2;      // 0..1
   float diff_tolerance = 3;       // 0..1
@@ -1140,7 +1565,7 @@ message WagglePolicy {
 }
 
 message AgentPreferences {
-  // Same fields as WagglePolicy but advisory; scheduler clamps to guardrails
+  // Same fields as NegotiationPolicy but advisory; scheduler clamps to guardrails
   uint32 max_rounds = 1;
   float score_threshold = 2;
   float diff_tolerance = 3;
@@ -1151,13 +1576,12 @@ message AgentPreferences {
 }
 
 message EffectivePolicy {
-  WagglePolicy policy = 1;                // derived authoritative policy
+  NegotiationPolicy policy = 1;                // derived authoritative policy
   map<string, AgentPreferences> applied = 2; // per-agent clamped prefs (optional)
 }
 
-message PolicyProfile {
   string name = 1;            // e.g., LOW/MEDIUM/HIGH
-  WagglePolicy policy = 2;
+  NegotiationPolicy policy = 2;
 }
 
 message DeltaSummary { float magnitude = 1; repeated string changed_paths = 2; }

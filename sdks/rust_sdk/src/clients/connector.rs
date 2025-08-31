@@ -1,6 +1,6 @@
 use crate::proto::sw4rm::connector::connector_service_client::ConnectorServiceClient;
 use crate::proto::sw4rm::connector::{
-    ProviderRegisterRequest, DescribeToolsRequest, ToolDescriptor as ProtoToolDescriptor
+    DescribeToolsRequest, ProviderRegisterRequest, ToolDescriptor as ProtoToolDescriptor,
 };
 use crate::{Error, Result};
 use tonic::transport::{Channel, Endpoint};
@@ -60,7 +60,9 @@ impl ConnectorClient {
         });
 
         let response = self.client.describe_tools(request).await?;
-        let tools = response.into_inner().tools
+        let tools = response
+            .into_inner()
+            .tools
             .into_iter()
             .map(|tool| ToolDescriptor {
                 tool_name: tool.tool_name,

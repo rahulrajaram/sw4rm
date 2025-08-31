@@ -13,7 +13,7 @@
 // limitations under the License.
 
 //! SW4RM Agentic Protocol - Reference Rust SDK
-//! 
+//!
 //! This crate provides a Rust implementation of the SW4RM Agentic Protocol,
 //! offering clients, runtime helpers, and utilities for building distributed
 //! agents that communicate via gRPC.
@@ -53,42 +53,42 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     let config = AgentConfig::new("my-agent".into(), "My Agent".into());
-//!     let agent = MyAgent { 
-//!         config: config.clone(), 
-//!         preemption: PreemptionManager::new() 
+//!     let agent = MyAgent {
+//!         config: config.clone(),
+//!         preemption: PreemptionManager::new()
 //!     };
 //!     let mut runtime = AgentRuntime::new(config);
 //!     runtime.run(agent).await
 //! }
 //! ```
 
+pub mod ack_integration;
+pub mod acks;
+pub mod activity_buffer;
 pub mod clients;
-pub mod envelope;
-pub mod runtime;
-pub mod types;
-pub mod error;
 pub mod config;
 pub mod constants;
-pub mod activity_buffer;
-pub mod persistence;
-pub mod acks;
-pub mod ack_integration;
-pub mod worktree_state;
-pub mod interceptors;
-pub mod secrets;
-pub mod negotiation_events;
 pub mod control;
+pub mod envelope;
+pub mod error;
+pub mod interceptors;
+pub mod negotiation_events;
+pub mod persistence;
+pub mod runtime;
+pub mod secrets;
+pub mod types;
+pub mod worktree_state;
 
 // Re-export commonly used types
+pub use clients::*;
+pub use config::*;
+pub use control::*;
 pub use envelope::*;
 pub use error::{Error, Result};
-pub use config::*;
-pub use types::*;
-pub use runtime::*;
-pub use clients::*;
-pub use secrets::*;
 pub use negotiation_events::*;
-pub use control::*;
+pub use runtime::*;
+pub use secrets::*;
+pub use types::*;
 
 // Generated protobuf code
 #[cfg(feature = "proto")]
@@ -100,7 +100,7 @@ pub mod proto {
 // Fallback implementation when proto feature is not available
 #[cfg(not(feature = "proto"))]
 pub mod proto {
-    // Include minimal stubs from OUT_DIR 
+    // Include minimal stubs from OUT_DIR
     include!(concat!(env!("OUT_DIR"), "/mod.rs"));
 }
 
@@ -113,13 +113,8 @@ pub const SDK_NAME: &str = "sw4rm-rust-sdk";
 /// Prelude module for common imports
 pub mod prelude {
     pub use crate::{
-        Agent, AgentRuntime, BaseAgent,
-        AgentConfig, Endpoints,
-        EnvelopeBuilder, EnvelopeData,
-        Error, Result,
-        PreemptionManager,
-        new_uuid, now_hlc_stub,
-        constants,
+        constants, new_uuid, now_hlc_stub, Agent, AgentConfig, AgentRuntime, BaseAgent, Endpoints,
+        EnvelopeBuilder, EnvelopeData, Error, PreemptionManager, Result,
     };
     pub use async_trait::async_trait;
 }
