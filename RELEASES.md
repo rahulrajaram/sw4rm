@@ -28,6 +28,11 @@ How to Release
    - Build locally (optional): `python -m build && twine check dist/*`.
    - Push tag: `git tag py-vX.Y.Z && git push origin py-vX.Y.Z`.
 
+   TestPyPI dry-run (optional):
+   - Ensure `TEST_PYPI_API_TOKEN` secret is set (Environment: production).
+   - Push tag: `git tag py-test-vX.Y.Z && git push origin py-test-vX.Y.Z`.
+   - Workflow `release-python-test.yml` will publish to TestPyPI.
+
 2) JavaScript (npm)
    - Update `sdks/js_sdk/package.json` version.
    - Build locally (optional): `cd sdks/js_sdk && npm ci && npm run build`.
@@ -43,6 +48,14 @@ Notes
 - The workflows validate that the tag version matches the file version and will fail if they differ.
 - Re-publishing the same version will fail on the registry; re-tag after bumping the version.
 - If you prefer publishing on GitHub Releases instead of tags, we can switch triggers to `release: published` and parse the release name.
+
+GitHub Release Notes
+
+- On tag pushes (`py-v*`, `npm-v*`, `rs-v*`), workflow `release-notes.yml` creates a GitHub Release with auto-generated notes.
+
+Security Pinning
+
+- The TruffleHog workflow currently references `@main` due to a tag resolution issue. Before merging to `master`, pin `.github/workflows/secrets-scan.yml` to a specific commit SHA from trufflesecurity/trufflehog for stronger supply-chain guarantees.
 
 Local Version Management
 

@@ -1,0 +1,49 @@
+name: Create Release Notes
+
+on:
+  push:
+    tags:
+      - 'py-v*'
+      - 'rs-v*'
+      - 'npm-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate SDK-scoped notes
+        id: notes
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "Tag: $TAG"
+          if [[ "$TAG" == py-v* ]]; then
+            python sdks/py_sdk/scripts/release_notes.py --tag "$TAG" > NOTES.md
+          elif [[ "$TAG" == rs-v* ]]; then
+            python sdks/rust_sdk/scripts/release_notes.py --tag "$TAG" > NOTES.md
+          elif [[ "$TAG" == npm-v* ]]; then
+            python sdks/js_sdk/scripts/release_notes.py --tag "$TAG" > NOTES.md
+          else
+            echo "Unsupported tag pattern: $TAG" >&2
+            exit 1
+          fi
+          echo "Generated NOTES.md:" && head -n 50 NOTES.md || true
+
+      - name: Create GitHub Release with notes
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          body_path: NOTES.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
