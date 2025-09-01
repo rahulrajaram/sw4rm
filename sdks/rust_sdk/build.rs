@@ -1,5 +1,6 @@
 use std::env;
 use std::path::PathBuf;
+use std::process::Command;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -55,19 +56,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // If we have proto files, always build them (even if SKIP_PROTO_BUILD is set),
-    // since they’re authoritative and improve symmetry with the spec.
+    // If we have proto files, try to build them. Prefer vendored protoc, then system protoc.
     if !existing_files.is_empty() {
-        let config = tonic_build::configure()
-            .build_server(true)
-            .build_client(true)
-            .out_dir(&out_dir)
-            .include_file("mod.rs");
+        // Try vendored protoc first
+        let mut have_protoc = false;
+        if let Ok(p) = protoc_bin_vendored::protoc_bin_path() {
+            env::set_var("PROTOC", &p);
+            have_protoc = true;
+        } else if Command::new("protoc").arg("--version").output().is_ok() {
+            have_protoc = true;
+        }
 
-        config.compile_protos(&existing_files, &[proto_dir.clone()])?;
-        println!("cargo:rustc-env=PROTO_GENERATED=true");
-        println!("cargo:rustc-cfg=feature=\"proto\"");
-        return Ok(());
+        if have_protoc {
+            let config = tonic_build::configure()
+                .build_server(true)
+                .build_client(true)
+                .out_dir(&out_dir)
+                .include_file("mod.rs");
+
+            config.compile_protos(&existing_files, &[proto_dir.clone()])?;
+            println!("cargo:rustc-env=PROTO_GENERATED=true");
+            println!("cargo:rustc-cfg=feature=\"proto\"");
+            return Ok(());
+        } else {
+            println!(
+                "cargo:warning=protoc not found; falling back to minimal stubs for build"
+            );
+        }
     }
 
     // Fallback: generate minimal stubs when protos are absent
