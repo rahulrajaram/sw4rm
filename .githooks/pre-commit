@@ -84,3 +84,15 @@ fi
 
 green "pre-commit: version checks passed"
 
+# If docs changed, run a strict MkDocs build for internal link/anchor validation
+if echo "$CHANGED" | grep -E '^documentation/|^mkdocs.yml' >/dev/null 2>&1; then
+  if command -v venv/bin/mkdocs >/dev/null 2>&1; then
+    green "pre-commit: running mkdocs build --strict (docs changed)"
+    if ! venv/bin/mkdocs build --strict >/dev/null; then
+      red "MkDocs strict build failed. Fix docs links/anchors or disable temporarily."
+      exit 1
+    fi
+  fi
+fi
+
+

@@ -61,8 +61,8 @@ graph TB
 For a system-wide view including services, data stores, and ports, see Detailed System Architecture in the main index.
 
 
-- Detailed system diagram: [Detailed System Architecture](../#17-detailed-system-architecture)
-- Persistent state model: [Persistent State Management Architecture](../#142-persistent-state-management-architecture)
+- Detailed system diagram: [Detailed System Architecture](../index.md#17-detailed-system-architecture)
+- Persistent state model: [Persistent State Management Architecture](../index.md#142-persistent-state-management-architecture)
 - Protocol services and messages: [Services](../protocol/services.md) and [Messages](../protocol/messages.md)
 
 ## 5.2. Core Principles
@@ -172,7 +172,7 @@ Learn more about message types and services in the Protocol Specification: [Mess
 - **Worktree State**: Maintains repository/workspace context with deep Git integration, including branch tracking, file diffs, and isolated working directories per conversation or task. It supports background sync, conflict handling with policy-driven strategies, and controlled side effects for code-aware agents.
 - **Core services**: The Router durably persists and routes messages with FIFO ordering within a conversation and delivery retries; the Registry provides agent discovery, health, and capability advertisement; the Scheduler allocates work via priority queues and lease-based dispatch. All services expose gRPC endpoints secured with mTLS; see ../protocol/services.md for API details.
 
-Deeper system context and diagrams: [Detailed System Architecture](../#17-detailed-system-architecture)
+Deeper system context and diagrams: [Detailed System Architecture](../index.md#17-detailed-system-architecture)
 
 ## 5.5. State and Persistence
 
@@ -183,7 +183,7 @@ The SDK provides multi-level persistence for robustness and recovery:
 - **Worktree State**: Persists workspace bindings and file metadata, isolating tenant/conversation state in sandboxed directories. Git operations (fetch/merge/commit) run under policy control with explicit conflict resolution and audit trails.
 - **Configuration State**: Stores versioned configuration with JSON Schema validation, hot-reload, and automatic rollback on failed validations. Changes are recorded with actor, timestamp, and diff to support audit and rapid recovery.
 
-Design details and recovery strategies: [Persistent State Management Architecture](../#142-persistent-state-management-architecture)
+Design details and recovery strategies: [Persistent State Management Architecture](../index.md#142-persistent-state-management-architecture)
 
 ## 5.6. Reliability and Failure Modes
 
@@ -193,7 +193,7 @@ Design details and recovery strategies: [Persistent State Management Architectur
 - **Backpressure**: Applies credit- or queue-depth-based flow control and per-handler concurrency limits to prevent receiver overload. When limits are exceeded, the SDK sheds load via timeouts and the circuit breaker, signaling upstream to slow down while preserving system stability.
 - **Degraded operation**: Circuit breakers isolate failing dependencies and switch components into a constrained feature set (e.g., read-only operations or cached responses). Recovery uses exponential probe intervals, and fallbacks are governed by explicit policies to avoid silent data loss.
 
-See system-wide guarantees and tradeoffs: [Enterprise Problem Resolution](../#14-enterprise-problem-resolution)
+See system-wide guarantees and tradeoffs: [Enterprise Problem Resolution](../index.md#14-enterprise-problem-resolution)
 
 ## 5.7. Security
 
@@ -230,6 +230,6 @@ See examples and patterns: [Deployment Patterns](../examples/deployment.md)
 ## 5.11. What’s Next
 
 
-- **Protocol Specification**: Dive into the gRPC services, message envelopes, and ACK semantics to design custom integrations or services. Start here when you need authoritative contract details and behavior guarantees; see [Protocol](../protocol/).
-- **Examples**: Explore end-to-end agent samples that showcase handler registration, persistence, retries, and deployment patterns. Use these as blueprints to bootstrap your own agents; see [Examples](../examples/).
-- **Quickstart**: Install the SDK, run a local stack, and send your first messages with sensible defaults. Ideal for validating your environment and wiring before deeper customization; see [Getting Started](../quickstart/).
+- **Protocol Specification**: Dive into the gRPC services, message envelopes, and ACK semantics to design custom integrations or services. Start here when you need authoritative contract details and behavior guarantees; see [Protocol](../protocol/index.md).
+- **Examples**: Explore end-to-end agent samples that showcase handler registration, persistence, retries, and deployment patterns. Use these as blueprints to bootstrap your own agents; see [Examples](../examples/index.md).
+- **Quickstart**: Install the SDK, run a local stack, and send your first messages with sensible defaults. Ideal for validating your environment and wiring before deeper customization; see [Getting Started](../quickstart/index.md).

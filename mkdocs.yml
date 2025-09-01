@@ -62,6 +62,15 @@ markdown_extensions:
 plugins:
   - search
   - kroki
+  # Enable after installing: pip install mkdocs-htmlproofer-plugin
+  # - htmlproofer:
+# check_external: false
+# anchor_char: "#"
+# raise_error: true
+
+# Exclude docs that conflict with index
+exclude_docs: |
+  README.md
 
 nav:
   - Home: index.md
