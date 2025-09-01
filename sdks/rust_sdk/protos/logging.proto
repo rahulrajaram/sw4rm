@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package sw4rm.logging;
+
+import "google/protobuf/timestamp.proto";
+
+message LogEvent {
+  google.protobuf.Timestamp ts = 1;
+  string correlation_id = 2;
+  string agent_id = 3;
+  string event_type = 4;
+  string level = 5; // INFO|WARN|ERROR
+  string details_json = 6;
+}
+
+message IngestResponse { bool ok = 1; }
+
+service LoggingService {
+  rpc Ingest(LogEvent) returns (IngestResponse);
+}

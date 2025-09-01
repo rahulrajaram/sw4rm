@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package sw4rm.policy;
+
+message NegotiationPolicy {
+  uint32 max_rounds = 1;
+  float score_threshold = 2;      // 0..1
+  float diff_tolerance = 3;       // 0..1
+  uint64 round_timeout_ms = 4;
+  uint64 token_budget_per_round = 5;
+  uint64 total_token_budget = 6;  // optional 0=unset
+  uint32 oscillation_limit = 7;
+  message Hitl { string mode = 1; } // None|PauseBetweenRounds|PauseOnFinalAccept
+  Hitl hitl = 8;
+  message Scoring { bool require_schema_valid = 1; bool require_examples_pass = 2; float llm_weight = 3; }
+  Scoring scoring = 9;
+}
+
+message AgentPreferences {
+  // Same fields as NegotiationPolicy but advisory; scheduler clamps to guardrails
+  uint32 max_rounds = 1;
+  float score_threshold = 2;
+  float diff_tolerance = 3;
+  uint64 round_timeout_ms = 4;
+  uint64 token_budget_per_round = 5;
+  uint64 total_token_budget = 6;
+  uint32 oscillation_limit = 7;
+}
+
+message EffectivePolicy {
+  NegotiationPolicy policy = 1;                // derived authoritative policy
+  map<string, AgentPreferences> applied = 2; // per-agent clamped prefs (optional)
+}
+
+message PolicyProfile {
+  string name = 1;            // e.g., LOW/MEDIUM/HIGH
+  NegotiationPolicy policy = 2;
+}
+
+message DeltaSummary { float magnitude = 1; repeated string changed_paths = 2; }
+
+message EvaluationReport {
+  string from_agent = 1;
+  float deterministic_score = 2; // 0..1
+  float llm_confidence = 3;      // 0..1, optional 0 if absent
+  string notes = 4;
+  DeltaSummary delta = 5;
+}
+
+message DecisionReport {
+  string decided_by = 1;  // consensus|hitl|policy
+  float final_score = 2;
+  string rationale = 3;
+  string stop_reason = 4; // threshold_met|max_rounds|oscillation|budget|timeout
+}

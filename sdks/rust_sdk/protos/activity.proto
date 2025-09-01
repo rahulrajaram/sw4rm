@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package sw4rm.activity;
+
+message Artifact {
+  string negotiation_id = 1;
+  string kind = 2;       // contract|diff|decision|score|note
+  string version = 3;    // e.g., v3
+  string content_type = 4;
+  bytes content = 5;
+  string created_at = 6; // ISO-8601
+}
+
+message AppendArtifactRequest { Artifact artifact = 1; }
+message AppendArtifactResponse { bool ok = 1; string reason = 2; }
+
+message ListArtifactsRequest { string negotiation_id = 1; string kind = 2; }
+message ListArtifactsResponse { repeated Artifact items = 1; }
+
+service ActivityService {
+  rpc AppendArtifact(AppendArtifactRequest) returns (AppendArtifactResponse);
+  rpc ListArtifacts(ListArtifactsRequest) returns (ListArtifactsResponse);
+}
+

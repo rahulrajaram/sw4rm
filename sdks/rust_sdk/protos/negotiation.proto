@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package sw4rm.negotiation;
+
+import "common.proto";
+import "google/protobuf/duration.proto";
+
+message NegotiationOpen {
+  string negotiation_id = 1;
+  string correlation_id = 2;
+  string topic = 3;
+  repeated string participants = 4;
+  sw4rm.common.DebateIntensity intensity = 5;
+  google.protobuf.Duration debate_timeout = 6;
+}
+
+message Proposal {
+  string negotiation_id = 1;
+  string from_agent = 2;
+  string content_type = 3;
+  bytes payload = 4; // schema/proto/text as declared
+}
+
+message CounterProposal {
+  string negotiation_id = 1;
+  string from_agent = 2;
+  string content_type = 3;
+  bytes payload = 4;
+}
+
+message Evaluation {
+  string negotiation_id = 1;
+  string from_agent = 2;
+  double confidence_score = 3; // optional; 0 if absent
+  string notes = 4;
+}
+
+message Decision {
+  string negotiation_id = 1;
+  string decided_by = 2; // "consensus"|"hitl"|"policy"
+  string content_type = 3;
+  bytes result = 4;
+}
+
+message AbortRequest {
+  string negotiation_id = 1;
+  string reason = 2;
+}
+
+service NegotiationService {
+  rpc Open(NegotiationOpen) returns (sw4rm.common.Empty);
+  rpc Propose(Proposal) returns (sw4rm.common.Empty);
+  rpc Counter(CounterProposal) returns (sw4rm.common.Empty);
+  rpc Evaluate(Evaluation) returns (sw4rm.common.Empty);
+  rpc Decide(Decision) returns (sw4rm.common.Empty);
+  rpc Abort(AbortRequest) returns (sw4rm.common.Empty);
+}

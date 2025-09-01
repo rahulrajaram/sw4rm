@@ -6,19 +6,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Determine the proto directory robustly
     // Priority:
-    // 1) PROTO_DIR env var (absolute or relative)
-    // 2) workspace root `protos/` (two levels up from this crate)
-    // 3) project root `protos/` computed from CARGO_MANIFEST_DIR
+    // 1) crate-local `protos/` directory (works when publishing to crates.io)
+    // 2) PROTO_DIR env var (absolute or relative)
+    // 3) workspace root `protos/` (two levels up from this crate)
+    // 4) project root `protos/` computed from CARGO_MANIFEST_DIR
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
-    let proto_dir: PathBuf = if let Ok(dir) = env::var("PROTO_DIR") {
-        PathBuf::from(dir)
-    } else {
-        // sdks/rust_sdk -> workspace root
-        let candidate = manifest_dir.join("..").join("..").join("protos");
-        if candidate.exists() {
-            candidate
+    let proto_dir: PathBuf = {
+        let local = manifest_dir.join("protos");
+        if local.exists() {
+            local
+        } else if let Ok(dir) = env::var("PROTO_DIR") {
+            PathBuf::from(dir)
         } else {
-            manifest_dir.join("../../protos")
+            // sdks/rust_sdk -> workspace root
+            let candidate = manifest_dir.join("..").join("..").join("protos");
+            if candidate.exists() {
+                candidate
+            } else {
+                manifest_dir.join("../../protos")
+            }
         }
     };
 
