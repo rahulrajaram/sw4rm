@@ -89,3 +89,20 @@ bench:
 # Check for outdated dependencies
 outdated:
 	cargo outdated
+
+# -----------------------
+# Publish helpers
+# -----------------------
+.PHONY: package publish publish-dry-run
+
+# Create a local crate package (tarball) to verify contents
+package:
+	cargo package
+
+# Dry-run publish to verify everything is ready for crates.io
+publish-dry-run:
+	cargo publish --dry-run
+
+# Publish to crates.io (requires CARGO_REGISTRY_TOKEN)
+publish:
+	cargo publish
