@@ -95,6 +95,33 @@ tag:
 tag-push:
 	@git push --tags
 
+# -----------------------
+# Release helpers
+# -----------------------
+.PHONY: tag-all tag-py tag-npm tag-rs
+
+# Create all three tags for a version (requires versions already bumped)
+tag-all:
+	@set -e; \
+	if [ -z "$(VER)" ]; then echo "Usage: make tag-all VER=X.Y.Z"; exit 1; fi; \
+	python scripts/release_all.py $(VER) --push
+
+# Create a single tag
+tag-py:
+	@set -e; \
+	if [ -z "$(VER)" ]; then echo "Usage: make tag-py VER=X.Y.Z"; exit 1; fi; \
+	python scripts/release.py py $(VER) --push
+
+tag-npm:
+	@set -e; \
+	if [ -z "$(VER)" ]; then echo "Usage: make tag-npm VER=X.Y.Z"; exit 1; fi; \
+	python scripts/release.py npm $(VER) --push
+
+tag-rs:
+	@set -e; \
+	if [ -z "$(VER)" ]; then echo "Usage: make tag-rs VER=X.Y.Z"; exit 1; fi; \
+	python scripts/release.py rs $(VER) --push
+
 .PHONY: smoke
 smoke:
 	$(PYTHON) scripts/smoke_protos.py
