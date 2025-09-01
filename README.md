@@ -12,6 +12,17 @@ SDKs
 - Rust: `sdks/rust_sdk` — see `sdks/rust_sdk/README.md`
 - JavaScript: `sdks/js_sdk` — see `sdks/js_sdk/README.md`
 
+## Try It Now: ACK Demo
+
+- Run a minimal end-to-end ACK flow locally:
+  - `bash examples/sdk-usage/run_all.sh ack-demo`
+- This script starts the JS reference services, launches an ACK-capable agent, and exercises router send/receive with ACKs.
+- Requires Node.js >= 20. The Examples workflow badge above shows the same demo running in CI.
+
+## Full Local Stack
+
+- DevCore Quickstart: see `QUICKSTART.md` (section "DevCore (Rust) Quickstart") to run in-repo Registry, Router, Scheduler, and Negotiation services.
+
 ## CI Workflows
 
 - Python CI: Python 3.12, installs `.[dev]`, runs `scripts/smoke_protos.py`, then `pytest -q sdks/py_sdk/tests`.
