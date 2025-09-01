@@ -310,7 +310,7 @@ Implementation includes activity buffer configuration for maintaining message pr
 - Disaster recovery and backup procedures
 
 **Production Guide**:
-[**Production Deployment** :material-arrow-right:](../production/){{ .md-button .md-button--primary }
+<!-- Production Deployment link temporarily disabled; page pending -->{{ .md-button .md-button--primary }
 
 ## 2.5. Advanced Learning Pathways
 
@@ -324,7 +324,7 @@ After completing the core implementation phases, explore these specialized topic
 
 **Legacy System Integration**: Explore patterns for integrating SW4RM with existing enterprise systems, message queues, and workflow engines.
 
-[**Integration Patterns Guide** :material-arrow-right:](../examples/){{ .md-button }
+[**Integration Patterns Guide** :material-arrow-right:](../examples/index.md){{ .md-button }
 
 <!-- Performance Optimization and Scaling section removed to avoid implying guarantees. Consider documenting platform-specific tuning separately. -->
 
@@ -336,7 +336,7 @@ After completing the core implementation phases, explore these specialized topic
 
 **Compliance Frameworks**: Understand compliance requirements and implementation patterns for SOX, PCI-DSS, HIPAA, and other regulatory frameworks.
 
-[**Security Guide** :material-arrow-right:](../security/){{ .md-button }
+<!-- Security Guide link temporarily disabled; page pending -->{{ .md-button }
 
 ## 2.6. Comprehensive Reference Documentation
 
@@ -344,13 +344,13 @@ After completing the core implementation phases, explore these specialized topic
 
 **Complete API Documentation**: Comprehensive reference documentation for all SDK classes, methods, and configuration options.
 
-[**API Reference** :material-arrow-right:](../reference/){{ .md-button }
+<!-- API Reference link temporarily disabled; page pending -->{{ .md-button }
 
 ### 2.6.2. Architecture Deep Dive
 
 **System Architecture**: Detailed technical architecture documentation including service interactions, data flows, and system boundaries.
 
-[**Architecture Guide** :material-arrow-right:](../architecture/){{ .md-button }
+[**Architecture Guide** :material-arrow-right:](../architecture/index.md){{ .md-button }
 
 ### 2.6.3. Troubleshooting and Operational Guidance
 
@@ -358,7 +358,7 @@ After completing the core implementation phases, explore these specialized topic
 
 **Operational Runbooks**: Step-by-step operational procedures for common administrative tasks, maintenance, and incident response.
 
-[**Operations Guide** :material-arrow-right:](../operations/){{ .md-button }
+<!-- Operations Guide link temporarily disabled; page pending -->{{ .md-button }
 
 ## 2.7. Expert Support and Community Resources
 
@@ -383,7 +383,7 @@ After completing the core implementation phases, explore these specialized topic
 - **Development Environment**: Setting up development environments for SDK contribution
 - **Release Process**: Understanding the release cycle and version management
 
-[**Community Resources** :material-arrow-right:](../community/){{ .md-button }
+<!-- Community Resources link temporarily disabled; page pending -->{{ .md-button }
 
 ---
 

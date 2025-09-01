@@ -1,0 +1,30 @@
+# Lychee link checker configuration
+# Checks Markdown in documentation/ and built HTML in site/
+
+# Retry/timeout behavior
+max_redirects = 5
+retry_wait = 2
+retry_attempts = 2
+timeout = 10
+
+# What to include when running in CI
+include = [
+  "documentation/**/*.md",
+  "site/**/*.html",
+]
+
+# Exclusions to reduce false positives
+exclude = [
+  "^mailto:",
+  "^tel:",
+  "^#",                 # in-page anchors resolved by browser
+  "localhost",          # local services
+  "127\\.0\\.0\\.1",
+  "0\\.0\\.0\\.0",
+]
+
+# Accept 200-399 as success by default
+accept = [200, 201, 204, 301, 302, 303, 307, 308]
+
+# Set a stable UA for sites that filter clients
+user_agent = "lychee/0.15 (+https://github.com/lycheeverse/lychee)"

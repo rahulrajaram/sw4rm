@@ -19,7 +19,7 @@ Note on terminology: This definition intentionally departs from some prevailing 
 
 Modern day computing stack employs well-defined communication protocols at each abstraction layer: operating systems provide POSIX IPC primitives (pipes, shared memory, message queues, semaphores), the network layer standardizes TCP/IP and UDP with socket APIs, application protocols include HTTP/REST, gRPC, and GraphQL with defined message semantics, message brokers implement AMQP and MQTT specifications, and AI tool integration uses the Model Context Protocol (MCP) for LLM-tool communication.
 
-**Agentic systems lack comprehensive standardization.** While protocols like MCP address specific use cases (tool integration), no universal standard exists for agent-to-agent communication, task scheduling, and message exchange between heterogeneous implementations, along with supporting capabilities like agent discovery and capability negotiation. SW4RM defines agent-to-agent communication more thoroughly than existing specifications like Google's A2A protocol (detailed comparison available in [Protocol Specification §3.10](protocol/#310-comparison-with-googles-agent-to-agent-protocol)).
+**Agentic systems lack comprehensive standardization.** While protocols like MCP address specific use cases (tool integration), no universal standard exists for agent-to-agent communication, task scheduling, and message exchange between heterogeneous implementations, along with supporting capabilities like agent discovery and capability negotiation. SW4RM defines agent-to-agent communication more thoroughly than existing specifications like Google's A2A protocol (detailed comparison available in [Protocol Specification §3.9](protocol/index.md#39-comparison-with-googles-agent-to-agent-protocol)).
 
 ### 1.1.2. Technical Implications
 
@@ -422,7 +422,7 @@ sequenceDiagram
 
     Get up and running with your first agent in 5 minutes
 
-    [:octicons-arrow-right-24: Get Started](quickstart/)
+    [:octicons-arrow-right-24: Get Started](quickstart/index.md)
 
 
 -   :material-file-document-outline:{ .lg .middle } **Protocol Spec**
@@ -431,7 +431,7 @@ sequenceDiagram
 
     Complete protocol specification and service architecture
 
-    [:octicons-arrow-right-24: View Spec](protocol/)
+    [:octicons-arrow-right-24: View Spec](protocol/index.md)
 
 
 -   :material-code-braces:{ .lg .middle } **Examples**
@@ -440,7 +440,7 @@ sequenceDiagram
 
     Comprehensive examples from basic to advanced agents
 
-    [:octicons-arrow-right-24: View Examples](examples/)
+    [:octicons-arrow-right-24: View Examples](examples/index.md)
 
 
 -   :material-architecture:{ .lg .middle } **Architecture**
@@ -449,7 +449,7 @@ sequenceDiagram
 
     Deep dive into SDK architecture and design patterns
 
-    [:octicons-arrow-right-24: Learn More](architecture/)
+    [:octicons-arrow-right-24: Learn More](architecture/index.md)
 
 </div>
 
@@ -1264,7 +1264,7 @@ sdk.run()
 
 Start with our quickstart guide to build your first agent in minutes.
 
-[Get Started :material-arrow-right:](quickstart/){ .md-button .md-button--primary }
+[Get Started :material-arrow-right:](quickstart/index.md){ .md-button .md-button--primary }
 </div>
 
 <div markdown>
@@ -1273,7 +1273,7 @@ Start with our quickstart guide to build your first agent in minutes.
 
 Check out our advanced examples and production deployment guides.
 
-[View Examples :material-arrow-right:](examples/){ .md-button }
+[View Examples :material-arrow-right:](examples/index.md){ .md-button }
 </div>
 
 </div>
