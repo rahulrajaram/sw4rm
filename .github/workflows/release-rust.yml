@@ -46,10 +46,10 @@ jobs:
 
       - name: Dry-run package
         run: |
-          cargo package --manifest-path sdks/rust_sdk/Cargo.toml
+          cargo package --manifest-path sdks/rust_sdk/Cargo.toml --allow-dirty
 
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
         run: |
-          cargo publish --manifest-path sdks/rust_sdk/Cargo.toml
+          cargo publish --manifest-path sdks/rust_sdk/Cargo.toml --allow-dirty
