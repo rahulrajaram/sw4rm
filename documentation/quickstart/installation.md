@@ -168,8 +168,11 @@ log_info "Running installation validation tests..."
 # Test basic SDK imports
 python3 -c "
 import sw4rm
-from sw4rm import SDK, MessageProcessor, WorktreeState
-from sw4rm.protos import common_pb2, router_pb2
+from sw4rm.clients.router import RouterClient
+from sw4rm.clients.registry import RegistryClient
+from sw4rm.ack_integration import ACKLifecycleManager
+from sw4rm.activity_buffer import PersistentActivityBuffer
+from sw4rm.worktree_state import WorktreeState
 print('✓ All core SDK components imported successfully')
 " || { log_error "SDK import validation failed"; exit 1; }
 
@@ -636,8 +639,8 @@ class SW4RMValidator:
         
         core_modules = [
             'sw4rm',
-            'sw4rm.sdk',
-            'sw4rm.message_processor',
+            'sw4rm.config',
+            'sw4rm.envelope',
             'sw4rm.activity_buffer',
             'sw4rm.worktree_state',
             'sw4rm.ack_integration'

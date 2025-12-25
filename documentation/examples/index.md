@@ -2,7 +2,7 @@
 
 Comprehensive examples showing SW4RM SDK usage from basic to advanced patterns.
 
-## 4.1. Available Examples
+## 4.1. Available Examples {#41-available-examples}
 
 <div class="grid cards" markdown>
 

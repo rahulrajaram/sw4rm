@@ -243,7 +243,7 @@ SW4RM addresses these enterprise challenges through systematic architectural sol
 
 SW4RM provides specialized implementations for complex enterprise scenarios that require reliable, stateful, and coordinated agentic systems. Each use case demonstrates the SDK's capability to handle specific enterprise requirements including fault tolerance, compliance, security, and operational excellence.
 
-### 1.5.1. Example 1: DevOps Automation and Infrastructure Orchestration
+### 1.5.1. Example 1: DevOps Automation and Infrastructure Orchestration {#151-example-1-devops-automation-and-infrastructure-orchestration}
 
 **Technical Implementation Requirements**:
 
@@ -300,7 +300,7 @@ sequenceDiagram
 - **Multi-Environment Orchestration**: Coordinated deployments across multiple environments ensure consistent application delivery through environment-specific configuration management and dependency orchestration.
 - **Compliance Automation**: Automated compliance checks integrate policy validation directly into deployment pipelines with comprehensive reporting capabilities for audit requirements and regulatory frameworks.
 
-### 1.5.2. Example 2: Data Processing and ETL Pipeline Management
+### 1.5.2. Example 2: Data Processing and ETL Pipeline Management {#152-example-2-data-processing-and-etl-pipeline-management}
 
 **Technical Requirements**:
 
@@ -570,6 +570,9 @@ graph TB
 === "Production Agent Implementation"
 
     **Complete Agent with Error Handling and Observability**:
+
+    !!! note "Conceptual Example"
+        This example demonstrates the intended high-level API patterns for production agents. The actual SDK exports lower-level components (`RouterClient`, `RegistryClient`, `ACKLifecycleManager`, `PersistentActivityBuffer`) that you compose together. See the [First Agent Tutorial](quickstart/first-agent.md) for working code examples.
 
     ```python
     import logging

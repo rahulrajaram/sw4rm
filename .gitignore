@@ -102,3 +102,4 @@ PHASE_*_SUMMARY.md
 ISSUES_FOUND.md
 UNDOCUMENTED_APIS*.md
 validate_docs.py
+.yore/

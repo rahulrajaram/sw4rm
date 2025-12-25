@@ -10,11 +10,11 @@ Upon completion of this quickstart guide, you will have successfully implemented
 
 ### 2.1.1. Core Functional Requirements
 
-- **Message State Persistence**: Complete message processing history and state preservation across system restarts, crashes, and network partitions
-- **Acknowledgment Lifecycle Management**: Comprehensive `ACK` handling with automatic retry policies, dead letter queues, and timeout management
-- **Multi-Protocol Message Processing**: Support for all SW4RM message types (`DATA`, `CONTROL`, `HITL_INVOCATION`, `WORKTREE_CONTROL`, `TOOL_CALL`)
-- **Git Repository Integration**: Full worktree binding capabilities with branch switching, commit-specific context, and workspace isolation
-- **Graceful Shutdown Procedures**: Signal-based shutdown handling with proper resource cleanup and state persistence
+- **Message State Persistence**: The agent persists complete message processing history and state across system restarts, crashes, and network partitions.
+- **Acknowledgment Lifecycle Management**: The agent handles ACK messages with automatic retry policies, dead letter queues, and timeout management.
+- **Multi-Protocol Message Processing**: The agent processes all SW4RM message types including `DATA`, `CONTROL`, `HITL_INVOCATION`, `WORKTREE_CONTROL`, and `TOOL_CALL`.
+- **Git Repository Integration**: The agent binds to worktrees with branch switching, commit-specific context, and workspace isolation.
+- **Graceful Shutdown Procedures**: The agent handles shutdown signals with proper resource cleanup and state persistence.
 
 ## 2.2. Comprehensive Prerequisites and System Requirements
 
@@ -22,23 +22,20 @@ Upon completion of this quickstart guide, you will have successfully implemented
 
 **Core Runtime Dependencies**:
 
-
-- **Python**: Version 3.11.0+ (Python 3.12+ recommended for optimal performance and security)
-- **Operating System**: Linux (Ubuntu 20.04+, CentOS 8+), macOS 12+, or Windows 10+ with WSL2
-- **Git**: Version 2.30+ for worktree management and repository integration
+- **Python**: You must install Python 3.11.0 or later. Python 3.12 or later is recommended for optimal performance and security.
+- **Operating System**: You must use Linux (Ubuntu 20.04+, CentOS 8+), macOS 12+, or Windows 10+ with WSL2.
+- **Git**: You must install Git 2.30 or later for worktree management and repository integration.
 
 **Network Requirements**:
 
-
-- **Outbound HTTPS (443)**: Package repository access for installation (PyPI, GitHub)
-- **TLS Support**: TLS 1.2+ capability for secure communication
+- **Outbound HTTPS (443)**: You must have access to package repositories (PyPI, GitHub) for installation.
+- **TLS Support**: Your environment must support TLS 1.2 or later for secure communication.
 
 **Development Tools and Utilities**:
 
-
-- **Protocol Buffers**: protoc compiler version v31 series for message schema compilation
-- **gRPC Tools**: grpcio-tools for Python gRPC stub generation
-- **Monitoring Tools**: OpenTelemetry-compatible observability stack (optional but recommended)
+- **Protocol Buffers**: You must install the protoc compiler version v31 series for message schema compilation.
+- **gRPC Tools**: You must install grpcio-tools for Python gRPC stub generation.
+- **Monitoring Tools**: You should install an OpenTelemetry-compatible observability stack. This is optional but recommended.
 
 ### 2.2.3. Knowledge Prerequisites and Technical Background
 
@@ -278,12 +275,11 @@ Implementation includes activity buffer configuration for maintaining message pr
 
 **Validation Requirements**:
 
-
-- State successfully persists across agent restarts
-- Crash recovery completes within configured timeout limits
-- Message deduplication prevents duplicate processing
-- Storage backend failover occurs transparently
-- Data retention policies automatically clean up expired data
+- State persists successfully across agent restarts.
+- Crash recovery completes within configured timeout limits.
+- Message deduplication prevents duplicate processing.
+- Storage backend failover occurs transparently.
+- Data retention policies clean up expired data automatically.
 
 ### 2.4.4. Phase 4: Production Deployment and Operational Excellence
 
@@ -293,24 +289,22 @@ Implementation includes activity buffer configuration for maintaining message pr
 
 **Production Readiness Checklist**:
 
-
-- Container-based deployment with security hardening
-- Service mesh integration for observability and traffic management
-- Comprehensive monitoring and alerting configuration
-- Security policies and access control implementation
-- Scalability configuration and load testing validation
+- You deploy agents in containers with security hardening.
+- You integrate agents with a service mesh for observability and traffic management.
+- You configure monitoring and alerting.
+- You implement security policies and access control.
+- You configure scalability and validate with load testing.
 
 **Operational Features**:
 
-
-- Zero-downtime deployment strategies
-- Automated scaling based on message queue depth
-- Comprehensive observability with distributed tracing
-- Security scanning and vulnerability management
-- Disaster recovery and backup procedures
+- The system supports zero-downtime deployment strategies.
+- The system scales automatically based on message queue depth.
+- The system provides observability with distributed tracing.
+- The system supports security scanning and vulnerability management.
+- The system supports disaster recovery and backup procedures.
 
 **Production Guide**:
-<!-- Production Deployment link temporarily disabled; page pending -->{{ .md-button .md-button--primary }
+<!-- Production Deployment link temporarily disabled; page pending -->{ .md-button .md-button--primary }
 
 ## 2.5. Advanced Learning Pathways
 
@@ -324,7 +318,7 @@ After completing the core implementation phases, explore these specialized topic
 
 **Legacy System Integration**: Explore patterns for integrating SW4RM with existing enterprise systems, message queues, and workflow engines.
 
-[**Integration Patterns Guide** :material-arrow-right:](../examples/index.md){{ .md-button }
+[**Integration Patterns Guide** :material-arrow-right:](../examples/index.md){ .md-button }
 
 <!-- Performance Optimization and Scaling section removed to avoid implying guarantees. Consider documenting platform-specific tuning separately. -->
 
@@ -336,7 +330,7 @@ After completing the core implementation phases, explore these specialized topic
 
 **Compliance Frameworks**: Understand compliance requirements and implementation patterns for SOX, PCI-DSS, HIPAA, and other regulatory frameworks.
 
-<!-- Security Guide link temporarily disabled; page pending -->{{ .md-button }
+<!-- Security Guide link temporarily disabled; page pending -->{ .md-button }
 
 ## 2.6. Comprehensive Reference Documentation
 
@@ -344,13 +338,13 @@ After completing the core implementation phases, explore these specialized topic
 
 **Complete API Documentation**: Comprehensive reference documentation for all SDK classes, methods, and configuration options.
 
-<!-- API Reference link temporarily disabled; page pending -->{{ .md-button }
+<!-- API Reference link temporarily disabled; page pending -->{ .md-button }
 
 ### 2.6.2. Architecture Deep Dive
 
 **System Architecture**: Detailed technical architecture documentation including service interactions, data flows, and system boundaries.
 
-[**Architecture Guide** :material-arrow-right:](../architecture/index.md){{ .md-button }
+[**Architecture Guide** :material-arrow-right:](../architecture/index.md){ .md-button }
 
 ### 2.6.3. Troubleshooting and Operational Guidance
 
@@ -358,32 +352,29 @@ After completing the core implementation phases, explore these specialized topic
 
 **Operational Runbooks**: Step-by-step operational procedures for common administrative tasks, maintenance, and incident response.
 
-<!-- Operations Guide link temporarily disabled; page pending -->{{ .md-button }
+<!-- Operations Guide link temporarily disabled; page pending -->{ .md-button }
 
 ## 2.7. Expert Support and Community Resources
 
 ### 2.7.1. Community Support Channels
 
-
-- **GitHub Discussions**: Community-driven support and feature discussions
-- **Discord Server**: Real-time chat support for development questions
-- **Stack Overflow**: Tagged questions for searchable knowledge base
+- **GitHub Discussions**: You can get community-driven support and discuss features.
+- **Discord Server**: You can get real-time chat support for development questions.
+- **Stack Overflow**: You can search tagged questions for solutions.
 
 ### 2.7.2. Professional Support Options
 
-
-- **Enterprise Support**: Dedicated technical support for enterprise deployments
-- **Professional Services**: Implementation assistance and custom development
-- **Training Programs**: Comprehensive training programs for development teams
+- **Enterprise Support**: You can get dedicated technical support for enterprise deployments.
+- **Professional Services**: You can get implementation assistance and custom development.
+- **Training Programs**: You can enroll in training programs for development teams.
 
 ### 2.7.3. Contributing to the Project
 
+- **Contribution Guidelines**: Review the guidelines to contribute code, documentation, and community support.
+- **Development Environment**: Learn how to set up development environments for SDK contribution.
+- **Release Process**: Understand the release cycle and version management.
 
-- **Contribution Guidelines**: How to contribute code, documentation, and community support
-- **Development Environment**: Setting up development environments for SDK contribution
-- **Release Process**: Understanding the release cycle and version management
-
-<!-- Community Resources link temporarily disabled; page pending -->{{ .md-button }
+<!-- Community Resources link temporarily disabled; page pending -->{ .md-button }
 
 ---
 

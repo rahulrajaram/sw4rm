@@ -2,35 +2,64 @@
 
 ([Link to full RFC](https://github.com/rahulrajaram/sw4rm/blob/master/documentation/protocol/spec.md))
 
-**SW4RM Protocol v0.1** | **Status: Production Ready** | **Last Updated: 2025-08-09**
+**SW4RM Protocol v0.4.0** | **Status: Production Ready** | **Last Updated: 2025-12-24**
 
-This comprehensive protocol specification defines the complete SW4RM message-driven agent communication system. The protocol is built on industry-standard gRPC and Protocol Buffers, providing a robust foundation for enterprise-grade distributed agentic systems with guaranteed message delivery, comprehensive observability, and enterprise security features.
+??? note "Changelog"
+    **0.4.0 (2025-12-24)**
 
-Terminology: “Agent” in this specification follows the supervised, process‑isolated definition in documentation/index.md (see “Agents and Agentic Interaction”), which differs from common industry usage where “agent” may mean an LLM wrapper or in‑process automation.
+    - Added Negotiation Room pattern (Section 3.11.1)
+    - Added Agent Handoff Protocol (Section 3.11.2)
+    - Added Workflow Orchestration (Section 3.11.3)
+    - Formalized Three-ID Model (Section 3.11.4)
+    - Unified proto namespaces to `sw4rm.{service}` convention
+    - Added edge case documentation for HITL unavailability
+    - Added streaming cancellation protocol
+    - Added activity buffer size limits
+
+    **0.3.0 (2025-08-31)**
+
+    - RFC rigor pass (BCP 14 compliance)
+    - Expanded Activity Buffer documentation
+    - Enhanced HITL expectations and message shapes
+    - Comprehensive MCP/Tool Calling documentation
+    - Renamed negotiation terminology to NegotiationPolicy
+
+    **0.2.0 (2025-08-17)**
+
+    - Canonicalized `sw4rm.*` package namespace
+    - Enhanced negotiation protocol with event fanout
+    - Room-based correlation semantics
+    - Policy broadcast mechanisms
+
+    **0.1.0 (2025-08-08)**
+
+    - Initial specification release
+
+This specification defines the SW4RM message-driven agent communication system. The protocol uses gRPC and Protocol Buffers to provide guaranteed message delivery, observability, and security features for distributed agentic systems.
+
+This specification defines "Agent" as a supervised, process-isolated participant. See "Agents and Agentic Interaction" in documentation/index.md. This definition differs from common industry usage where "agent" means an LLM wrapper or in-process automation.
 
 ## 3.1. Executive Summary
 
-The SW4RM protocol addresses the fundamental challenges of distributed agentic systems by providing a complete communication framework with the following core capabilities:
+The SW4RM protocol addresses the challenges of distributed agentic systems. The protocol provides the following capabilities:
 
-
-- **Guaranteed Message Delivery**: At-least-once delivery semantics with configurable consistency levels
-- **Comprehensive State Management**: Persistent state across failures with automatic recovery mechanisms
-- **Enterprise Security**: Zero-trust architecture with mutual TLS and role-based access control
-- **Production Observability**: Complete distributed tracing, metrics, and audit logging
-- **Horizontal Scalability**: Linear scaling with no single points of failure
-- **Multi-Tenancy Support**: Secure isolation between different agent workloads
+- **Guaranteed Message Delivery**: The protocol delivers messages using at-least-once semantics. You configure consistency levels per message.
+- **State Management**: The protocol persists state across failures and recovers automatically from crashes.
+- **Security**: The protocol implements zero-trust architecture with mutual TLS and role-based access control.
+- **Observability**: The protocol provides distributed tracing, metrics collection, and audit logging.
+- **Horizontal Scalability**: The protocol scales linearly with no single points of failure.
+- **Multi-Tenancy**: The protocol isolates agent workloads securely from each other.
 
 ## 3.2. Architectural Foundation and Design Principles
 
 ### 3.2.1. Service-Oriented Architecture (SOA) Implementation
 
-SW4RM implements a **microservices architecture** with clear service boundaries, standardized communication protocols, and comprehensive fault tolerance mechanisms. The architecture is designed for:
+SW4RM implements a **microservices architecture** with clear service boundaries, standardized communication protocols, and fault tolerance mechanisms. The architecture provides:
 
-
-- **Independent Service Scaling**: Each service can be scaled independently based on workload requirements
-- **Fault Isolation**: Service failures are contained and do not cascade to other components
-- **Technology Diversity**: Services can be implemented in different technologies while maintaining protocol compatibility
-- **Operational Independence**: Services can be deployed, monitored, and managed independently
+- **Independent Service Scaling**: You scale each service independently based on workload requirements.
+- **Fault Isolation**: The system contains service failures so they do not cascade to other components.
+- **Technology Diversity**: You implement services in different technologies while maintaining protocol compatibility.
+- **Operational Independence**: You deploy, monitor, and manage each service independently.
 
 ```mermaid
 graph TB
@@ -106,23 +135,21 @@ graph TB
 
 **Technical Implementation**:
 
+- **Message Persistence**: The system persists all messages durably before acknowledgment using write-ahead logging.
+- **Event Ordering**: The system orders messages globally using hybrid logical clocks (HLC) for causal consistency.
+- **Message Deduplication**: The system uses SHA-256 content hashing to prevent duplicate message processing.
+- **Delivery Semantics**: You configure delivery guarantees as at-most-once, at-least-once, or exactly-once.
 
-- **Message Persistence**: All messages are durably persisted before acknowledgment using write-ahead logging
-- **Event Ordering**: Global message ordering using hybrid logical clocks (HLC) for causal consistency
-- **Message Deduplication**: SHA-256 based content hashing prevents duplicate message processing
-- **Delivery Semantics**: Configurable delivery guarantees (at-most-once, at-least-once, exactly-once)
-
-<!-- Performance characteristics intentionally omitted to avoid implying guarantees. -->
+<!-- This document omits performance characteristics to avoid implying guarantees. -->
 
 #### 3.2.2.2. Distributed System Consistency Model
 
-**Implementation of Eventual Consistency with Strong Consistency Options**:
+**Consistency Options**:
 
-
-- **Eventual Consistency (Default)**: Default mode with eventual convergence guarantees
-- **Strong Consistency**: Configurable strong consistency for critical operations using distributed consensus
-- **Causal Consistency**: Maintains causal relationships between related messages using vector clocks
-- **Session Consistency**: Guarantees consistency within agent session boundaries
+- **Eventual Consistency (Default)**: The system uses eventual consistency as the default mode and guarantees eventual convergence.
+- **Strong Consistency**: You configure strong consistency for critical operations. The system uses distributed consensus.
+- **Causal Consistency**: The system maintains causal relationships between related messages using vector clocks.
+- **Session Consistency**: The system guarantees consistency within agent session boundaries.
 
 **Consistency Configuration**:
 ```protobuf
@@ -141,30 +168,29 @@ enum ConsistencyLevel {
 }
 ```
 
-#### 3.2.2.3. Comprehensive Security Architecture
+#### 3.2.2.3. Security Architecture
 
-**Zero-Trust Network Model**: Every service interaction requires authentication and authorization, with no implicit trust relationships.
+**Zero-Trust Network Model**: Every service interaction requires authentication and authorization. The system establishes no implicit trust relationships.
 
-**Security Implementation Layers**:
-
+**Security Layers**:
 
 1. **Transport Security**:
-   - Mutual TLS (mTLS) for all inter-service communication
-   - TLS 1.3 with forward secrecy using ECDHE key exchange
-   - Certificate rotation with 24-hour certificate lifetime
-   - Certificate pinning for critical service connections
+   - The system uses mutual TLS (mTLS) for all inter-service communication.
+   - The system uses TLS 1.3 with forward secrecy using ECDHE key exchange.
+   - The system rotates certificates with a 24-hour certificate lifetime.
+   - The system pins certificates for critical service connections.
 
-2. **Authentication & Authorization**:
-   - OAuth 2.0 / OpenID Connect integration for external authentication
-   - JWT tokens with configurable expiration (default: 1 hour)
-   - Role-Based Access Control (RBAC) with fine-grained permissions
-   - Attribute-Based Access Control (ABAC) for complex authorization scenarios
+2. **Authentication and Authorization**:
+   - The system integrates OAuth 2.0 and OpenID Connect for external authentication.
+   - The system issues JWT tokens with configurable expiration. The default is 1 hour.
+   - The system enforces Role-Based Access Control (RBAC) with fine-grained permissions.
+   - The system supports Attribute-Based Access Control (ABAC) for complex authorization scenarios.
 
 3. **Data Protection**:
-   - AES-256-GCM encryption for sensitive payloads
-   - Field-level encryption for PII and sensitive data
-   - Cryptographic signatures for message integrity verification
-   - Key management integration with HashiCorp Vault or AWS KMS
+   - The system encrypts sensitive payloads using AES-256-GCM.
+   - The system encrypts PII and sensitive data at the field level.
+   - The system verifies message integrity using cryptographic signatures.
+   - The system integrates with HashiCorp Vault or AWS KMS for key management.
 
 **Security Configuration Example**:
 ```protobuf
@@ -198,23 +224,23 @@ message AuthenticationConfig {
 **Three Pillars of Observability Implementation**:
 
 
-1. **Comprehensive Metrics Collection**:
-   - Business metrics: Message processing rates, success/failure ratios, processing latencies
-   - System metrics: CPU, memory, network, disk utilization per service
-   - Custom metrics: Domain-specific KPIs and performance indicators
-   - Real-time alerting with configurable thresholds and escalation policies
+1. **Metrics Collection**:
+   - The system collects business metrics including message processing rates, success and failure ratios, and processing latencies.
+   - The system collects system metrics including CPU, memory, network, and disk utilization per service.
+   - You define custom metrics for domain-specific KPIs and performance indicators.
+   - The system alerts in real time using configurable thresholds and escalation policies.
 
 2. **Distributed Tracing**:
-   - OpenTelemetry-compliant distributed tracing across all service boundaries
-   - Trace sampling strategies: Always, never, probabilistic, adaptive
-   - Trace correlation across message processing pipelines
-   - Performance bottleneck identification and optimization recommendations
+   - The system implements OpenTelemetry-compliant distributed tracing across all service boundaries.
+   - The system supports four trace sampling strategies: always, never, probabilistic, and adaptive.
+   - The system correlates traces across message processing pipelines.
+   - The system identifies performance bottlenecks and provides optimization recommendations.
 
 3. **Structured Audit Logging**:
-   - Immutable audit logs with cryptographic integrity verification
-   - Comprehensive security event logging (authentication, authorization, data access)
-   - Business process audit trails for compliance requirements
-   - Log retention policies with automated archival to cold storage
+   - The system writes immutable audit logs with cryptographic integrity verification.
+   - The system logs all security events including authentication, authorization, and data access.
+   - The system maintains business process audit trails for compliance requirements.
+   - The system enforces log retention policies with automated archival to cold storage.
 
 **Observability Configuration**:
 ```protobuf
@@ -310,55 +336,54 @@ sequenceDiagram
 
 **ACK Stages:**
 
-
-- `RECEIVED` (1): Message delivered to target
-- `READ` (2): Message parsed and validated
-- `FULFILLED` (3): Processing completed successfully  
-- `REJECTED` (4): Message rejected due to policy/validation
-- `FAILED` (5): Processing failed due to error
-- `TIMED_OUT` (6): Processing exceeded time limits
+- `RECEIVED` (1): The target received the message.
+- `READ` (2): The target parsed and validated the message.
+- `FULFILLED` (3): The target completed processing successfully.
+- `REJECTED` (4): The target rejected the message due to policy or validation failure.
+- `FAILED` (5): The target failed to process the message due to an error.
+- `TIMED_OUT` (6): The target exceeded time limits during processing.
 
 ## 3.4. Service Architecture
 
 ### 3.4.1. Core Services
 
-**Registry Service** - Agent lifecycle management
+**Registry Service** manages agent lifecycle.
 
-- Agent registration and discovery
-- Health monitoring and heartbeats
-- Capability advertisement
+- The Registry Service registers agents and enables discovery.
+- The Registry Service monitors health and processes heartbeats.
+- The Registry Service advertises agent capabilities.
 
-**Router Service** - Message delivery
+**Router Service** delivers messages.
 
-- Reliable message routing between agents
-- Message streaming and buffering
-- Load balancing and failover
+- The Router Service routes messages between agents with guaranteed delivery.
+- The Router Service streams and buffers messages.
+- The Router Service balances load and handles failover.
 
-**Scheduler Service** - Work coordination  
+**Scheduler Service** coordinates work.
 
-- Task distribution and prioritization
-- Resource allocation and preemption
-- Activity buffer management
+- The Scheduler Service distributes and prioritizes tasks.
+- The Scheduler Service allocates resources and handles preemption.
+- The Scheduler Service manages the activity buffer.
 
 ### 3.4.2. Extended Services
 
-**HITL Service** - Human oversight
+**HITL Service** provides human oversight.
 
-- Escalation workflows and approvals
-- Decision points and manual overrides
-- Audit trails and compliance
+- The HITL Service manages escalation workflows and approvals.
+- The HITL Service handles decision points and manual overrides.
+- The HITL Service maintains audit trails for compliance.
 
-**Worktree Service** - Repository context
+**Worktree Service** manages repository context.
 
-- Git repository binding and switching
-- Branch and commit management  
-- Workspace isolation
+- The Worktree Service binds and switches Git repositories.
+- The Worktree Service manages branches and commits.
+- The Worktree Service isolates workspaces.
 
-**Tool Service** - External integrations
+**Tool Service** integrates external systems.
 
-- API and system command execution
-- Result capture and error handling
-- Permission and security policies
+- The Tool Service executes APIs and system commands.
+- The Tool Service captures results and handles errors.
+- The Tool Service enforces permission and security policies.
 
 ## 3.5. Message Patterns
 
@@ -428,58 +453,57 @@ ack: {
 
 ### 3.7.1. Authentication
 
-- Service-to-service authentication via mutual TLS
-- Agent identity verification through public key cryptography
-- Token-based session management
+- The system authenticates service-to-service communication using mutual TLS.
+- The system verifies agent identity using public key cryptography.
+- The system manages sessions using tokens.
 
-### 3.7.2. Authorization  
+### 3.7.2. Authorization
 
-- Role-based access control (RBAC) for service operations
-- Message-level permissions based on sender/receiver identity
-- Policy-based filtering and transformation
+- The system enforces role-based access control (RBAC) for service operations.
+- The system applies message-level permissions based on sender and receiver identity.
+- The system filters and transforms messages based on policy.
 
 ### 3.7.3. Data Protection
 
-- End-to-end encryption for sensitive payloads
-- Audit logging of all security-relevant operations
-- Compliance with data residency and retention policies
+- The system encrypts sensitive payloads end-to-end.
+- The system logs all security-relevant operations for audit.
+- The system complies with data residency and retention policies.
 
 ## 3.8. Deployment Considerations
 
 ### 3.8.1. Scalability
 
-- Horizontal scaling of all services
-- Message partitioning and sharding
-- Load balancing with session affinity
+- You scale all services horizontally.
+- The system partitions and shards messages.
+- The system balances load with session affinity.
 
 ### 3.8.2. Reliability
 
-- At-least-once message delivery guarantees
-- Circuit breakers and retry policies  
-- Graceful degradation during partial failures
+- The system guarantees at-least-once message delivery.
+- The system implements circuit breakers and retry policies.
+- The system degrades gracefully during partial failures.
 
 ### 3.8.3. Observability
 
-- Distributed tracing across service boundaries
-- Metrics for throughput, latency, and error rates
-- Structured logging with correlation IDs
+- The system traces requests across service boundaries.
+- The system collects metrics for throughput, latency, and error rates.
+- The system logs in structured format with correlation IDs.
 
-## 3.9. Comparison with Google's Agent-to-Agent Protocol
+## 3.9. Comparison with Google's Agent-to-Agent Protocol {#39-comparison-with-googles-agent-to-agent-protocol}
 
 ### Overview of Google's A2A Protocol
 
-Google's Agent2Agent (A2A) is an open standard designed for enterprise-grade interoperability among AI agents. The core aspects include:
+Google's Agent2Agent (A2A) is an open standard for enterprise-grade interoperability among AI agents. A2A provides the following capabilities:
 
+- **Agent Discovery via Agent Cards**: Agents advertise capabilities in a JSON Agent Card format. Other agents use Agent Cards to find the best fit for a task.
 
-- **Agent Discovery via "Agent Cards"**—agents advertise capabilities in a JSON Agent Card format to help other agents find the best fit for a task.
+- **Task-Oriented Communication**: Client agents send tasks to remote agents. Remote agents respond with artifacts and real-time status updates. A2A supports long-running tasks and streaming as first-class features.
 
-- **Task-Oriented Communication**—client agents send tasks to remote agents, which respond with artifacts and real‑time status updates; long‑running tasks and streaming support are first-class features.
+- **Secure Standard Protocol**: A2A uses HTTP, JSON-RPC, and Server-Sent Events. A2A includes enterprise-ready authentication and authorization aligned with OpenAPI schemes.
 
-- **Secure, Standard Protocol**—built on HTTP, JSON-RPC, and Server-Sent Events; enterprise-ready authentication and authorization (aligned with OpenAPI schemes) are built in.
+- **Modality Agnostic**: A2A supports text, audio, video, and multi-part content. A2A negotiates content through "parts" attached to each message.
 
-- **Modality Agnostic**—supports text, audio, video, and multi-part content negotiation through "parts" attached to each message.
-
-- **Interoperability with MCP**—A2A complements Anthropic's Model Context Protocol (MCP), which focuses on tool invocation, creating a full-stack agent interoperability ecosystem.
+- **Interoperability with MCP**: A2A complements Anthropic's Model Context Protocol (MCP). MCP focuses on tool invocation. Together they create a full-stack agent interoperability ecosystem.
 
 ### Architectural Comparison
 
@@ -500,22 +524,20 @@ Google's Agent2Agent (A2A) is an open standard designed for enterprise-grade int
 
 **Similarities:**
 
+- **Agent Discovery and Registration**: A2A Agent Cards align with SW4RM Registry and Discovery module. SW4RM supports name, capabilities, modality, and description in the registry (§14). SW4RM does not use the Agent Card structure explicitly.
 
+- **Secure Communication and Modality Support**: SW4RM uses gRPC with optional signing and multi-modal content types. This corresponds to A2A's modality-agnostic design and enterprise security foundation.
 
-- **Agent Discovery & Registration**: A2A's Agent Cards align closely with our Registry & Discovery module—even though we haven't explicitly structured Agent Card, our system supports name, capabilities, modality, and description in the registry (§14).
-
-- **Secure Communication & Modality Support**: Our use of gRPC with optional signing and multi-modal content types corresponds to A2A's modality-agnostic design and enterprise security foundation.
-
-- **Long-Running Tasks & States**: A2A's support for long-running workflows parallels our task lifecycle, message states, and streaming tool calls.
+- **Long-Running Tasks and States**: A2A supports long-running workflows. SW4RM provides a parallel implementation through task lifecycle, message states, and streaming tool calls.
 
 **Complementary Design Philosophy:**
 
-
-Google's A2A focuses on secure, interoperable agent messaging across enterprise boundaries, emphasizing discovery, modality negotiation, and long-running tasks. SW4RM defines the deeper machinery—scheduling, cancellation, preemption, idempotency, negotiation, worktree confinement, logs, and tool integration. These two can co-exist: use A2A for agent-to-agent orchestration and SW4RM for a resilient internal engine.
+Google's A2A focuses on secure, interoperable agent messaging across enterprise boundaries. A2A emphasizes discovery, modality negotiation, and long-running tasks. SW4RM defines deeper machinery: scheduling, cancellation, preemption, idempotency, negotiation, worktree confinement, logs, and tool integration. You can use both together: A2A for agent-to-agent orchestration and SW4RM for a resilient internal engine.
 
 ## 3.10. Next Steps
 
 
 - [Message Types](messages.md) - Detailed message specifications
-- [Services](services.md) - Complete service API reference  
+- [Services](services.md) - Complete service API reference
 - [ACK Lifecycle](acks.md) - Acknowledgment handling patterns
+- [Advanced Patterns (v0.4.0)](advanced-patterns.md) - Negotiation Room, Agent Handoff, Workflow Orchestration, Three-ID Model

@@ -47,7 +47,7 @@ message RegisterAgentResponse {
 }
 ```
 
-Note: Deployments commonly include additional declaration fields aligned with the spec, such as `communication_class` and `max_parallel_instances`. Field names and placement may vary by schema version; include them where supported to enable correct routing and scheduling policies.
+Note: Deployments include additional declaration fields aligned with the spec, such as `communication_class` and `max_parallel_instances`. Field names and placement vary by schema version. Include these fields where supported to enable correct routing and scheduling policies.
 
 #### Discover Agents
 
@@ -372,11 +372,297 @@ message ListToolsResponse {
 }
 ```
 
+### Negotiation Service
+
+**Purpose**: Multi-agent consensus, artifact approval workflows, and coordination.
+
+**Port**: 50064
+
+#### Submit Proposal
+
+```protobuf
+rpc SubmitProposal(NegotiationProposal) returns (ProposalResponse);
+
+message NegotiationProposal {
+  string artifact_type = 1;           // REQUIREMENTS, PLAN, CODE, DEPLOYMENT
+  string artifact_id = 2;             // Unique identifier
+  bytes artifact = 3;                 // Binary content
+  string artifact_content_type = 4;   // MIME type
+  repeated string requested_critics = 5; // Critic agent IDs
+  string negotiation_room_id = 6;     // Session identifier
+  string producer_id = 7;             // Submitting agent
+}
+
+message ProposalResponse {
+  bool accepted = 1;
+  string proposal_id = 2;
+  string negotiation_room_id = 3;
+  repeated string assigned_critics = 4;
+}
+```
+
+#### Submit Vote
+
+```protobuf
+rpc SubmitVote(NegotiationVote) returns (VoteResponse);
+
+message NegotiationVote {
+  string artifact_id = 1;
+  string critic_id = 2;
+  float score = 3;                    // 0-10 score
+  float confidence = 4;               // 0-1 confidence level
+  bool passed = 5;                    // Meets minimum criteria
+  repeated string strengths = 6;
+  repeated string weaknesses = 7;
+  repeated string recommendations = 8;
+  string negotiation_room_id = 9;
+}
+```
+
+#### Wait for Decision
+
+```protobuf
+rpc WaitForDecision(WaitRequest) returns (NegotiationDecision);
+
+message NegotiationDecision {
+  string artifact_id = 1;
+  DecisionOutcome outcome = 2;        // APPROVED, REVISION_REQUESTED, ESCALATED_TO_HITL
+  repeated NegotiationVote votes = 3;
+  AggregatedScore aggregated_score = 4;
+  string rationale = 5;
+  string policy_version = 6;
+}
+
+message AggregatedScore {
+  float mean = 1;
+  float weighted_mean = 2;
+  float min_score = 3;
+  float max_score = 4;
+  float std_dev = 5;
+  int32 vote_count = 6;
+}
+```
+
+### Reasoning Service
+
+**Purpose**: Decision support, parallelism evaluation, and debate orchestration.
+
+**Port**: 50065
+
+#### Evaluate Options
+
+```protobuf
+rpc EvaluateOptions(EvaluationRequest) returns (EvaluationResponse);
+
+message EvaluationRequest {
+  string evaluation_id = 1;
+  repeated OptionCandidate candidates = 2;
+  EvaluationCriteria criteria = 3;
+  string context = 4;
+}
+
+message OptionCandidate {
+  string option_id = 1;
+  string description = 2;
+  bytes data = 3;
+  map<string, float> estimated_scores = 4;
+}
+
+message EvaluationCriteria {
+  repeated CriterionWeight weights = 1;
+  float minimum_threshold = 2;
+  EvaluationStrategy strategy = 3;  // WEIGHTED_SUM, PARETO, MULTI_OBJECTIVE
+}
+
+message EvaluationResponse {
+  string evaluation_id = 1;
+  repeated RankedOption results = 2;
+  string selected_option_id = 3;
+  string rationale = 4;
+}
+```
+
+#### Start Debate
+
+```protobuf
+rpc StartDebate(DebateRequest) returns (DebateSession);
+
+message DebateRequest {
+  string topic = 1;
+  repeated string participant_agents = 2;
+  DebateConfig config = 3;
+}
+
+message DebateConfig {
+  int32 max_rounds = 1;
+  int64 round_timeout_ms = 2;
+  string moderator_policy = 3;
+  repeated string position_types = 4;  // PRO, CON, NEUTRAL
+}
+
+message DebateSession {
+  string session_id = 1;
+  string status = 2;
+  repeated DebateRound rounds = 3;
+  DebateSummary summary = 4;
+}
+```
+
+### Logging Service
+
+**Purpose**: Distributed logging, audit trails, and compliance reporting.
+
+**Port**: 50066
+
+#### Emit Log Entry
+
+```protobuf
+rpc EmitLog(LogEntry) returns (LogResponse);
+
+message LogEntry {
+  string log_id = 1;
+  string agent_id = 2;
+  LogLevel level = 3;                 // DEBUG, INFO, WARN, ERROR, FATAL
+  string message = 4;
+  map<string, string> attributes = 5;
+  string correlation_id = 6;
+  string span_id = 7;
+  uint64 timestamp = 8;
+}
+
+enum LogLevel {
+  LOG_LEVEL_UNSPECIFIED = 0;
+  DEBUG = 1;
+  INFO = 2;
+  WARN = 3;
+  ERROR = 4;
+  FATAL = 5;
+}
+
+message LogResponse {
+  bool accepted = 1;
+  string log_id = 2;
+}
+```
+
+#### Query Logs
+
+```protobuf
+rpc QueryLogs(LogQuery) returns (stream LogEntry);
+
+message LogQuery {
+  repeated string agent_ids = 1;
+  LogLevel min_level = 2;
+  uint64 start_timestamp = 3;
+  uint64 end_timestamp = 4;
+  map<string, string> attribute_filters = 5;
+  string correlation_id = 6;
+  int32 limit = 7;
+}
+```
+
+#### Emit Audit Event
+
+```protobuf
+rpc EmitAuditEvent(AuditEvent) returns (AuditResponse);
+
+message AuditEvent {
+  string event_id = 1;
+  string actor_id = 2;                // Agent or user performing action
+  string action = 3;                  // CREATE, READ, UPDATE, DELETE, EXECUTE
+  string resource_type = 4;           // message, task, worktree, etc.
+  string resource_id = 5;
+  string result = 6;                  // SUCCESS, FAILURE, DENIED
+  map<string, string> metadata = 7;
+  uint64 timestamp = 8;
+}
+```
+
+### Connector Service
+
+**Purpose**: External API integration, tool provider registration, and capability bridging.
+
+**Port**: 50067
+
+#### Register Provider
+
+```protobuf
+rpc RegisterProvider(ProviderRegistration) returns (RegistrationResponse);
+
+message ProviderRegistration {
+  string provider_id = 1;
+  string provider_name = 2;
+  ProviderType provider_type = 3;     // MCP, REST, GRPC, CUSTOM
+  repeated ToolDescriptor tools = 4;
+  ConnectionConfig connection = 5;
+  HealthCheckConfig health_config = 6;
+}
+
+message ToolDescriptor {
+  string tool_name = 1;
+  string description = 2;
+  bytes input_schema = 3;             // JSON Schema
+  bytes output_schema = 4;            // JSON Schema
+  repeated string required_permissions = 5;
+  bool is_idempotent = 6;
+  bool supports_streaming = 7;
+}
+
+message ConnectionConfig {
+  string endpoint = 1;
+  AuthConfig auth = 2;
+  TlsConfig tls = 3;
+  int64 timeout_ms = 4;
+  int32 max_concurrent_requests = 5;
+}
+```
+
+#### Invoke Tool
+
+```protobuf
+rpc InvokeTool(ToolInvocation) returns (ToolResult);
+
+message ToolInvocation {
+  string provider_id = 1;
+  string tool_name = 2;
+  bytes arguments = 3;                // JSON-encoded arguments
+  string correlation_id = 4;
+  ExecutionPolicy policy = 5;
+}
+
+message ToolResult {
+  bool success = 1;
+  bytes result = 2;                   // JSON-encoded result
+  string error_message = 3;
+  int64 execution_time_ms = 4;
+  map<string, string> metadata = 5;
+}
+```
+
+#### List Providers
+
+```protobuf
+rpc ListProviders(ListProvidersRequest) returns (ListProvidersResponse);
+
+message ListProvidersResponse {
+  repeated ProviderInfo providers = 1;
+
+  message ProviderInfo {
+    string provider_id = 1;
+    string provider_name = 2;
+    ProviderType provider_type = 3;
+    HealthStatus health_status = 4;
+    repeated string available_tools = 5;
+    uint64 last_seen_timestamp = 6;
+  }
+}
+```
+
 ## Service Discovery and Health
 
 ### Service Registry Pattern
 
-All services register with a central service registry:
+All services register with a central service registry. The following message defines the registration format:
 
 ```protobuf
 message ServiceRegistration {
@@ -397,18 +683,17 @@ message ServiceEndpoint {
 
 ### Load Balancing Strategies
 
-Services support multiple load balancing strategies:
+Services support the following load balancing strategies:
 
-
-- **Round Robin**: Distribute requests evenly across endpoints
-- **Least Connections**: Route to endpoint with fewest active connections  
-- **Weighted**: Route based on endpoint capacity weights
-- **Locality Aware**: Prefer endpoints in same region/zone
-- **Health Based**: Exclude unhealthy endpoints from rotation
+- **Round Robin**: The load balancer distributes requests evenly across endpoints.
+- **Least Connections**: The load balancer routes to the endpoint with fewest active connections.
+- **Weighted**: The load balancer routes based on endpoint capacity weights.
+- **Locality Aware**: The load balancer prefers endpoints in the same region or zone.
+- **Health Based**: The load balancer excludes unhealthy endpoints from rotation.
 
 ### Circuit Breaker Pattern
 
-All service clients implement circuit breakers:
+All service clients implement circuit breakers with the following configuration:
 
 ```protobuf
 message CircuitBreakerConfig {
@@ -421,10 +706,9 @@ message CircuitBreakerConfig {
 
 **States**:
 
-
-- **CLOSED**: Normal operation, requests pass through
-- **OPEN**: Failing fast, requests immediately rejected  
-- **HALF_OPEN**: Testing recovery, limited requests allowed
+- **CLOSED**: The circuit allows requests to pass through during normal operation.
+- **OPEN**: The circuit rejects requests immediately during failure mode.
+- **HALF_OPEN**: The circuit allows limited requests to test recovery.
 
 ## Error Handling Patterns
 
@@ -448,7 +732,7 @@ message ErrorDetail {
 
 ### Retry Policies
 
-All services implement exponential backoff with jitter:
+All services implement exponential backoff with jitter. The following function shows the calculation:
 
 ```python
 def calculate_delay(attempt: int, base_delay_ms: int, max_delay_ms: int) -> int:
@@ -464,7 +748,7 @@ def calculate_delay(attempt: int, base_delay_ms: int, max_delay_ms: int) -> int:
 
 ### Authentication
 
-Services use mutual TLS authentication:
+Services use mutual TLS authentication with the following configuration:
 
 ```yaml
 tls_config:
@@ -477,7 +761,7 @@ tls_config:
 
 ### Authorization
 
-Role-based access control per service:
+The system enforces role-based access control per service:
 
 ```protobuf
 message ServicePermission {
@@ -490,7 +774,7 @@ message ServicePermission {
 
 ### Audit Logging
 
-All service operations generate audit logs:
+All service operations generate audit logs with the following structure:
 
 ```json
 {
