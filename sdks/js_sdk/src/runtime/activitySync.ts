@@ -1,5 +1,5 @@
 import { ActivityBuffer, ActivityRecord } from '../internal/runtime/activityBuffer.js';
-import { SchedulerClient, ActivityEntry } from '../clients/scheduler.js';
+import { SchedulerClient } from '../clients/scheduler.js';
 
 export class ActivityBufferSync {
   constructor(private buf: ActivityBuffer, private sched: SchedulerClient) {}

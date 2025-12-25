@@ -49,7 +49,9 @@ export function createResilientIncomingStream(
       if (current && typeof (current as any).cancel === 'function') {
         (current as any).cancel();
       }
-    } catch {}
+    } catch {
+      // Ignore cancel errors
+    }
     current = null;
   };
 

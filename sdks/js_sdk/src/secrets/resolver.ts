@@ -13,7 +13,9 @@ export class Resolver<B extends SecretsBackend> {
     try {
       const v = await this.backend.get(scope, key)
       return [v, scope.isGlobal ? SecretSource.GLOBAL : SecretSource.SCOPED]
-    } catch (e) {}
+    } catch {
+      // Fall through to try global scope
+    }
     if (!scope.isGlobal) {
       const v = await this.backend.get(new Scope(null), key)
       return [v, SecretSource.GLOBAL]

@@ -1,5 +1,4 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync, chmodSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import type { SecretsBackend } from '../backend.js'
 import { SecretBackendError, SecretNotFound, SecretPermissionError } from '../errors.js'
@@ -23,7 +22,9 @@ export class FileBackend implements SecretsBackend {
     mkdirSync(dirname(this.path), { recursive: true })
     try {
       chmodSync(dirname(this.path), 0o700)
-    } catch {}
+    } catch {
+      // Ignore permission errors on some platforms
+    }
     if (!existsSync(this.path)) {
       this.safeWrite({})
       this.enforceFilePerms()

@@ -22,7 +22,7 @@ export class RouterClient extends BaseClient {
     // Propagate correlation at transport level per spec (§5)
     if (envelope.correlation_id && !meta.get('x-correlation-id').length) meta.set('x-correlation-id', envelope.correlation_id);
     const callOpts: grpc.CallOptions = { deadline: this.deadlineFromNow() };
-    return this.withRetryUnary<unknown, SendResult>(() => new Promise((resolve, reject) => {
+    return this.withRetryUnary<SendResult>(() => new Promise((resolve, reject) => {
       this.client.SendMessage({ msg: envelope }, meta, callOpts, (err, res) => {
         if (err) return reject(err);
         resolve({ accepted: !!res?.accepted, reason: res?.reason });

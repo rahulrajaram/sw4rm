@@ -104,7 +104,7 @@ export class BaseClient {
     return new ServiceCtor(this.address, this.channelCredentials()) as unknown as T;
   }
 
-  protected async withRetryUnary<Req, Res>(fn: () => Promise<Res>, methodName = 'unknown', mdForCtx?: grpc.Metadata): Promise<Res> {
+  protected async withRetryUnary<Res>(fn: () => Promise<Res>, methodName = 'unknown', mdForCtx?: grpc.Metadata): Promise<Res> {
     let attempt = 0;
     let backoff = this.retry.initialBackoffMs;
     for (;;) {

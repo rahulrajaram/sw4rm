@@ -1,6 +1,6 @@
 # RFC: SW4RM - Interruptible, Message-Driven Agent Coordination Protocol
 
-Version: 0.3.0 (2025-08-31)
+Version: 0.4.0 (2025-12-23)
 
 ## Versioning and Changelog
 
@@ -10,7 +10,8 @@ The versioning scope encompasses this document and the canonical protocol buffer
 
 **Changelog:**
 
-- **0.3.0 (2025-08-31)**: RFC rigor pass (BCP 14, imperative voice, ASCII), expanded sections 10 (Activity Buffer), 11 (Messaging Model readability), 13 (Buffers and Back-Pressure with examples and metrics), 15 (HITL expectations and message shapes), and 18 (MCP/Tool Calling with discovery, invocation, retries, security). Renamed negotiation policy terminology to NegotiationPolicy (formerly “Waggle/Pheromone” naming) in this document and example stubs; clarified canonical proto packaging policy in §5.1. Note: canonical proto identifiers will be updated to match NegotiationPolicy in a subsequent proto release.
+- **0.4.0 (2025-12-23)**: Added Negotiation Room pattern (§17.5), Agent Handoff Protocol (§17.6), and Workflow Orchestration (§17.7) to align spec with proto definitions. Unified proto namespaces to `sw4rm.{service}` convention (e.g., `sw4rm.negotiation_room`, `sw4rm.handoff`, `sw4rm.workflow`). Added edge case documentation for HITL unavailability (§15.4), streaming cancellation (§18.6), and activity buffer limits (§10.1). Formalized EnvelopeState lifecycle and three-ID model.
+- **0.3.0 (2025-08-31)**: RFC rigor pass (BCP 14, imperative voice, ASCII), expanded sections 10 (Activity Buffer), 11 (Messaging Model readability), 13 (Buffers and Back-Pressure with examples and metrics), 15 (HITL expectations and message shapes), and 18 (MCP/Tool Calling with discovery, invocation, retries, security). Renamed negotiation policy terminology to NegotiationPolicy (formerly "Waggle/Pheromone" naming) in this document and example stubs; clarified canonical proto packaging policy in §5.1. Note: canonical proto identifiers will be updated to match NegotiationPolicy in a subsequent proto release.
 - **0.2.0 (2025-08-17)**: Canonicalized `sw4rm.*` package namespace; enhanced negotiation protocol with event fanout (JSON), room-based correlation semantics (`correlation_id=negotiation_id`), policy broadcast mechanisms (NegotiationPolicy/EffectivePolicy), comprehensive validation/diff/scoring guidance; introduced optional policy and activity protocol buffer stubs. This release maintains wire compatibility with 0.1.x implementations beyond the namespace canonicalization requirement.
 - **0.1.1 (2025-08-08)**: Editorial clarifications and protocol buffer formatting improvements. No normative behavioral changes.
 - **0.1.0 (2025-08-08)**: Initial specification release establishing core framework concepts and requirements.
@@ -99,7 +100,7 @@ For example, when Agent A sends a task completion message that triggers Agent B 
 
 ```
 Agent A completes task: HLC="1725552000.000001.node-a"
-Agent B receives notification: HLC="1725552000.000002.node-b" 
+Agent B receives notification: HLC="1725552000.000002.node-b"
 Agent B starts dependent task: HLC="1725552000.000003.node-b"
 ```
 
@@ -297,7 +298,30 @@ Implementations MUST support the following Agent lifecycle states with their spe
 
 **RECOVERING**: Agents in this state MUST attempt to recover from a previous failure. Recovery procedures MAY involve restarting processes, reconnecting to services, or rebuilding corrupted state. Recovery implementations SHOULD follow established patterns for reliability and MUST transition to either RUNNABLE (on success) or FAILED (on recovery failure).
 
-### 8.2. Shutdown and Grace Period Management
+### 8.2. Additional State Transitions
+
+Implementations MUST support the following additional state transitions to handle timeout and escalation scenarios:
+
+**WAITING_RESOURCES to FAILED**: If an Agent remains in WAITING_RESOURCES state beyond the configured resource acquisition timeout, the Scheduler MUST transition the Agent to FAILED state with `error_code=resource_timeout`. Implementations SHOULD configure a default resource timeout of 300 seconds (5 minutes). The timeout value SHOULD be configurable per Agent type or task priority.
+
+**RECOVERING to SHUTTING_DOWN**: If an operator or policy requests Agent shutdown while the Agent is in RECOVERING state, the Scheduler MUST transition the Agent to SHUTTING_DOWN state. This transition represents a recovery abort scenario where continued recovery attempts are no longer desired. The Agent MUST abandon recovery procedures and proceed with graceful shutdown.
+
+### 8.3. State Timeout Guidelines
+
+Implementations SHOULD enforce the following default timeout values for Agent states. These values are RECOMMENDED defaults; implementations MAY adjust based on operational requirements:
+
+| State | Default Timeout | Behavior on Timeout |
+|-------|-----------------|---------------------|
+| INITIALIZING | 60 seconds | Transition to FAILED with `error_code=init_timeout` |
+| WAITING | No default (task-specific) | Application-defined; MAY escalate to HITL |
+| WAITING_RESOURCES | 300 seconds | Transition to FAILED with `error_code=resource_timeout` |
+| SUSPENDED | 3600 seconds | Transition to FAILED with `error_code=suspend_timeout` |
+| RECOVERING | 120 seconds | Transition to FAILED with `error_code=recovery_timeout` |
+| SHUTTING_DOWN | 30 seconds | Mark as FAILED with `error_code=agent_shutdown_timeout` |
+
+Implementations MUST log all timeout-triggered state transitions for operational visibility.
+
+### 8.4. Shutdown and Grace Period Management
 
 Implementations MUST provide comprehensive shutdown procedures that maintain system reliability and data integrity:
 
@@ -357,11 +381,35 @@ Implementations MUST provide an Activity Buffer mechanism for tracking active Ag
 
 Purpose: The Activity Buffer provides operators and automation with a consistent, queryable view of in-flight work across Agents. It enables live dashboards, conflict analysis (who is touching which repo/worktree/branch), targeted HITL interventions with context, and post-incident audit. Implementations SHOULD offer filtered reads (by `agent_id`, `repo_id`, `worktree_id`, or `task_id`) and SHOULD retain a short history of recently completed items for troubleshooting. Implementations MAY expose a streaming feed of Activity Buffer mutations for observability.
 
+### 10.1. Activity Buffer Size Limits
+
+Implementations MAY enforce size limits on the Activity Buffer to prevent unbounded memory growth. When size limits are enforced:
+
+- Implementations SHOULD default to a maximum of 10,000 active entries per Scheduler instance.
+- Implementations MUST NOT silently drop entries when limits are reached; instead, implementations MUST reject new activity registrations with `error_code=activity_buffer_full`.
+- Implementations SHOULD emit warning metrics when the Activity Buffer exceeds 80% capacity.
+- Implementations MAY implement per-Agent entry limits (RECOMMENDED default: 100 entries per Agent) to prevent a single misbehaving Agent from exhausting buffer capacity.
+- Completed/failed task entries in the history buffer SHOULD be subject to time-based or count-based eviction policies.
+
+Operators SHOULD monitor Activity Buffer utilization and tune limits based on deployment scale. Implementations that do not enforce limits MUST document this behavior and SHOULD warn operators of potential memory exhaustion risks.
+
 ## 11. Messaging Model
 
-Implementations MUST support a comprehensive message lifecycle with explicit acknowledgment semantics. The message lifecycle MUST follow this sequence: SENT -> RECEIVED -> READ -> FULFILLED. Error states include: REJECTED, FAILED, TIMED_OUT, RETRYING. Implementations MUST use a default acknowledgment timeout of 10 seconds to RECEIVED state; on timeout implementations MUST set state to TIMED_OUT and send NACK with error code `ack_timeout`. Late acknowledgments MUST be reconciled against current message state.
+Implementations MUST support a comprehensive message lifecycle with explicit acknowledgment semantics. The message lifecycle MUST follow this sequence: SENT -> RECEIVED -> READ -> FULFILLED. Error states include: REJECTED, FAILED, TIMED_OUT, RETRYING. Implementations MUST use a default acknowledgment timeout of 10 seconds to RECEIVED state; on timeout implementations MUST set state to TIMED_OUT and send NACK with error code `ack_timeout`.
 
 Note: RECEIVED serves as the acknowledgment stage in this protocol. There is no separate ACKNOWLEDGED state; acknowledgment semantics are encoded via AckStage.RECEIVED.
+
+### 11.1. Late Acknowledgment Reconciliation
+
+Late acknowledgments (ACKs received after timeout processing has begun) MUST be reconciled against current message state using the following rules:
+
+1. **If message is in TIMED_OUT state**: The late ACK MUST be recorded but MUST NOT change the terminal state. Implementations MUST log the late ACK for observability with the original timeout timestamp and late ACK timestamp.
+
+2. **If message is in RETRYING state**: The late ACK for the original attempt MUST be recorded. If the retry has not yet been delivered, implementations MAY cancel the retry and transition to the ACK'd state (RECEIVED, READ, or FULFILLED depending on the ACK stage). If the retry has already been delivered, both attempts MUST be tracked and deduplicated by idempotency token.
+
+3. **If message has reached a terminal state (FULFILLED, REJECTED, FAILED)**: Late ACKs MUST be ignored for state purposes but MUST be logged for audit trails.
+
+4. **Idempotency token reconciliation**: When late ACKs arrive for messages with idempotency tokens, implementations MUST update the idempotency cache to reflect the earliest successful completion, ensuring correct deduplication of subsequent retries.
 
 Every message MUST include the following fields:
 
@@ -382,7 +430,7 @@ When HLC is enabled, messages MUST include `hlc_timestamp`.
 
 Implementations MUST support these core error codes: `buffer_full`, `no_route`, `ack_timeout`, `agent_unavailable`, `agent_shutdown`, `validation_error`, `permission_denied`, `unsupported_message_type`, `oversize_payload`, `tool_timeout`, `partial_delivery` (reserved), `forced_preemption`, `internal_error`.
 
-### 11.1 Idempotency Guarantees
+### 11.2 Idempotency Guarantees
 
 Implementations MAY provide exactly-once semantics through `idempotency_token` usage. When present, idempotency tokens MUST remain constant across all retries of the same logical operation. The Scheduler MUST maintain a persistent cache mapping tokens to terminal outcomes for at least the configured `deduplication_window` (default 3600 seconds).
 
@@ -491,6 +539,21 @@ HITL_DECISION payload:
 
 Deployments without a HITL component MUST define policy for how to proceed. Options include deny-by-default (safer) or automatic decisions based on thresholds. The Scheduler MUST document and log which fallback was applied. Components MUST NOT block indefinitely waiting for human input when no HITL is available.
 
+### 15.4 HITL Unavailability During Negotiation Timeout
+
+When a negotiation timeout fires and requires HITL escalation (e.g., `DEBATE_DEADLOCK`), but the HITL component is unavailable, implementations MUST handle the situation as follows:
+
+1. **Detect HITL unavailability**: The Scheduler MUST detect HITL unavailability within a bounded time (RECOMMENDED: 5 seconds) through health checks, connection failures, or response timeouts.
+
+2. **Apply fallback policy**: The Scheduler MUST apply the configured `hitl_unavailable_policy` for negotiations. Valid policy values are:
+   - `DENY_BY_DEFAULT`: Abort the negotiation with `error_code=hitl_unavailable`. This is the RECOMMENDED default for security-sensitive deployments.
+   - `AUTO_DECIDE_THRESHOLD`: If the highest-scoring proposal exceeds a configured auto-approve threshold, accept it automatically; otherwise abort.
+   - `EXTEND_TIMEOUT`: Extend the negotiation timeout by a configured duration (RECOMMENDED: 1x the original timeout) and retry HITL escalation. This option MUST have a maximum retry count (RECOMMENDED: 3) to prevent infinite loops.
+
+3. **Log and notify**: The Scheduler MUST log the HITL unavailability event with the negotiation context and the fallback action taken. Implementations SHOULD emit an alert or notification to operators.
+
+4. **Preserve audit trail**: The decision record MUST indicate that the decision was made via fallback policy due to HITL unavailability, including the policy applied and the timestamp.
+
 ---
 
 ## Appendix A - Protobuf Package Namespace
@@ -500,6 +563,49 @@ The canonical `.proto` package namespace for this specification is `sw4rm.*`. Ea
 ## 16. Repository and Worktree Binding
 
 Implementations MUST support Agent binding to a single home worktree identified by (`repo_id`, `worktree_id`). Implementations MUST enforce worktree confinement by: forbidding path escape attempts, forbidding device node access, and preferring mount options `noexec,nodev,nosuid` where supported. On platforms with limited mount control, implementations MUST enforce confinement through in-process VFS controls and directory file descriptor relative opens with `O_NOFOLLOW`. Non-home worktree operation is forbidden by default; the Scheduler MAY request worktree switching with policy enforcement and HITL approval. Implementations MUST implement the worktree binding state machine: UNBOUND -> BOUND_HOME -> SWITCH_PENDING -> BOUND_NON_HOME, and MUST log all state transitions. Implementations MUST support `WORKTREE_CONTROL` operations: BIND, UNBIND, SWITCH_REQUEST, SWITCH_APPROVE, SWITCH_REJECT, SWITCH_REVOKE, STATUS. Tools with `needs_worktree=true` MUST fail with error code `worktree_not_bound` when invoked by unbound Agents.
+
+### 16.1. Worktree Binding State Machine
+
+The worktree binding state machine MUST include the following states:
+
+| State | Description |
+|-------|-------------|
+| UNBOUND | Agent has no worktree binding. This is the initial state. |
+| BOUND_HOME | Agent is bound to its designated home worktree. Normal operating state. |
+| SWITCH_PENDING | Agent has requested a switch to a non-home worktree; awaiting approval. |
+| BOUND_NON_HOME | Agent is temporarily bound to a non-home worktree (time-limited). |
+| BIND_FAILED | Transient error state indicating a bind operation failed. |
+
+### 16.2. Worktree State Transitions
+
+The following state transitions MUST be supported:
+
+| From State | To State | Trigger | Notes |
+|------------|----------|---------|-------|
+| UNBOUND | BOUND_HOME | Successful BIND operation | Normal startup flow |
+| UNBOUND | BIND_FAILED | BIND operation error | Filesystem error, permission denied, worktree not found |
+| BIND_FAILED | UNBOUND | Retry reset or explicit UNBIND | Clears error state for retry |
+| BIND_FAILED | BOUND_HOME | Successful retry BIND | Direct recovery from error |
+| BOUND_HOME | SWITCH_PENDING | SWITCH_REQUEST issued | Awaiting HITL or policy approval |
+| SWITCH_PENDING | BOUND_NON_HOME | SWITCH_APPROVE received | Time-limited; TTL enforced |
+| SWITCH_PENDING | BOUND_HOME | SWITCH_REJECT received | Request denied; return to home |
+| BOUND_NON_HOME | BOUND_HOME | TTL expired or SWITCH_REVOKE | Automatic return to home worktree |
+| BOUND_HOME | UNBOUND | UNBIND operation | Explicit unbinding |
+| BOUND_NON_HOME | UNBOUND | UNBIND operation | Explicit unbinding from non-home |
+
+### 16.3. BIND_FAILED State Handling
+
+The BIND_FAILED state is a transient error state that indicates a bind operation could not be completed. Implementations MUST handle this state as follows:
+
+1. **Error recording**: When transitioning to BIND_FAILED, implementations MUST record the error reason (e.g., `worktree_not_found`, `permission_denied`, `filesystem_error`, `worktree_locked`).
+
+2. **Automatic recovery**: Implementations MAY attempt automatic recovery by retrying the BIND operation after a backoff period. The retry policy SHOULD use exponential backoff with a maximum of 3 retry attempts.
+
+3. **Manual recovery**: Operators MAY issue an explicit UNBIND to clear the BIND_FAILED state and return to UNBOUND, or MAY issue a new BIND request to retry.
+
+4. **Task scheduling**: Agents in BIND_FAILED state MUST NOT be assigned tasks that require worktree access. The Scheduler SHOULD treat BIND_FAILED similarly to UNBOUND for task eligibility purposes.
+
+5. **Timeout**: If an Agent remains in BIND_FAILED state for longer than the configured bind recovery timeout (RECOMMENDED: 60 seconds), implementations SHOULD escalate to operator notification.
 
 ## 17. Inter-Agent Negotiation ("Debate")
 
@@ -543,6 +649,181 @@ Per round, implementations SHOULD compute and record a structural JSON `DeltaSum
 ### 17.4 Reports and Artifacts
 
 Implementations SHOULD emit and persist structured records per round: `EvaluationReport` (deterministic checks, scores, notes), `DecisionReport` (scores, rationale, stop reason), and artifacts: `contract_vN.json`, `diff_v{N-1}_to_vN.json`. See Annex C/D for examples and Activity/Artifacts Protobuf APIs below.
+
+### 17.5 Negotiation Room Pattern
+
+The Negotiation Room pattern provides a structured multi-agent artifact approval workflow where Producers submit artifacts for evaluation by multiple Critic agents, with a Coordinator aggregating votes and making final decisions.
+
+#### Roles
+
+- **Producer**: Agent that submits an artifact for approval via `NegotiationProposal`
+- **Critic**: Agent that evaluates artifacts and submits `NegotiationVote` with scores, strengths, weaknesses, and recommendations
+- **Coordinator**: Component (typically the Scheduler) that aggregates votes, computes `AggregatedScore`, and issues `NegotiationDecision`
+
+#### Artifact Types
+
+Implementations MUST support the following artifact categories:
+
+- `REQUIREMENTS`: Specifications and requirements documents
+- `PLAN`: Implementation plans and architectural designs
+- `CODE`: Source code and executable artifacts
+- `DEPLOYMENT`: Deployment configurations and infrastructure definitions
+
+#### Proposal Submission
+
+A Producer submits artifacts via `SubmitProposal` RPC with:
+
+- `artifact_type`: Category of the artifact
+- `artifact_id`: Unique identifier for the artifact
+- `artifact`: Binary content (serialized JSON, code, etc.)
+- `artifact_content_type`: MIME type identifier
+- `requested_critics`: List of critic agent IDs to evaluate the artifact
+- `negotiation_room_id`: Session identifier for the negotiation
+
+#### Voting
+
+Critics evaluate artifacts and submit votes containing:
+
+- `score`: Numerical score from 0-10 (10 = excellent)
+- `confidence`: Confidence level from 0-1 (based on POMDP uncertainty modeling)
+- `passed`: Boolean indicating if artifact meets minimum criteria
+- `strengths`, `weaknesses`, `recommendations`: Qualitative feedback
+
+#### Vote Aggregation
+
+The Coordinator computes `AggregatedScore` from all votes:
+
+- `mean`: Arithmetic mean of all scores
+- `min_score`, `max_score`: Score range
+- `std_dev`: Standard deviation (measures consensus)
+- `weighted_mean`: Confidence-weighted mean (higher confidence votes weighted more heavily)
+- `vote_count`: Number of votes aggregated
+
+#### Decision Outcomes
+
+The Coordinator issues a `NegotiationDecision` with one of:
+
+- `APPROVED`: Artifact meets all thresholds; proceed with workflow
+- `REVISION_REQUESTED`: Artifact requires changes; Producer should iterate
+- `ESCALATED_TO_HITL`: Human judgment required; escalate via HITL mechanisms (see Section 15)
+
+The decision includes the complete vote list, aggregated score, policy version, and human-readable rationale for audit purposes.
+
+#### Blocking Wait
+
+Implementations MUST support `WaitForDecision` RPC for synchronous workflows where the Producer blocks until a decision is rendered. Implementations SHOULD support configurable timeout.
+
+### 17.6 Agent Handoff Protocol
+
+The Handoff Protocol enables safe delegation of work between agents when capability requirements change or workload balancing is needed.
+
+#### Handoff Request
+
+An originating agent initiates handoff via `RequestHandoff` with:
+
+- `request_id`: Unique identifier for the handoff request
+- `from_agent`: Originating agent ID
+- `to_agent`: Target agent ID (or empty for capability-based routing)
+- `reason`: Human-readable explanation for the handoff
+- `context_snapshot`: Serialized execution context to transfer
+- `capabilities_required`: List of capabilities the receiving agent MUST possess
+- `priority`: Priority level for the handoff
+- `timeout`: Maximum duration to wait for acceptance
+
+#### Handoff Lifecycle
+
+Implementations MUST support the following states:
+
+1. `PENDING`: Request submitted, awaiting response
+2. `ACCEPTED`: Target agent accepted the handoff
+3. `REJECTED`: Target agent declined (with `rejection_reason`)
+4. `COMPLETED`: Handoff fully executed, context transferred
+5. `EXPIRED`: Timeout reached before resolution
+
+#### Accept/Reject Semantics
+
+The target agent evaluates the handoff request and:
+
+- Calls `AcceptHandoff` to take ownership of the work
+- Calls `RejectHandoff` with a reason if unable to accept
+
+The Scheduler MAY route pending handoffs to alternative agents if the primary target rejects or times out.
+
+#### Context Transfer
+
+The `context_snapshot` field carries serialized state necessary for the receiving agent to continue work. Implementations SHOULD define content types for context snapshots to enable structured deserialization. The originating agent MUST NOT continue work on the transferred context after handoff completion.
+
+#### Pending Handoff Discovery
+
+Agents SHOULD periodically call `GetPendingHandoffs` to discover incoming handoff requests, particularly after recovery from failure states.
+
+### 17.7 Workflow Orchestration
+
+The Workflow Orchestration pattern enables DAG-based multi-agent task coordination where nodes represent agent-executed steps with explicit dependencies.
+
+#### Workflow Definition
+
+A `WorkflowDefinition` comprises:
+
+- `workflow_id`: Unique identifier for the workflow
+- `nodes`: Map of `node_id` to `WorkflowNode` definitions
+- `metadata`: Additional workflow-level configuration
+
+#### Workflow Nodes
+
+Each `WorkflowNode` specifies:
+
+- `node_id`: Unique identifier within the workflow
+- `agent_id`: Agent responsible for executing the node
+- `dependencies`: Set of `node_id` values that MUST complete before execution
+- `trigger_type`: How the node is activated (EVENT, SCHEDULE, MANUAL, DEPENDENCY)
+- `input_mapping`: Maps workflow state keys to node input parameters
+- `output_mapping`: Maps node output keys to workflow state keys
+
+#### Node Status Transitions
+
+Nodes transition through the following states:
+
+1. `PENDING`: Waiting for dependencies to complete
+2. `READY`: All dependencies satisfied; eligible for execution
+3. `RUNNING`: Currently executing
+4. `COMPLETED`: Finished successfully
+5. `FAILED`: Encountered an error
+6. `SKIPPED`: Bypassed due to conditional logic
+
+Implementations MUST NOT execute a node until all nodes in its `dependencies` set have reached `COMPLETED` status.
+
+#### Workflow State
+
+`WorkflowState` tracks execution progress:
+
+- `workflow_id`: Identifier of the executing workflow
+- `node_states`: Map of `node_id` to `NodeState` tracking individual progress
+- `workflow_data`: Shared data accessible to all nodes (JSON string)
+- `started_at`, `completed_at`: Workflow-level timestamps
+
+#### Input/Output Mapping
+
+The `input_mapping` and `output_mapping` fields enable data flow between nodes through the shared `workflow_data`:
+
+- Before node execution: Values from `workflow_data` are extracted per `input_mapping`
+- After node completion: Node outputs are written back to `workflow_data` per `output_mapping`
+
+#### Workflow Operations
+
+Implementations MUST support:
+
+- `CreateWorkflow`: Register a workflow definition
+- `StartWorkflow`: Begin execution with initial `workflow_data`
+- `GetWorkflowState`: Query current execution state
+- `ResumeWorkflow`: Continue execution from a specific node (for recovery or iteration)
+
+#### Trigger Types
+
+- `EVENT`: Node triggered by external events or messages
+- `SCHEDULE`: Node triggered on a time-based schedule (cron-like)
+- `MANUAL`: Node triggered by explicit user action
+- `DEPENDENCY`: Node triggered when all dependencies complete (default for DAG execution)
 
 ## 18. MCP Integration and Tool Calling
 
@@ -610,6 +891,58 @@ Providers MUST map failures to structured error codes (e.g., `TOOL_TIMEOUT`, `VA
 ### 18.4 Security and Isolation
 
 Tool execution MUST honor confinement and capability policies (see 6.4 and documentation/protocol/spec_enhancements.md Section 4.5). Default posture SHOULD be deny-by-default with explicit grants for filesystem, network, and process privileges.
+
+### 18.5 Execution Policy Fields
+
+The `ExecutionPolicy` message in `tool.proto` defines resource budgets and constraints for tool execution. Implementations MUST support the following fields:
+
+#### 18.5.1 Resource Budget Fields
+
+**budget_cpu_ms** (uint64): Maximum CPU time in milliseconds that the tool execution may consume. This measures actual CPU cycles consumed, not wall-clock time. Implementations MUST terminate tool execution when this budget is exhausted and MUST return `TOOL_ERROR` with `error_code=CPU_BUDGET_EXCEEDED`. A value of 0 indicates no CPU budget limit.
+
+**budget_wall_ms** (uint64): Maximum wall-clock time in milliseconds for the entire tool execution, including I/O wait, network latency, and any blocking operations. This differs from `budget_cpu_ms` in that it measures elapsed real time. Implementations MUST terminate tool execution when this budget is exhausted and MUST return `TOOL_ERROR` with `error_code=WALL_TIMEOUT`. A value of 0 indicates no wall-clock limit. When both `budget_cpu_ms` and `budget_wall_ms` are specified, whichever limit is reached first MUST trigger termination.
+
+#### 18.5.2 Network Policy
+
+**network_policy** (string): Defines the network access permissions for the tool execution. Implementations MUST support the following values:
+
+| Value | Description |
+|-------|-------------|
+| `DENY_ALL` | No network access permitted. All outbound and inbound connections MUST be blocked. This is the RECOMMENDED default for untrusted tools. |
+| `EGRESS_RESTRICTED` | Outbound connections permitted only to explicitly allowlisted hosts/ports. Implementations MUST maintain an allowlist configuration. |
+| `EGRESS_UNRESTRICTED` | All outbound connections permitted. Inbound connections remain blocked. |
+| `FULL_ACCESS` | Both inbound and outbound connections permitted. This policy SHOULD require explicit HITL approval for security-sensitive deployments. |
+
+Implementations SHOULD default to `DENY_ALL` when `network_policy` is empty or unspecified.
+
+#### 18.5.3 Privilege Level
+
+**privilege_level** (string): Defines the privilege escalation permissions for the tool execution. Implementations MUST support the following values:
+
+| Value | Description |
+|-------|-------------|
+| `MINIMAL` | Tool runs with minimum necessary privileges. No access to sensitive resources, no process spawning, no filesystem access outside designated sandbox. This is the RECOMMENDED default. |
+| `DEFAULT` | Tool runs with standard Agent privileges. Access to worktree filesystem, standard network per `network_policy`, no privilege escalation. |
+| `ELEVATED` | Tool may request elevated privileges for specific operations (e.g., binding to privileged ports, accessing protected files). Each elevation MUST be logged. |
+| `PRIVILEGED` | Tool runs with full system privileges. This level MUST require explicit HITL approval and MUST be logged at WARN level. |
+
+Implementations SHOULD default to `MINIMAL` when `privilege_level` is empty or unspecified. Tools requesting `ELEVATED` or `PRIVILEGED` levels SHOULD trigger HITL escalation with `reason_type=TOOL_PRIVILEGE_ESCALATION` unless explicitly pre-approved by policy.
+
+### 18.6 Streaming Tool Cancellation
+
+When `Cancel` is called on a streaming tool execution (i.e., a `TOOL_CALL` with `stream=true`), implementations MUST handle the cancellation as follows:
+
+1. **Best-effort semantics**: The `Cancel` RPC is advisory and best-effort. The tool provider SHOULD attempt to stop execution promptly, but cancellation is not guaranteed to be immediate or successful.
+
+2. **In-flight frames**: Any frames already buffered for transmission MAY still be delivered after the cancel request. Callers MUST be prepared to receive additional `TOOL_RESULT` frames after issuing `Cancel`.
+
+3. **Terminal frame**: After processing the cancellation, the provider MUST send a final frame with `final=true`. If cancellation was successful, this frame SHOULD include a summary indicating cancellation. If cancellation was not possible (e.g., execution already completed), the normal terminal frame MUST be sent.
+
+4. **Error response**: The `Cancel` RPC returns a `ToolError` message. If cancellation was successfully initiated, the `error_code` SHOULD be `CANCELLED`. If the `call_id` was not found or already completed, the `error_code` SHOULD be `NOT_FOUND` or `ALREADY_COMPLETED` respectively.
+
+5. **Cleanup**: The provider MUST perform cleanup of any resources allocated for the streaming call, regardless of whether cancellation was successful.
+
+6. **Partial results**: If the tool has produced partial results before cancellation, the caller MAY choose to use those results. Implementations SHOULD include a `partial_result` indicator in the summary of cancelled streams.
 
 ## 19. Observability
 
@@ -755,12 +1088,17 @@ flowchart TB
 stateDiagram-v2
     [*] --> INITIALIZING
     INITIALIZING --> RUNNABLE
+    INITIALIZING --> FAILED: init_timeout
     RUNNABLE --> SCHEDULED
     SCHEDULED --> RUNNING
     RUNNING --> WAITING
     WAITING --> RUNNING
+    RUNNING --> WAITING_RESOURCES
+    WAITING_RESOURCES --> RUNNING
+    WAITING_RESOURCES --> FAILED: resource_timeout
     RUNNING --> SUSPENDED
     SUSPENDED --> RESUMED
+    SUSPENDED --> FAILED: suspend_timeout
     RESUMED --> RUNNING
     RUNNING --> COMPLETED
     RUNNING --> FAILED
@@ -768,6 +1106,8 @@ stateDiagram-v2
     SHUTTING_DOWN --> FAILED: agent_shutdown_timeout
     FAILED --> RECOVERING
     RECOVERING --> RUNNABLE
+    RECOVERING --> FAILED: recovery_timeout
+    RECOVERING --> SHUTTING_DOWN: recovery_abort
 ```
 
 **Message lifecycle**
@@ -776,14 +1116,33 @@ stateDiagram-v2
 stateDiagram-v2
     [*] --> SENT
     SENT --> RECEIVED: admitted to buffer
-    RECEIVED --> ACKNOWLEDGED: ack_stage=RECEIVED
-    ACKNOWLEDGED --> READ
+    RECEIVED --> READ: agent dequeued
     READ --> FULFILLED: ack_stage=FULFILLED
-    RECEIVED --> TIMED_OUT: ack timeout
+    SENT --> TIMED_OUT: ack timeout (no RECEIVED within 10s)
     TIMED_OUT --> RETRYING: new message_id, same idempotency_token
     RETRYING --> SENT
     RECEIVED --> REJECTED: buffer_full|validation_error
     RECEIVED --> FAILED: internal_error|permission_denied|forced_preemption
+    READ --> FAILED: processing error
+```
+
+Note: There is no separate ACKNOWLEDGED state. The RECEIVED state serves as the acknowledgment stage; acknowledgment semantics are encoded via AckStage.RECEIVED.
+
+**Worktree binding lifecycle**
+
+```mermaid
+stateDiagram-v2
+    [*] --> UNBOUND
+    UNBOUND --> BOUND_HOME: BIND success
+    UNBOUND --> BIND_FAILED: BIND error
+    BIND_FAILED --> UNBOUND: reset/retry
+    BIND_FAILED --> BOUND_HOME: BIND retry success
+    BOUND_HOME --> SWITCH_PENDING: SWITCH_REQUEST
+    SWITCH_PENDING --> BOUND_NON_HOME: SWITCH_APPROVE
+    SWITCH_PENDING --> BOUND_HOME: SWITCH_REJECT
+    BOUND_NON_HOME --> BOUND_HOME: TTL expired or SWITCH_REVOKE
+    BOUND_HOME --> UNBOUND: UNBIND
+    BOUND_NON_HOME --> UNBOUND: UNBIND
 ```
 
 ---
@@ -1627,6 +1986,7 @@ message EffectivePolicy {
   map<string, AgentPreferences> applied = 2; // per-agent clamped prefs (optional)
 }
 
+message PolicyProfile {
   string name = 1;            // e.g., LOW/MEDIUM/HIGH
   NegotiationPolicy policy = 2;
 }

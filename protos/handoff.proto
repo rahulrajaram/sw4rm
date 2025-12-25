@@ -1,0 +1,63 @@
+// SW4RM Protocol - Handoff Proto Definition
+// Namespace Convention: sw4rm.{service} (e.g., sw4rm.handoff)
+// See: docs/IMPLEMENTATION_PLAN.md Phase 1.1 for namespace standards.
+
+syntax = "proto3";
+
+package sw4rm.handoff;
+
+import "common.proto";
+import "google/protobuf/duration.proto";
+
+enum HandoffStatus {
+  HANDOFF_STATUS_UNSPECIFIED = 0;
+  PENDING = 1;
+  ACCEPTED = 2;
+  REJECTED = 3;
+  COMPLETED = 4;
+  EXPIRED = 5;
+}
+
+message HandoffRequest {
+  string request_id = 1;
+  string from_agent = 2;
+  string to_agent = 3;
+  string reason = 4;
+  bytes context_snapshot = 5;
+  repeated string capabilities_required = 6;
+  int32 priority = 7;
+  google.protobuf.Duration timeout = 8;
+}
+
+message HandoffResponse {
+  string request_id = 1;
+  bool accepted = 2;
+  string accepting_agent = 3;
+  string rejection_reason = 4;
+}
+
+message GetPendingHandoffsRequest {
+  string agent_id = 1;
+}
+
+message GetPendingHandoffsResponse {
+  repeated HandoffRequest pending_requests = 1;
+}
+
+message CompleteHandoffRequest {
+  string request_id = 1;
+  HandoffStatus status = 2;
+}
+
+message CompleteHandoffResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+service HandoffService {
+  rpc RequestHandoff(HandoffRequest) returns (sw4rm.common.Empty);
+  rpc AcceptHandoff(HandoffResponse) returns (sw4rm.common.Empty);
+  rpc RejectHandoff(HandoffResponse) returns (sw4rm.common.Empty);
+  rpc GetPendingHandoffs(GetPendingHandoffsRequest) returns (GetPendingHandoffsResponse);
+  rpc CompleteHandoff(CompleteHandoffRequest) returns (CompleteHandoffResponse);
+}

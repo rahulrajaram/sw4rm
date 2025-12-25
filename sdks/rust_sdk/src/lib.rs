@@ -79,6 +79,10 @@ pub mod secrets;
 pub mod types;
 pub mod worktree_state;
 
+// Phase 3: New modules for SDK parity
+pub mod policy_store;
+pub mod voting;
+
 // Re-export commonly used types
 pub use clients::*;
 pub use config::*;
@@ -89,6 +93,16 @@ pub use negotiation_events::*;
 pub use runtime::*;
 pub use secrets::*;
 pub use types::*;
+
+// Phase 3: Re-export new modules
+pub use policy_store::{
+    EffectivePolicy, EscalationPolicy, ExecutionPolicy, InMemoryPolicyStore,
+    JsonFilePolicyStore, NegotiationPolicy, PolicyStore, ScoringConfig,
+};
+pub use voting::{
+    AggregationStrategy, BordaCountAggregator, ConfidenceWeightedAggregator,
+    MajorityVoteAggregator, SimpleAverageAggregator, VotingAggregator,
+};
 
 // Generated protobuf code
 #[cfg(feature = "proto")]

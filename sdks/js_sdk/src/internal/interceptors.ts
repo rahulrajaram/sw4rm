@@ -20,7 +20,7 @@ export class InterceptorChain {
 
 export function timingInterceptor(): UnaryInterceptor {
   return {
-    onRequest(ctx) {
+    onRequest(_ctx) {
       // no-op; start time already in ctx
     },
     onResponse(ctx, status) {

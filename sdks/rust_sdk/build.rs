@@ -46,6 +46,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "policy.proto",
         "scheduler_policy.proto",
         "activity.proto",
+        // Phase 3: New protocol services
+        "negotiation_room.proto",
+        "handoff.proto",
+        "workflow.proto",
     ];
     let mut existing_files = Vec::new();
     for file in &wanted {

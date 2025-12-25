@@ -4,6 +4,17 @@ from typing import Any
 
 
 class LoggingClient:
+    """Client for the SW4RM Logging Service.
+
+    Provides centralized log ingestion for agent activities. Log events are
+    structured with correlation IDs for tracing across distributed agent
+    interactions.
+
+    Attributes:
+        _channel: gRPC channel for service communication
+        _stub: Generated gRPC stub for LoggingService
+    """
+
     def __init__(self, channel: Any) -> None:
         self._channel = channel
         try:
@@ -15,6 +26,15 @@ class LoggingClient:
             self._stub = None
 
     def ingest(self, event: dict) -> Any:
+        """Ingest a log event into the logging service.
+
+        Args:
+            event: Dictionary with LogEvent fields (timestamp, level, message,
+                correlation_id, agent_id, metadata, etc.)
+
+        Returns:
+            IngestResponse with acknowledgment
+        """
         if not self._stub:
             raise RuntimeError("Protobuf stubs not generated. Run `make protos`.")
         req = self._pb2.IngestRequest(event=self._pb2.LogEvent(**event))
