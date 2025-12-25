@@ -19,7 +19,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-sw4rm-sdk = "0.1.0"
+sw4rm-sdk = "0.4.0"
 tokio = { version = "1.0", features = ["full"] }
 ```
 
