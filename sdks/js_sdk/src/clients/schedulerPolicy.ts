@@ -2,10 +2,10 @@ import * as grpc from '@grpc/grpc-js';
 import { BaseClient, ClientOptions } from '../internal/baseClient.js';
 
 type SchedulerPolicyServiceClient = grpc.Client & {
-  SetWagglePolicy(req: { policy?: any }, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { ok: boolean; reason?: string }) => void): void;
-  GetWagglePolicy(req: {}, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { policy?: any }) => void): void;
-  SetPolicyProfiles(req: { profiles: any[] }, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { ok: boolean; reason?: string }) => void): void;
-  ListPolicyProfiles(req: {}, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { profiles: any[] }) => void): void;
+  SetWagglePolicy(req: { policy?: unknown }, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { ok: boolean; reason?: string }) => void): void;
+  GetWagglePolicy(req: Record<string, never>, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { policy?: unknown }) => void): void;
+  SetPolicyProfiles(req: { profiles: unknown[] }, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { ok: boolean; reason?: string }) => void): void;
+  ListPolicyProfiles(req: Record<string, never>, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { profiles: unknown[] }) => void): void;
   GetEffectivePolicy(req: { negotiation_id: string }, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { effective?: any }) => void): void;
   SubmitEvaluation(req: { negotiation_id: string; report?: any }, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { accepted: boolean; reason?: string }) => void): void;
   HitlAction(req: { negotiation_id: string; action: string; rationale?: string }, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { ok: boolean; reason?: string }) => void): void;

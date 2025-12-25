@@ -49,7 +49,66 @@ TOOL_TIMEOUT = 10
 PARTIAL_DELIVERY = 11  # reserved
 FORCED_PREEMPTION = 12
 TTL_EXPIRED = 13
+DUPLICATE_DETECTED = 14  # idempotency: duplicate request detected
 INTERNAL_ERROR = 99
+
+# CommunicationClass (spec section 7.3)
+COMMUNICATION_CLASS_UNSPECIFIED = 0
+PRIVILEGED = 1
+STANDARD = 2
+BULK = 3
+
+# DebateIntensity (spec section 17)
+DEBATE_INTENSITY_UNSPECIFIED = 0
+LOWEST = 1
+LOW = 2
+MEDIUM = 3
+HIGH = 4
+HIGHEST = 5
+
+# HitlReasonType (spec section 15)
+HITL_REASON_UNSPECIFIED = 0
+UNCERTAINTY_HIGH = 1
+RISK_HIGH = 2
+POLICY_REQUIRED = 3
+USER_REQUESTED = 4
+CONFLICT_UNRESOLVED = 5
+BUDGET_EXCEEDED = 6
+DEBATE_DEADLOCK = 7
+SECURITY_APPROVAL = 8
+
+# AgentState (spec section 8)
+AGENT_STATE_UNSPECIFIED = 0
+INITIALIZING = 1
+RUNNABLE = 2
+SCHEDULED = 3
+RUNNING = 4
+WAITING = 5
+WAITING_RESOURCES = 6
+SUSPENDED = 7
+RESUMED = 8
+COMPLETED = 9
+FAILED = 10
+SHUTTING_DOWN = 11
+RECOVERING = 12
+
+# WorktreeState (spec section 16)
+WORKTREE_STATE_UNSPECIFIED = 0
+UNBOUND = 1
+BOUND_HOME = 2
+SWITCH_PENDING = 3
+BOUND_NON_HOME = 4
+BIND_FAILED = 5
+
+# EnvelopeState (Three-ID model)
+ENVELOPE_STATE_UNSPECIFIED = 0
+CREATED = 1
+PENDING = 2
+RUNNING_ENVELOPE = 3  # avoid collision with AgentState.RUNNING
+FULFILLED_ENVELOPE = 4  # avoid collision with AckStage.FULFILLED
+REJECTED_ENVELOPE = 5  # avoid collision with AckStage.REJECTED
+FAILED_ENVELOPE = 6  # avoid collision with AckStage.FAILED
+TIMED_OUT_ENVELOPE = 7  # avoid collision with AckStage.TIMED_OUT
 
 # ---------------------------------------------------------------------------
 # Default endpoints and environment variables

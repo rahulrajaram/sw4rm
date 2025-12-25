@@ -34,32 +34,29 @@ export async function sendMessageWithAck(
     }
   };
 
-  return new Promise<void>(async (resolve, reject) => {
-    let timeout: NodeJS.Timeout | undefined;
-    const cleanup = () => {
-      if (timeout) clearTimeout(timeout);
-      inboundStream.removeListener('data', onData);
-      inboundStream.removeListener('error', onErr);
-    };
-    const onErr = (err: unknown) => {
-      cleanup();
-      reject(err);
-    };
-    inboundStream.on('data', onData);
-    inboundStream.on('error', onErr);
+  // Send message first, then set up listeners for ACK
+  await router.sendMessage(envelope);
 
-    try {
-      await router.sendMessage(envelope);
-    } catch (e) {
-      cleanup();
-      return reject(e);
-    }
-
-    timeout = setTimeout(() => {
+  return new Promise<void>((resolve, reject) => {
+    const timeout: NodeJS.Timeout = setTimeout(() => {
       ackLifecycle.mark(envelope.message_id, AckStage.TIMED_OUT, 'received_timeout');
       cleanup();
       reject(new Error('ACK RECEIVED timeout exceeded'));
     }, receivedTimeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      inboundStream.removeListener('data', onData);
+      inboundStream.removeListener('error', onErr);
+    };
+
+    const onErr = (err: unknown) => {
+      cleanup();
+      reject(err);
+    };
+
+    inboundStream.on('data', onData);
+    inboundStream.on('error', onErr);
 
     // Resolve when stage advances to at least RECEIVED; caller may await further stages separately
     const checkInterval = setInterval(() => {
@@ -67,9 +64,7 @@ export async function sendMessageWithAck(
       if (!state) return;
       if (state.stage === AckStage.RECEIVED || state.stage === AckStage.READ || state.stage === AckStage.FULFILLED) {
         clearInterval(checkInterval);
-        if (timeout) clearTimeout(timeout);
-        inboundStream.removeListener('data', onData);
-        inboundStream.removeListener('error', onErr);
+        cleanup();
         resolve();
       }
     }, 25);

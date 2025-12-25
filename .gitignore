@@ -81,3 +81,24 @@ tmp_*/
 
 # Ignore reference RFC guide (not part of source)
 RFC_INSTRUCTIONS.md
+
+# pytest-monitor cache
+.pymon
+
+# Codex AI tool config
+.codex/
+
+# Agent execution reports (runtime artifacts)
+agent_reports/
+
+# Phase summary documents (development artifacts)
+PHASE_*_SUMMARY.md
+**/PHASE_*_SUMMARY.md
+**/PHASE_*_IMPLEMENTATION.md
+
+# Documentation validation artifacts (runtime)
+*VALIDATION*.md
+*VALIDATION*.txt
+ISSUES_FOUND.md
+UNDOCUMENTED_APIS*.md
+validate_docs.py

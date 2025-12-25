@@ -21,7 +21,7 @@ export * from './clients/scheduler.js';
 export * from './clients/schedulerPolicy.js';
 export * from './clients/worktree.js';
 export * from './clients/tool.js';
-export { 
+export {
   LoggingClient,
   type LogEvent,
   // Skip Timestamp as it conflicts with internal/envelope.js
@@ -32,6 +32,11 @@ export * from './clients/negotiation.js';
 export * from './clients/reasoning.js';
 export * from './clients/connector.js';
 export * from './clients/registry.js';
+
+// Phase 2 Clients (Negotiation Room, Handoff, Workflow)
+export * from './clients/negotiationRoom.js';
+export * from './clients/handoff.js';
+export * from './clients/workflow.js';
 
 // Internal helpers (exported for advanced usage)
 export { 
@@ -56,6 +61,11 @@ export * from './runtime/activitySync.js';
 export * from './runtime/streams.js';
 export * from './runtime/negotiationEvents.js';
 export * from './persistence/persistence.js';
+
+// Phase 2 Runtime (Voting, Policy Store, Agent State)
+export * from './runtime/voting.js';
+export * from './runtime/policyStore.js';
+export * from './runtime/agentState.js';
 export * from './internal/ids.js';
 export * from './internal/idempotency.js';
 export * from './runtime/persistenceAdapter.js';

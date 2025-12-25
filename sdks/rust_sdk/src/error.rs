@@ -21,6 +21,12 @@ pub enum Error {
     #[error("Agent not found: {0}")]
     AgentNotFound(String),
 
+    #[error("Not found: {0}")]
+    NotFound(String),
+
+    #[error("Validation error: {0}")]
+    Validation(String),
+
     #[error("Connection error: {0}")]
     Connection(String),
 

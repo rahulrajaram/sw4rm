@@ -1,6 +1,0 @@
-# Include only what we need for the services
-**
-!*.py
-!requirements.txt
-!Dockerfile.*
-!docker-compose.yml

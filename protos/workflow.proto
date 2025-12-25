@@ -1,0 +1,116 @@
+// SW4RM Protocol - Workflow Proto Definition
+// Namespace Convention: sw4rm.{service} (e.g., sw4rm.workflow)
+// See: docs/IMPLEMENTATION_PLAN.md Phase 1.1 for namespace standards.
+
+syntax = "proto3";
+
+package sw4rm.workflow;
+
+import "google/protobuf/timestamp.proto";
+
+enum NodeStatus {
+  NODE_STATUS_UNSPECIFIED = 0;
+  PENDING = 1;      // Node waiting for dependencies
+  READY = 2;        // Node ready to execute
+  RUNNING = 3;      // Node currently executing
+  COMPLETED = 4;    // Node finished successfully
+  FAILED = 5;       // Node encountered an error
+  SKIPPED = 6;      // Node skipped due to conditional logic
+}
+
+enum TriggerType {
+  TRIGGER_TYPE_UNSPECIFIED = 0;
+  EVENT = 1;        // Triggered by specific events
+  SCHEDULE = 2;     // Triggered on a schedule (cron-like)
+  MANUAL = 3;       // Triggered by explicit user action
+  DEPENDENCY = 4;   // Triggered by dependency completion
+}
+
+message WorkflowNode {
+  string node_id = 1;                           // Unique identifier for this node
+  string agent_id = 2;                          // Identifier of the agent executing this node
+  repeated string dependencies = 3;             // Set of node_ids that must complete before this node runs
+  TriggerType trigger_type = 4;                 // How this node is triggered
+  map<string, string> input_mapping = 5;        // Maps workflow state keys to node input parameters
+  map<string, string> output_mapping = 6;       // Maps node output keys to workflow state keys
+  map<string, string> metadata = 7;             // Additional node configuration and context
+}
+
+message WorkflowDefinition {
+  string workflow_id = 1;                       // Unique identifier for this workflow
+  map<string, WorkflowNode> nodes = 2;          // Map of node_id to WorkflowNode
+  google.protobuf.Timestamp created_at = 3;    // When the workflow was created
+  map<string, string> metadata = 4;             // Additional workflow-level configuration
+}
+
+message NodeState {
+  string node_id = 1;                           // The node this state belongs to
+  NodeStatus status = 2;                        // Current execution status
+  google.protobuf.Timestamp started_at = 3;    // When node execution started
+  google.protobuf.Timestamp completed_at = 4;  // When node execution completed
+  string output = 5;                            // Output data from node execution (JSON string)
+  string error = 6;                             // Error information if node failed
+}
+
+message WorkflowState {
+  string workflow_id = 1;                       // Identifier of the workflow being executed
+  map<string, NodeState> node_states = 2;       // Map of node_id to NodeState for tracking execution
+  string workflow_data = 3;                     // Shared workflow data (JSON string)
+  google.protobuf.Timestamp started_at = 4;    // When the workflow execution started
+  google.protobuf.Timestamp completed_at = 5;  // When the workflow execution completed
+  map<string, string> metadata = 6;             // Additional runtime metadata
+}
+
+message CreateWorkflowRequest {
+  WorkflowDefinition definition = 1;
+}
+
+message CreateWorkflowResponse {
+  string workflow_id = 1;
+  bool success = 2;
+  string error = 3;
+}
+
+message StartWorkflowRequest {
+  string workflow_id = 1;
+  string workflow_data = 2;                     // Initial workflow data (JSON string)
+  map<string, string> metadata = 3;             // Runtime metadata
+}
+
+message StartWorkflowResponse {
+  string workflow_id = 1;
+  WorkflowState state = 2;
+  bool success = 3;
+  string error = 4;
+}
+
+message GetWorkflowStateRequest {
+  string workflow_id = 1;
+}
+
+message GetWorkflowStateResponse {
+  WorkflowState state = 1;
+  bool success = 2;
+  string error = 3;
+}
+
+message ResumeWorkflowRequest {
+  string workflow_id = 1;
+  string node_id = 2;
+  string workflow_data = 3;                     // Updated workflow data (JSON string)
+  map<string, string> metadata = 4;             // Runtime metadata
+}
+
+message ResumeWorkflowResponse {
+  string workflow_id = 1;
+  WorkflowState state = 2;
+  bool success = 3;
+  string error = 4;
+}
+
+service WorkflowService {
+  rpc CreateWorkflow(CreateWorkflowRequest) returns (CreateWorkflowResponse);
+  rpc StartWorkflow(StartWorkflowRequest) returns (StartWorkflowResponse);
+  rpc GetWorkflowState(GetWorkflowStateRequest) returns (GetWorkflowStateResponse);
+  rpc ResumeWorkflow(ResumeWorkflowRequest) returns (ResumeWorkflowResponse);
+}

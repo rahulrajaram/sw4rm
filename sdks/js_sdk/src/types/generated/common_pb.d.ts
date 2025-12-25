@@ -44,6 +44,8 @@ export class Envelope extends jspb.Message {
     getPayload_asU8(): Uint8Array;
     getPayload_asB64(): string;
     setPayload(value: Uint8Array | string): Envelope;
+    getState(): EnvelopeState;
+    setState(value: EnvelopeState): Envelope;
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Envelope.AsObject;
@@ -72,6 +74,7 @@ export namespace Envelope {
         ttlMs: number,
         timestamp?: google_protobuf_timestamp_pb.Timestamp.AsObject,
         payload: Uint8Array | string,
+        state: EnvelopeState,
     }
 }
 
@@ -206,4 +209,15 @@ export enum HitlReasonType {
     DEBATE_DEADLOCK = 6,
     TOOL_PRIVILEGE_ESCALATION = 7,
     CONNECTOR_APPROVAL = 8,
+}
+
+export enum EnvelopeState {
+    ENVELOPE_STATE_UNSPECIFIED = 0,
+    ENVELOPE_STATE_CREATED = 1,
+    ENVELOPE_STATE_PENDING = 2,
+    ENVELOPE_STATE_RUNNING = 3,
+    ENVELOPE_STATE_FULFILLED = 4,
+    ENVELOPE_STATE_REJECTED = 5,
+    ENVELOPE_STATE_FAILED = 6,
+    ENVELOPE_STATE_TIMED_OUT = 7,
 }

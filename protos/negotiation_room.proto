@@ -1,0 +1,220 @@
+// SW4RM Protocol - Negotiation Room Proto Definition
+// Namespace Convention: sw4rm.{service} (e.g., sw4rm.negotiation_room)
+// See: docs/IMPLEMENTATION_PLAN.md Phase 1.1 for namespace standards.
+
+syntax = "proto3";
+
+package sw4rm.negotiation_room;
+
+import "google/protobuf/timestamp.proto";
+
+// ArtifactType enum represents the category of artifact being negotiated
+// Maps to different stages of the workflow process
+enum ArtifactType {
+  ARTIFACT_TYPE_UNSPECIFIED = 0;
+  REQUIREMENTS = 1;
+  PLAN = 2;
+  CODE = 3;
+  DEPLOYMENT = 4;
+}
+
+// DecisionOutcome enum represents the final decision made by the coordinator
+// after aggregating critic votes and applying policy
+enum DecisionOutcome {
+  DECISION_OUTCOME_UNSPECIFIED = 0;
+  APPROVED = 1;
+  REVISION_REQUESTED = 2;
+  ESCALATED_TO_HITL = 3;
+}
+
+// NegotiationProposal represents a proposal for artifact evaluation in a negotiation room.
+// Submitted by a producer agent to request multi-agent review of an artifact.
+message NegotiationProposal {
+  // Category of artifact (requirements, plan, code, deployment)
+  ArtifactType artifact_type = 1;
+
+  // Unique identifier for this artifact
+  string artifact_id = 2;
+
+  // Agent ID of the producer submitting the artifact
+  string producer_id = 3;
+
+  // Binary artifact content (e.g., serialized JSON, code files)
+  bytes artifact = 4;
+
+  // MIME type or content type identifier
+  string artifact_content_type = 5;
+
+  // List of critic agent IDs requested for evaluation
+  repeated string requested_critics = 6;
+
+  // Identifier for the negotiation room session
+  string negotiation_room_id = 7;
+
+  // Timestamp when proposal was created
+  google.protobuf.Timestamp created_at = 8;
+}
+
+// NegotiationVote represents a critic's evaluation of an artifact.
+// Represents a single critic's assessment including numerical scoring,
+// qualitative feedback, and confidence level based on POMDP uncertainty.
+message NegotiationVote {
+  // Identifier of the artifact being evaluated
+  string artifact_id = 1;
+
+  // Agent ID of the critic providing this vote
+  string critic_id = 2;
+
+  // Numerical score from 0-10 (10 = excellent)
+  double score = 3;
+
+  // Confidence level from 0-1 (based on POMDP research)
+  double confidence = 4;
+
+  // Boolean indicating if artifact meets minimum criteria
+  bool passed = 5;
+
+  // List of identified strengths in the artifact
+  repeated string strengths = 6;
+
+  // List of identified weaknesses or concerns
+  repeated string weaknesses = 7;
+
+  // List of suggestions for improvement
+  repeated string recommendations = 8;
+
+  // Identifier for the negotiation room session
+  string negotiation_room_id = 9;
+
+  // Timestamp when vote was cast
+  google.protobuf.Timestamp voted_at = 10;
+}
+
+// AggregatedScore provides statistical aggregation of multiple critic votes.
+// Provides multiple views of the voting results including basic statistics
+// and confidence-weighted metrics for decision making.
+message AggregatedScore {
+  // Arithmetic mean of all scores
+  double mean = 1;
+
+  // Minimum score from any critic
+  double min_score = 2;
+
+  // Maximum score from any critic
+  double max_score = 3;
+
+  // Standard deviation of scores (measures consensus)
+  double std_dev = 4;
+
+  // Confidence-weighted mean (higher confidence votes weighted more)
+  double weighted_mean = 5;
+
+  // Number of votes included in aggregation
+  int32 vote_count = 6;
+}
+
+// NegotiationDecision represents the final decision on an artifact after critic evaluation.
+// Represents the coordinator's decision after aggregating all critic votes
+// and applying policy thresholds. Includes full audit trail of votes and reasoning.
+message NegotiationDecision {
+  // Identifier of the artifact that was evaluated
+  string artifact_id = 1;
+
+  // Final decision (approved, revision requested, escalated to HITL)
+  DecisionOutcome outcome = 2;
+
+  // Complete list of all critic votes considered
+  repeated NegotiationVote votes = 3;
+
+  // Statistical summary of the votes
+  AggregatedScore aggregated_score = 4;
+
+  // Version identifier of the policy used for decision
+  string policy_version = 5;
+
+  // Human-readable explanation of the decision
+  string reason = 6;
+
+  // Identifier for the negotiation room session
+  string negotiation_room_id = 7;
+
+  // Timestamp when decision was made
+  google.protobuf.Timestamp decided_at = 8;
+}
+
+// Request to submit a proposal to the negotiation room
+message SubmitProposalRequest {
+  NegotiationProposal proposal = 1;
+}
+
+// Response after submitting a proposal
+message SubmitProposalResponse {
+  string artifact_id = 1;
+  string negotiation_room_id = 2;
+}
+
+// Request to submit a vote for an artifact
+message SubmitVoteRequest {
+  NegotiationVote vote = 1;
+}
+
+// Response after submitting a vote
+message SubmitVoteResponse {
+  string artifact_id = 1;
+  string critic_id = 2;
+}
+
+// Request to get all votes for an artifact
+message GetVotesRequest {
+  string artifact_id = 1;
+  string negotiation_room_id = 2;
+}
+
+// Response containing all votes for an artifact
+message GetVotesResponse {
+  repeated NegotiationVote votes = 1;
+  int32 vote_count = 2;
+}
+
+// Request to get the decision for an artifact
+message GetDecisionRequest {
+  string artifact_id = 1;
+  string negotiation_room_id = 2;
+}
+
+// Response containing the decision for an artifact
+message GetDecisionResponse {
+  NegotiationDecision decision = 1;
+}
+
+// Request to wait for a decision (blocking call)
+message WaitForDecisionRequest {
+  string artifact_id = 1;
+  string negotiation_room_id = 2;
+  // Optional timeout in seconds
+  uint32 timeout_seconds = 3;
+}
+
+// Response for waiting on a decision
+message WaitForDecisionResponse {
+  NegotiationDecision decision = 1;
+}
+
+// NegotiationRoomService provides RPC endpoints for the Negotiation Room pattern
+// enabling multi-agent artifact approval workflows
+service NegotiationRoomService {
+  // SubmitProposal allows a producer agent to submit an artifact for review
+  rpc SubmitProposal(SubmitProposalRequest) returns (SubmitProposalResponse);
+
+  // SubmitVote allows a critic agent to submit their evaluation of an artifact
+  rpc SubmitVote(SubmitVoteRequest) returns (SubmitVoteResponse);
+
+  // GetVotes retrieves all votes submitted for a specific artifact
+  rpc GetVotes(GetVotesRequest) returns (GetVotesResponse);
+
+  // GetDecision retrieves the final decision for an artifact (non-blocking)
+  rpc GetDecision(GetDecisionRequest) returns (GetDecisionResponse);
+
+  // WaitForDecision blocks until a decision is made for an artifact
+  rpc WaitForDecision(WaitForDecisionRequest) returns (WaitForDecisionResponse);
+}

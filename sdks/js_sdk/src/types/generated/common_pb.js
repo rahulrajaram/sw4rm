@@ -32,6 +32,7 @@ goog.exportSymbol('proto.sw4rm.common.CommunicationClass', null, global);
 goog.exportSymbol('proto.sw4rm.common.DebateIntensity', null, global);
 goog.exportSymbol('proto.sw4rm.common.Empty', null, global);
 goog.exportSymbol('proto.sw4rm.common.Envelope', null, global);
+goog.exportSymbol('proto.sw4rm.common.EnvelopeState', null, global);
 goog.exportSymbol('proto.sw4rm.common.ErrorCode', null, global);
 goog.exportSymbol('proto.sw4rm.common.HitlReasonType', null, global);
 goog.exportSymbol('proto.sw4rm.common.MessageType', null, global);
@@ -144,7 +145,8 @@ proto.sw4rm.common.Envelope.toObject = function(includeInstance, msg) {
     hlcTimestamp: jspb.Message.getFieldWithDefault(msg, 12, ""),
     ttlMs: jspb.Message.getFieldWithDefault(msg, 13, 0),
     timestamp: (f = msg.getTimestamp()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f),
-    payload: msg.getPayload_asB64()
+    payload: msg.getPayload_asB64(),
+    state: jspb.Message.getFieldWithDefault(msg, 16, 0)
   };
 
   if (includeInstance) {
@@ -241,6 +243,10 @@ proto.sw4rm.common.Envelope.deserializeBinaryFromReader = function(msg, reader) 
     case 15:
       var value = /** @type {!Uint8Array} */ (reader.readBytes());
       msg.setPayload(value);
+      break;
+    case 16:
+      var value = /** @type {!proto.sw4rm.common.EnvelopeState} */ (reader.readEnum());
+      msg.setState(value);
       break;
     default:
       reader.skipField();
@@ -374,6 +380,13 @@ proto.sw4rm.common.Envelope.serializeBinaryToWriter = function(message, writer) 
   if (f.length > 0) {
     writer.writeBytes(
       15,
+      f
+    );
+  }
+  f = message.getState();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      16,
       f
     );
   }
@@ -690,6 +703,24 @@ proto.sw4rm.common.Envelope.prototype.getPayload_asU8 = function() {
  */
 proto.sw4rm.common.Envelope.prototype.setPayload = function(value) {
   return jspb.Message.setProto3BytesField(this, 15, value);
+};
+
+
+/**
+ * optional EnvelopeState state = 16;
+ * @return {!proto.sw4rm.common.EnvelopeState}
+ */
+proto.sw4rm.common.Envelope.prototype.getState = function() {
+  return /** @type {!proto.sw4rm.common.EnvelopeState} */ (jspb.Message.getFieldWithDefault(this, 16, 0));
+};
+
+
+/**
+ * @param {!proto.sw4rm.common.EnvelopeState} value
+ * @return {!proto.sw4rm.common.Envelope} returns this
+ */
+proto.sw4rm.common.Envelope.prototype.setState = function(value) {
+  return jspb.Message.setProto3EnumField(this, 16, value);
 };
 
 
@@ -1120,6 +1151,20 @@ proto.sw4rm.common.HitlReasonType = {
   DEBATE_DEADLOCK: 6,
   TOOL_PRIVILEGE_ESCALATION: 7,
   CONNECTOR_APPROVAL: 8
+};
+
+/**
+ * @enum {number}
+ */
+proto.sw4rm.common.EnvelopeState = {
+  ENVELOPE_STATE_UNSPECIFIED: 0,
+  ENVELOPE_STATE_CREATED: 1,
+  ENVELOPE_STATE_PENDING: 2,
+  ENVELOPE_STATE_RUNNING: 3,
+  ENVELOPE_STATE_FULFILLED: 4,
+  ENVELOPE_STATE_REJECTED: 5,
+  ENVELOPE_STATE_FAILED: 6,
+  ENVELOPE_STATE_TIMED_OUT: 7
 };
 
 goog.object.extend(exports, proto.sw4rm.common);

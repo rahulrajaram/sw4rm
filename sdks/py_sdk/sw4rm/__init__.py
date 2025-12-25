@@ -20,7 +20,7 @@ agents that speak the SW4RM Agentic Protocol specified in the local .proto files
 
 __all__ = [
     "config",
-    "activity_buffer", 
+    "activity_buffer",
     "persistence",
     "worktree_state",
     "worktree_policies",
@@ -30,8 +30,17 @@ __all__ = [
     "constants",
     "error_mapping",
     "buffer_strategy",
+    "metrics",
+    "content_types",
+    "shared_context",
+    # Cross-cutting concerns (Phase 3.6)
+    "logging",
+    "tracing",
+    "feature_flags",
     # Clients
     "clients",
+    # Workflow orchestration
+    "workflow",
 ]
 
 __version__ = "0.3.0"
