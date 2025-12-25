@@ -1,6 +1,6 @@
 # RFC: SW4RM - Interruptible, Message-Driven Agent Coordination Protocol
 
-Version: 0.4.0 (2025-12-23)
+Version: 0.4.0 (2025-12-24)
 
 ## Versioning and Changelog
 
