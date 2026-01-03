@@ -7,6 +7,7 @@ should be provided by specialized implementations as needed.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Dict, Optional, Any, Protocol
@@ -92,13 +93,37 @@ class WorktreePolicyHook(Protocol):
 
     def on_bind_error(self, repo_id: str, worktree_id: str, error: Exception) -> None:
         """Called when binding fails.
-        
+
         Args:
             repo_id: Repository identifier that failed to bind
             worktree_id: Worktree identifier that failed to bind
             error: The exception that occurred
         """
         ...
+
+
+class DefaultWorktreePolicy:
+    """Default no-op policy that allows all operations."""
+
+    def before_bind(self, repo_id: str, worktree_id: str, current_binding: Optional[WorktreeBinding]) -> bool:
+        """Allow all bindings."""
+        return True
+
+    def after_bind(self, binding: WorktreeBinding) -> None:
+        """No-op after bind."""
+        pass
+
+    def before_unbind(self, binding: WorktreeBinding) -> bool:
+        """Allow all unbindings."""
+        return True
+
+    def after_unbind(self, former_binding: WorktreeBinding) -> None:
+        """No-op after unbind."""
+        pass
+
+    def on_bind_error(self, repo_id: str, worktree_id: str, error: Exception) -> None:
+        """No-op on error."""
+        pass
 
 
 class WorktreePersistence:
