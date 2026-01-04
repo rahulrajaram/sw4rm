@@ -1,0 +1,180 @@
+# SW4RM Knowledge Source Checksums
+# ==================================
+# This file tracks content hashes of knowledge sources.
+# The swarm-knowledge-guardian uses this to detect when
+# sources have changed since last analysis, enabling
+# incremental audits instead of full re-reads.
+#
+# Algorithm: SHA-256 (first 16 chars for readability)
+#
+# Workflow:
+# 1. Guardian loads checksums at start
+# 2. Computes current hash for files it needs to verify
+# 3. If hash matches, uses cached summary instead of full read
+# 4. If hash differs, re-reads source and updates summary
+# 5. Updates checksums.yaml at end of session
+#
+# Last Updated: 2026-01-03T18:00:00Z (Second Audit)
+
+metadata:
+  algorithm: sha256-16
+  last_full_scan: "2026-01-03T18:00:00Z"
+  last_version_scan: "2026-01-04T03:33:13Z"
+  files_tracked: 18
+  second_audit_completed: true
+
+# File checksums
+# Format: path: {hash, last_verified, summary_valid}
+files:
+  .claude/knowledge/manifest.yaml:
+    hash: 35c38b869883f6e3
+    last_verified: "2026-01-04T03:33:13Z"
+    summary_valid: false
+    issues_found: 0
+    notes: "Protocol version metadata updated to 0.5.0."
+  documentation/protocol/spec.md:
+    hash: 1ce2bb61a03e4f12
+    last_verified: "2026-01-04T03:51:54Z"
+    summary_valid: true
+    line_count: 2000+
+    sections_verified:
+      - transport
+      - identity
+      - messages
+      - services
+      - advanced_patterns
+    issues_found: 0
+    notes: "Version header/changelog updated to 0.5.0."
+
+  documentation/examples/index.md:
+    last_verified: "2026-01-03T14:00:00Z"
+    summary_valid: true
+    line_count: 347
+    issues_found: 0
+    notes: "All example files exist; links valid"
+
+  documentation/protocol/messages.md:
+    last_verified: "2026-01-03T14:00:00Z"
+    summary_valid: true
+    line_count: 401
+    issues_found: 1
+    notes: "ACK stage PROCESSING mentioned but not in proto"
+
+  documentation/protocol/acks.md:
+    last_verified: "2026-01-03T14:00:00Z"
+    summary_valid: true
+    line_count: 437
+    issues_found: 1
+    notes: "ACK lifecycle diagram inconsistent with cross-refs"
+
+  documentation/index.md:
+    last_verified: "2026-01-03T18:00:00Z"
+    summary_valid: true
+    line_count: 1233
+    issues_found: 0
+    notes: "Port assignments VERIFIED correct: Router=50051, Registry=50052"
+
+  documentation/protocol/index.md:
+    hash: a8fc5ab36b9fcec3
+    last_verified: "2026-01-04T03:33:13Z"
+    summary_valid: true
+    issues_found: 0
+    notes: "Protocol landing page updated to v0.5.0."
+
+  documentation/protocol/advanced-patterns.md:
+    hash: 6194470e22747882
+    last_verified: "2026-01-04T03:33:13Z"
+    summary_valid: true
+    issues_found: 0
+    notes: "Advanced patterns header updated to v0.5.0."
+
+  documentation/quickstart/installation.md:
+    last_verified: "2026-01-03T18:00:00Z"
+    summary_valid: true
+    issues_found: 0
+    notes: "VERIFIED: Ports now correct after first audit fix"
+
+  documentation/quickstart/first-agent.md:
+    last_verified: "2026-01-03T18:00:00Z"
+    summary_valid: true
+    issues_found: 0
+    notes: "VERIFIED: Ports correct (Router:50051, Registry:50052)"
+
+  documentation/quickstart/persistence.md:
+    last_verified: "2026-01-03T20:00:00Z"
+    summary_valid: true
+    issues_found: 0
+    notes: "FIXED: Updated to reflect actual SDK API. Redis/PostgreSQL marked as planned. Aspirational features consolidated in section 2.6.7"
+
+# Proto file checksums (these define structure, critical for accuracy)
+protos:
+  protos/common.proto:
+    last_verified: "2026-01-03T14:00:00Z"
+    defines: [Envelope, MessageType, AckStage, ErrorCode, AgentState, CommunicationClass, DebateIntensity, HitlReasonType, EnvelopeState]
+    ack_stages: [RECEIVED, READ, FULFILLED, REJECTED, FAILED, TIMED_OUT]
+    notes: "No PROCESSING stage - this is authoritative"
+
+  protos/router.proto:
+    last_verified: "2026-01-03T14:00:00Z"
+    defines: [SendMessageRequest, SendMessageResponse, StreamRequest, StreamItem, RouterService]
+    notes: "Envelope in common.proto, not router.proto"
+
+  protos/registry.proto:
+    last_verified: "2026-01-03T14:00:00Z"
+    defines: [AgentDescriptor, RegisterAgentRequest, HeartbeatRequest, RegistryService]
+
+  protos/scheduler.proto:
+    last_verified: "2026-01-03T14:00:00Z"
+    defines: [SubmitTaskRequest, PreemptRequest, ActivityEntry, SchedulerService]
+
+  protos/negotiation_room.proto:
+    last_verified: "2026-01-03T14:00:00Z"
+    defines: [NegotiationProposal, NegotiationVote, AggregatedScore, NegotiationDecision, NegotiationRoomService]
+
+  protos/workflow.proto:
+    last_verified: "2026-01-03T14:00:00Z"
+    defines: [WorkflowNode, WorkflowDefinition, NodeState, WorkflowState, WorkflowService]
+    trigger_types: [EVENT, SCHEDULE, MANUAL, DEPENDENCY]
+
+  protos/handoff.proto:
+    last_verified: "2026-01-03T14:00:00Z"
+    defines: [HandoffRequest, HandoffResponse, HandoffStatus, HandoffService]
+    states: [PENDING, ACCEPTED, REJECTED, COMPLETED, EXPIRED]
+
+# SDK checksums (track public API surface)
+sdks:
+  sdks/py_sdk/sw4rm/constants.py:
+    last_verified: "2026-01-03T20:00:00Z"
+    default_router_addr: "localhost:50051"
+    default_registry_addr: "localhost:50052"
+    notes: "VERIFIED correct: Router=50051, Registry=50052. HitlReasonType enum FIXED to match proto."
+    status: verified
+    issues_found: 0
+
+  sdks/py_sdk/README.md:
+    last_verified: "2026-01-03T20:00:00Z"
+    worktree_port_claimed: 50062
+    tool_port_claimed: 50063
+    negotiation_port_claimed: 50064
+    notes: "Extended service ports correct. Troubleshooting section FIXED."
+    status: verified
+    issues_found: 0
+
+  sdks/py_sdk/sw4rm/activity_buffer.py:
+    last_verified: "2026-01-03T18:00:00Z"
+    class_names: [ActivityBuffer, PersistentActivityBuffer, ActivityRecord]
+    status: verified
+    notes: "API matches documentation except for some aspirational features"
+
+  sdks/py_sdk/sw4rm/persistence.py:
+    last_verified: "2026-01-03T18:00:00Z"
+    class_names: [PersistenceBackend, JSONFilePersistence, SQLitePersistence, PersistentActivityRecord]
+    status: verified
+    issues_found: 0
+    notes: "No RedisPersistence, PostgresPersistence classes - documentation claims them incorrectly"
+
+  sdks/py_sdk/sw4rm/config.py:
+    last_verified: "2026-01-03T18:00:00Z"
+    class_names: [Endpoints, RetryPolicy, AgentConfig, SW4RMConfig]
+    function_names: [from_env, load_config, get_config, set_config]
+    status: verified

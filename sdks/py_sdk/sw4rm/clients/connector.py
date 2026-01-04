@@ -9,13 +9,15 @@ class ConnectorClient:
     The ConnectorService manages tool providers and their capabilities.
     """
 
-    def __init__(self, channel: Any) -> None:
+    def __init__(self, channel: Any, timeout: float = 30.0) -> None:
         """Initialize the ConnectorClient.
 
         Args:
             channel: gRPC channel to use for communication
+            timeout: Default timeout in seconds for RPC calls (default: 30.0)
         """
         self._channel = channel
+        self._timeout = timeout
         try:
             from sw4rm.protos import connector_pb2, connector_pb2_grpc  # type: ignore
             self._pb2 = connector_pb2
@@ -27,7 +29,8 @@ class ConnectorClient:
     def register_provider(
         self,
         provider_id: str,
-        tools: list[dict[str, Any]]
+        tools: list[dict[str, Any]],
+        timeout: float | None = None
     ) -> Any:
         """Register a tool provider with its available tools.
 
@@ -42,6 +45,7 @@ class ConnectorClient:
                 - default_timeout_s (int): Default timeout in seconds
                 - max_concurrency (int): Maximum concurrent executions
                 - side_effects (str): Side effects like "filesystem", "network"
+            timeout: Optional timeout in seconds (uses default if not specified)
 
         Returns:
             ProviderRegisterResponse with ok (bool) and reason (str) fields
@@ -49,7 +53,7 @@ class ConnectorClient:
         Raises:
             RuntimeError: If protobuf stubs are not generated
         """
-        if not self._stub:
+        if not self._stub or not self._pb2:
             raise RuntimeError("Protobuf stubs not generated. Run `make protos`.")
 
         tool_descriptors = [
@@ -59,13 +63,14 @@ class ConnectorClient:
             provider_id=provider_id,
             tools=tool_descriptors
         )
-        return self._stub.RegisterProvider(req)
+        return self._stub.RegisterProvider(req, timeout=timeout or self._timeout)
 
-    def describe_tools(self, provider_id: str) -> Any:
+    def describe_tools(self, provider_id: str, timeout: float | None = None) -> Any:
         """Describe the tools available from a specific provider.
 
         Args:
             provider_id: Unique identifier for the provider
+            timeout: Optional timeout in seconds (uses default if not specified)
 
         Returns:
             DescribeToolsResponse with a list of ToolDescriptor objects
@@ -73,8 +78,8 @@ class ConnectorClient:
         Raises:
             RuntimeError: If protobuf stubs are not generated
         """
-        if not self._stub:
+        if not self._stub or not self._pb2:
             raise RuntimeError("Protobuf stubs not generated. Run `make protos`.")
         req = self._pb2.DescribeToolsRequest(provider_id=provider_id)
-        return self._stub.DescribeTools(req)
+        return self._stub.DescribeTools(req, timeout=timeout or self._timeout)
 

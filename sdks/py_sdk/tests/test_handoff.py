@@ -13,8 +13,8 @@ from sw4rm.handoff import (
     HandoffContext,
     serialize_context,
     deserialize_context,
-    HandoffClient,
 )
+from sw4rm.clients import HandoffClient
 from sw4rm.runtime.agent import Agent
 
 

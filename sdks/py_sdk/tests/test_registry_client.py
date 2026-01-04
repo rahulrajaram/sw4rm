@@ -81,7 +81,7 @@ class TestRegistryClientRegister:
         # Assert
         mock_pb2.AgentDescriptor.assert_called_once_with(**agent_descriptor)
         mock_pb2.RegisterAgentRequest.assert_called_once_with(agent=mock_agent_descriptor)
-        mock_stub.RegisterAgent.assert_called_once_with(mock_request)
+        mock_stub.RegisterAgent.assert_called_once_with(mock_request, timeout=30.0)
         assert result == mock_response
 
     def test_register_with_minimal_descriptor(self):
@@ -159,7 +159,7 @@ class TestRegistryClientHeartbeat:
             state=1,
             health={}
         )
-        mock_stub.Heartbeat.assert_called_once_with(mock_request)
+        mock_stub.Heartbeat.assert_called_once_with(mock_request, timeout=30.0)
         assert result == mock_response
 
     def test_heartbeat_with_health_metrics(self):
@@ -194,7 +194,7 @@ class TestRegistryClientHeartbeat:
             state=1,
             health=health_metrics
         )
-        mock_stub.Heartbeat.assert_called_once_with(mock_request)
+        mock_stub.Heartbeat.assert_called_once_with(mock_request, timeout=30.0)
         assert result == mock_response
 
     def test_heartbeat_with_none_health_defaults_to_empty_dict(self):
@@ -268,7 +268,7 @@ class TestRegistryClientDeregister:
             agent_id="agent-1",
             reason=""
         )
-        mock_stub.DeregisterAgent.assert_called_once_with(mock_request)
+        mock_stub.DeregisterAgent.assert_called_once_with(mock_request, timeout=30.0)
         assert result == mock_response
 
     def test_deregister_with_reason(self):
@@ -296,7 +296,7 @@ class TestRegistryClientDeregister:
             agent_id="agent-1",
             reason="Agent shutdown"
         )
-        mock_stub.DeregisterAgent.assert_called_once_with(mock_request)
+        mock_stub.DeregisterAgent.assert_called_once_with(mock_request, timeout=30.0)
         assert result == mock_response
 
     def test_deregister_with_empty_reason_string(self):

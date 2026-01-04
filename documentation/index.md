@@ -64,8 +64,8 @@ digraph G {
   subgraph cluster_core {
     label="Core Infrastructure Services"; labelloc=t; labeljust=l; color="#e5e7eb"; style=rounded;
     CORE [label="Core Services", shape=ellipse, fillcolor="#f3f4f6"];
-    R   [label="Registry Service\nPort: 50051"];
-    RT  [label="Router Service\nPort: 50052"];
+    R   [label="Registry Service\nPort: 50052"];
+    RT  [label="Router Service\nPort: 50051"];
     SCH [label="Scheduler Service\nPort: 50053"];
     CORE -> R; CORE -> RT; CORE -> SCH;
   }
@@ -428,8 +428,8 @@ graph TB
     end
     
     subgraph "Core Infrastructure Services [Container Boundaries]"
-        REG[Registry Service<br/>:50051<br/>Agent Discovery]
-        RTR[Router Service<br/>:50052<br/>Message Delivery]
+        REG[Registry Service<br/>:50052<br/>Agent Discovery]
+        RTR[Router Service<br/>:50051<br/>Message Delivery]
         SCH[Scheduler Service<br/>:50053<br/>Task Distribution]
     end
     
@@ -940,7 +940,7 @@ graph TB
       sw4rm-registry:
         image: sw4rm/registry:latest
         ports:
-          - "50051:50051"
+          - "50052:50052"
         environment:
           - POSTGRES_HOST=postgres
           - POSTGRES_DB=sw4rm_registry
@@ -957,20 +957,20 @@ graph TB
           - postgres
           - redis
         healthcheck:
-          test: ["CMD", "grpc_health_probe", "-addr=:50051"]
+          test: ["CMD", "grpc_health_probe", "-addr=:50052"]
           interval: 30s
           timeout: 10s
           retries: 3
           start_period: 60s
-    
+
       sw4rm-router:
         image: sw4rm/router:latest
         ports:
-          - "50052:50052"
+          - "50051:50051"
         environment:
           - POSTGRES_HOST=postgres
           - REDIS_HOST=redis
-          - REGISTRY_HOST=sw4rm-registry:50051
+          - REGISTRY_HOST=sw4rm-registry:50052
           - MAX_MESSAGE_SIZE_MB=16
           - MESSAGE_TTL_HOURS=24
           - ENABLE_COMPRESSION=true
@@ -982,19 +982,19 @@ graph TB
           - redis
           - sw4rm-registry
         healthcheck:
-          test: ["CMD", "grpc_health_probe", "-addr=:50052"]
+          test: ["CMD", "grpc_health_probe", "-addr=:50051"]
           interval: 30s
           timeout: 10s
           retries: 3
-    
+
       # Your Production Agent
       data-processing-agent:
         build:
           context: .
           dockerfile: Dockerfile.agent
         environment:
-          - SW4RM_REGISTRY_HOST=sw4rm-registry:50051
-          - SW4RM_ROUTER_HOST=sw4rm-router:50052
+          - SW4RM_REGISTRY_HOST=sw4rm-registry:50052
+          - SW4RM_ROUTER_HOST=sw4rm-router:50051
           - POSTGRES_HOST=postgres
           - REDIS_HOST=redis
           - AGENT_ID=data-processor-prod-001

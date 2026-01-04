@@ -1,6 +1,6 @@
 # RFC: SW4RM - Interruptible, Message-Driven Agent Coordination Protocol
 
-Version: 0.4.0 (2025-12-24)
+Version: 0.5.0 (2026-01-04)
 
 ## Versioning and Changelog
 
@@ -10,10 +10,18 @@ The versioning scope encompasses this document and the canonical protocol buffer
 
 **Changelog:**
 
+- **0.5.0 (2026-01-04)**: Documentation alignment release. Updated protocol docs
+  and examples to reflect actual SDK/proto behavior and clarified planned vs
+  implemented features. No wire-format changes.
+
 - **0.4.0 (2025-12-23)**: Added Negotiation Room pattern (§17.5), Agent Handoff Protocol (§17.6), and Workflow Orchestration (§17.7) to align spec with proto definitions. Unified proto namespaces to `sw4rm.{service}` convention (e.g., `sw4rm.negotiation_room`, `sw4rm.handoff`, `sw4rm.workflow`). Added edge case documentation for HITL unavailability (§15.4), streaming cancellation (§18.6), and activity buffer limits (§10.1). Formalized EnvelopeState lifecycle and three-ID model.
+
 - **0.3.0 (2025-08-31)**: RFC rigor pass (BCP 14, imperative voice, ASCII), expanded sections 10 (Activity Buffer), 11 (Messaging Model readability), 13 (Buffers and Back-Pressure with examples and metrics), 15 (HITL expectations and message shapes), and 18 (MCP/Tool Calling with discovery, invocation, retries, security). Renamed negotiation policy terminology to NegotiationPolicy (formerly "Waggle/Pheromone" naming) in this document and example stubs; clarified canonical proto packaging policy in §5.1. Note: canonical proto identifiers will be updated to match NegotiationPolicy in a subsequent proto release.
+
 - **0.2.0 (2025-08-17)**: Canonicalized `sw4rm.*` package namespace; enhanced negotiation protocol with event fanout (JSON), room-based correlation semantics (`correlation_id=negotiation_id`), policy broadcast mechanisms (NegotiationPolicy/EffectivePolicy), comprehensive validation/diff/scoring guidance; introduced optional policy and activity protocol buffer stubs. This release maintains wire compatibility with 0.1.x implementations beyond the namespace canonicalization requirement.
+
 - **0.1.1 (2025-08-08)**: Editorial clarifications and protocol buffer formatting improvements. No normative behavioral changes.
+
 - **0.1.0 (2025-08-08)**: Initial specification release establishing core framework concepts and requirements.
 
 ## 1. Status of this Memo

@@ -65,3 +65,7 @@ path = "src/bin/prompter.rs"
 [[bin]]
 name = "sw4rm-multi-agent"
 path = "src/bin/sw4rm_multi_agent.rs"
+
+[[bin]]
+name = "coordination-service"
+path = "src/bin/coordination_service.rs"

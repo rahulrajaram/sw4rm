@@ -635,4 +635,84 @@ mod tests {
         assert_eq!(request.priority, 5);
         assert_eq!(request.metadata.get("key"), Some(&"value".to_string()));
     }
+
+    #[test]
+    fn test_pending_removed_after_rejection() {
+        let client = HandoffClient::new();
+        let request = HandoffRequest::new(
+            "agent-1".to_string(),
+            "agent-2".to_string(),
+            "Test".to_string(),
+        );
+
+        let response = client.request_handoff(request).unwrap();
+        let handoff_id = response.handoff_id.clone();
+
+        // Initially pending
+        let pending = client.get_pending_handoffs("agent-2").unwrap();
+        assert_eq!(pending.len(), 1);
+
+        // After rejection, should be removed
+        client.reject_handoff(&handoff_id, "Busy").unwrap();
+        let pending = client.get_pending_handoffs("agent-2").unwrap();
+        assert_eq!(pending.len(), 0);
+    }
+
+    #[test]
+    fn test_double_reject_fails() {
+        let client = HandoffClient::new();
+        let request = HandoffRequest::new(
+            "agent-1".to_string(),
+            "agent-2".to_string(),
+            "Test".to_string(),
+        );
+
+        let response = client.request_handoff(request).unwrap();
+        let handoff_id = response.handoff_id.clone();
+
+        client.reject_handoff(&handoff_id, "First rejection").unwrap();
+        let result = client.reject_handoff(&handoff_id, "Second rejection");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_request_accept_complete_flow() {
+        let client = HandoffClient::new();
+        let request = HandoffRequest::new(
+            "agent-1".to_string(),
+            "agent-2".to_string(),
+            "Workflow test".to_string(),
+        );
+
+        let response = client.request_handoff(request).unwrap();
+        assert_eq!(response.status, HandoffStatus::Pending);
+
+        client.accept_handoff(&response.handoff_id).unwrap();
+        let status = client.get_handoff_status(&response.handoff_id).unwrap().unwrap();
+        assert_eq!(status.status, HandoffStatus::Accepted);
+
+        client.complete_handoff(&response.handoff_id).unwrap();
+        let status = client.get_handoff_status(&response.handoff_id).unwrap().unwrap();
+        assert_eq!(status.status, HandoffStatus::Completed);
+    }
+
+    #[test]
+    fn test_request_reject_flow() {
+        let client = HandoffClient::new();
+        let request = HandoffRequest::new(
+            "agent-1".to_string(),
+            "agent-2".to_string(),
+            "Workflow test".to_string(),
+        );
+
+        let response = client.request_handoff(request).unwrap();
+        assert_eq!(response.status, HandoffStatus::Pending);
+
+        client
+            .reject_handoff(&response.handoff_id, "Not equipped")
+            .unwrap();
+        let status = client.get_handoff_status(&response.handoff_id).unwrap().unwrap();
+        assert_eq!(status.status, HandoffStatus::Rejected);
+        assert!(status.rejection_reason.is_some());
+    }
 }

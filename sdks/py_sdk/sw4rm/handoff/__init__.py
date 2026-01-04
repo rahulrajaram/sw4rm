@@ -2,9 +2,20 @@
 
 This module provides the infrastructure for agents to hand off tasks
 to other agents, including context preservation and capability matching.
+
+Note: HandoffClient has been moved to sw4rm.clients for API consistency.
+Importing from this module still works but is deprecated.
+
+Preferred usage:
+    from sw4rm.clients import HandoffClient
+
+Deprecated usage (will show warning):
+    from sw4rm.handoff import HandoffClient
 """
 
 from __future__ import annotations
+
+import warnings
 
 from sw4rm.handoff.types import (
     HandoffRequest,
@@ -16,7 +27,6 @@ from sw4rm.handoff.context import (
     serialize_context,
     deserialize_context,
 )
-from sw4rm.handoff.client import HandoffClient
 
 __all__ = [
     "HandoffRequest",
@@ -25,5 +35,19 @@ __all__ = [
     "HandoffContext",
     "serialize_context",
     "deserialize_context",
-    "HandoffClient",
+    "HandoffClient",  # Deprecated: use sw4rm.clients.HandoffClient
 ]
+
+
+def __getattr__(name: str):
+    """Provide HandoffClient with deprecation warning."""
+    if name == "HandoffClient":
+        warnings.warn(
+            "Importing HandoffClient from sw4rm.handoff is deprecated. "
+            "Use: from sw4rm.clients import HandoffClient",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        from sw4rm.clients.handoff import HandoffClient
+        return HandoffClient
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -1,0 +1,299 @@
+# SW4RM Documentation Cross-References
+# =====================================
+# This file maps relationships between documentation sources.
+# Used by swarm-knowledge-guardian to detect contradictions
+# and ensure consistency across the knowledge base.
+#
+# Relationship types:
+# - authoritative: Source A is the authority; others must conform
+# - implements: Code implements what docs specify
+# - explains: User docs explain what spec defines
+# - examples: Code examples of documented concepts
+# - contradicts: Known contradictions (should be empty!)
+#
+# Last Updated: 2026-01-03T18:00:00Z (Second Audit)
+
+# Authoritative hierarchy (higher wins in conflicts)
+authority_hierarchy:
+  1: protos/           # Proto definitions are ground truth for structure
+  2: documentation/protocol/spec.md  # Spec is ground truth for behavior
+  3: documentation/protocol/         # Protocol docs explain spec
+  4: documentation/                  # User docs simplify protocol docs
+  5: sdks/*/README.md               # SDK docs must match user docs
+  6: sdks/*/examples/               # Examples must match SDK docs
+
+# Concept-to-source mappings
+# Each concept lists where it's defined and where it's used
+concepts:
+  envelope_structure:
+    authoritative: protos/common.proto  # CORRECTED: Envelope is in common.proto
+    explained_in:
+      - documentation/protocol/spec.md#section-3.3
+      - documentation/protocol/messages.md
+    implemented_in:
+      - sdks/py_sdk/sw4rm/envelope.py
+      - sdks/rust_sdk/src/envelope.rs
+      - sdks/js_sdk/src/types/envelope.ts
+    examples_in:
+      - sdks/py_sdk/examples/echo_agent.py
+    verification_points:
+      - "Field order must match proto"
+      - "Field types must match proto"
+      - "Required vs optional must match"
+
+  three_id_model:
+    authoritative: documentation/protocol/spec.md#section-3.3
+    explained_in:
+      - documentation/protocol/advanced-patterns.md#three-id
+      - documentation/quickstart/persistence.md
+    implemented_in:
+      - sdks/py_sdk/sw4rm/activity_buffer.py
+      - sdks/rust_sdk/src/activity_buffer.rs
+    examples_in:
+      - sdks/py_sdk/examples/three_id_demo.py
+    verification_points:
+      - "message_id: UUIDv4, unique per attempt"
+      - "idempotency_token: stable across retries"
+      - "correlation_id: links request/response"
+      - "dedup_window_s default: 3600 (1 hour)"
+
+  ack_lifecycle:
+    authoritative: protos/common.proto  # CORRECTED: Proto is authoritative for stages
+    explained_in:
+      - documentation/protocol/acks.md
+      - documentation/protocol/spec.md#section-11
+    implemented_in:
+      - sdks/py_sdk/sw4rm/ack_integration.py
+      - sdks/py_sdk/sw4rm/acks.py
+    examples_in:
+      - sdks/py_sdk/examples/echo_agent.py
+    verification_points:
+      - "Stages: RECEIVED -> READ -> FULFILLED|REJECTED|FAILED|TIMED_OUT"  # CORRECTED
+      - "No PROCESSING stage exists in proto"  # ADDED
+      - "NACK triggers retry or DLQ"
+      - "Reconciliation finds unacked messages"
+
+  service_ports:
+    authoritative: sdks/py_sdk/reference-services/  # Code is source of truth
+    also_in:
+      - documentation/index.md
+      - documentation/protocol/services.md
+      - documentation/architecture/index.md
+    implemented_in:
+      - sdks/py_sdk/sw4rm/config.py (Endpoints class)
+      - sdks/py_sdk/sw4rm/constants.py
+      - sdks/py_sdk/reference-services/hive/registry_service.py
+      - sdks/py_sdk/reference-services/hive/router_service.py
+    verification_points:
+      - "Router: 50051"      # Verified against reference-services
+      - "Registry: 50052"    # Verified against reference-services
+      - "Scheduler: 50053"
+      - "HITL: 50061"
+      - "Worktree: 50062"
+      - "Tools: 50063"
+      - "Negotiation: 50064"
+      - "Reasoning: 50065"
+      - "Logging: 50066"
+      - "Connector: 50067"
+
+  negotiation_room:
+    authoritative: documentation/protocol/spec.md#section-17.5
+    explained_in:
+      - documentation/protocol/advanced-patterns.md
+    implemented_in:
+      - sdks/py_sdk/sw4rm/negotiation_coordinator.py
+      - protos/negotiation_room.proto
+    examples_in:
+      - sdks/py_sdk/examples/negotiation_debate_example.py
+    verification_points:
+      - "Roles: producer, critic, coordinator"
+      - "Voting is confidence-weighted"
+      - "Uses correlation_id = negotiation_id"
+
+  handoff:
+    authoritative: documentation/protocol/spec.md#section-17.6
+    explained_in:
+      - documentation/protocol/advanced-patterns.md
+    implemented_in:
+      - sdks/py_sdk/sw4rm/handoff/
+      - protos/handoff.proto
+    examples_in:
+      - sdks/py_sdk/examples/handoff_example.py
+    verification_points:
+      - "States: PENDING -> ACCEPTED|REJECTED -> COMPLETED|EXPIRED"  # CORRECTED per proto
+      - "Capability matching required"
+      - "Context transfer included"
+
+  workflow:
+    authoritative: documentation/protocol/spec.md#section-17.7
+    explained_in:
+      - documentation/protocol/advanced-patterns.md
+    implemented_in:
+      - sdks/py_sdk/sw4rm/workflow/
+      - protos/workflow.proto
+    examples_in:
+      - sdks/py_sdk/examples/workflow_orchestration_example.py
+    verification_points:
+      - "DAG structure for step dependencies"
+      - "Step states track individual progress"
+      - "Workflow state aggregates step states"
+
+  agent_lifecycle:
+    authoritative: documentation/protocol/spec.md#section-8
+    explained_in:
+      - documentation/quickstart/first-agent.md
+    implemented_in:
+      - sdks/py_sdk/sw4rm/runtime/agent.py
+    verification_points:
+      - "12 states in state machine"
+      - "INITIALIZING -> RUNNABLE -> SCHEDULED -> RUNNING"
+      - "Clean shutdown: SHUTTING_DOWN"
+      - "Recovery from FAILED possible"
+
+  persistence:
+    authoritative: documentation/quickstart/persistence.md
+    implemented_in:
+      - sdks/py_sdk/sw4rm/persistence.py
+    examples_in:
+      - sdks/py_sdk/examples/three_id_demo.py
+    verification_points:
+      - "PersistenceBackend is the interface"
+      - "JSONFilePersistence is default"
+      - "Atomic writes via temp file + rename"
+      - "Base64 for binary payloads"
+
+# Known issues discovered in audits (2026-01-03)
+# Updated: 2026-01-03T18:00:00Z - Second Audit completed
+# First Audit resolved 4 critical issues
+# Second Audit discovered 4 NEW issues
+known_contradictions:
+  - concept: service_ports
+    source_a:
+      file: documentation/index.md (and other docs)
+      claim: "Registry: 50051, Router: 50052"
+    source_b:
+      file: sdks/py_sdk/reference-services/ (actual implementations)
+      claim: "Router: 50051, Registry: 50052"
+    description: "Documentation had wrong port assignments. Code is source of truth."
+    discovered: "2026-01-03"
+    status: resolved
+    resolved_date: "2026-01-03"
+    severity: critical
+    fix: "Fixed documentation (index.md, overview.md, protocol/index.md, installation.md, docker-compose examples) to match actual service implementations: Router:50051, Registry:50052"
+
+  - concept: ack_lifecycle
+    source_a:
+      file: .claude/knowledge/cross-references.yaml (previous version)
+      claim: "Stages: RECEIVED -> PROCESSING -> COMPLETED|FAILED"
+    source_b:
+      file: protos/common.proto
+      claim: "AckStage enum: RECEIVED, READ, FULFILLED, REJECTED, FAILED, TIMED_OUT"
+    description: "PROCESSING stage does not exist; cross-refs had phantom stage"
+    discovered: "2026-01-03"
+    status: resolved
+    resolved_date: "2026-01-03"
+    severity: major
+    fix: "Corrected cross-references.yaml to use proto-defined stages"
+
+  - concept: service_ports
+    source_a:
+      file: sdks/py_sdk/README.md
+      lines: [158, 204, 301]
+      claim: "Worktree: 50054, Tool: 50055, Negotiation: 50056"
+    source_b:
+      file: documentation/index.md
+      claim: "Worktree: 50062, Tool: 50063, Negotiation: 50064"
+    description: "SDK README claimed different ports for extended services"
+    discovered: "2026-01-03"
+    status: resolved
+    resolved_date: "2026-01-03"
+    severity: major
+    fix: "Updated README.md to use correct ports: Worktree:50062, Tool:50063, Negotiation:50064"
+
+  - concept: communication_class
+    source_a:
+      file: .claude/knowledge/glossary.yaml
+      claim: "Three classes: FIRE_AND_FORGET, STANDARD, PRIORITY"
+    source_b:
+      file: protos/common.proto
+      claim: "CommunicationClass enum: PRIVILEGED, STANDARD, BULK"
+    description: "Glossary had wrong Communication Class names"
+    discovered: "2026-01-03"
+    status: resolved
+    resolved_date: "2026-01-03"
+    severity: major
+    fix: "Updated glossary.yaml to use PRIVILEGED, STANDARD, BULK"
+
+# ==== SECOND AUDIT FINDINGS (2026-01-03T18:00:00Z) ====
+
+  - concept: hitl_reason_type
+    source_a:
+      file: sdks/py_sdk/sw4rm/constants.py
+      lines: [70-78]
+      claim: "CONFLICT=1, SECURITY_APPROVAL=2, TASK_ESCALATION=3, MANUAL_OVERRIDE=4, WORKTREE_OVERRIDE=5, DEBATE_DEADLOCK=6, TOOL_PRIVILEGE_ESCALATION=7, CONNECTOR_APPROVAL=8"
+    source_b:
+      file: protos/common.proto
+      lines: [83-93]
+      claim: "CONFLICT=1, SECURITY_APPROVAL=2, TASK_ESCALATION=3, MANUAL_OVERRIDE=4, WORKTREE_OVERRIDE=5, DEBATE_DEADLOCK=6, TOOL_PRIVILEGE_ESCALATION=7, CONNECTOR_APPROVAL=8"
+    description: "SDK constants.py now matches proto definition"
+    discovered: "2026-01-03T18:00:00Z"
+    status: resolved
+    resolved_date: "2026-01-03"
+    severity: critical
+    fix: "Updated sdks/py_sdk/sw4rm/constants.py HitlReasonType enum to match proto"
+
+  - concept: service_ports_troubleshooting
+    source_a:
+      file: sdks/py_sdk/README.md
+      lines: [745-747]
+      claim: "Extended service ports: Worktree:50062, Tool:50063, Negotiation:50064"
+    source_b:
+      file: documentation/index.md
+      claim: "Extended service ports: Worktree:50062, Tool:50063, Negotiation:50064"
+    description: "SDK README Troubleshooting section now has correct ports"
+    discovered: "2026-01-03T18:00:00Z"
+    status: resolved
+    resolved_date: "2026-01-03"
+    severity: major
+    fix: "Updated sdks/py_sdk/README.md troubleshooting section to use correct ports"
+
+  - concept: persistence_backends
+    source_a:
+      file: documentation/quickstart/persistence.md
+      claim: "Supports JSONFilePersistence, SQLitePersistence; Redis/PostgreSQL marked as 🔮 Planned"
+    source_b:
+      file: sdks/py_sdk/sw4rm/persistence.py
+      claim: "Only JSONFilePersistence and SQLitePersistence exist"
+    description: "Documentation now accurately reflects available backends"
+    discovered: "2026-01-03T18:00:00Z"
+    status: resolved
+    resolved_date: "2026-01-03"
+    severity: major
+    fix: "Updated persistence.md to show Redis/PostgreSQL as planned, removed non-existent APIs, consolidated aspirational features into section 2.6.7"
+
+  - concept: conceptual_api_examples
+    source_a:
+      file: documentation/index.md
+      lines: [570-930]
+      claim: "Shows SDK class, ProductionConfig, MetricsCollector, HealthChecker, WorktreeState APIs"
+    source_b:
+      file: sdks/py_sdk/sw4rm/
+      claim: "These high-level classes do not exist in SDK; only lower-level components"
+    description: "Conceptual example code shows non-existent high-level API"
+    discovered: "2026-01-03T18:00:00Z"
+    status: acceptable
+    severity: minor
+    note: "Has disclaimer '!!! note Conceptual Example' - acceptable as aspirational"
+
+# Bidirectional link requirements
+# If A links to B, B should link back to A (for navigation)
+bidirectional_links:
+  - from: documentation/index.md
+    to: documentation/protocol/spec.md
+    expected_backlink: true
+  - from: documentation/quickstart/index.md
+    to: documentation/protocol/messages.md
+    expected_backlink: true
+  - from: documentation/examples/index.md
+    to: sdks/py_sdk/examples/
+    expected_backlink: true

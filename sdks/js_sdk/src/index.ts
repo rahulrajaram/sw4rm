@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // SW4RM JavaScript SDK
-export const version = '0.4.0';
+export const version = '0.5.0';
 
 // Clients
 export * from './clients/router.js';
@@ -35,6 +35,7 @@ export * from './clients/registry.js';
 
 // Phase 2 Clients (Negotiation Room, Handoff, Workflow)
 export * from './clients/negotiationRoom.js';
+export * from './clients/negotiationRoomStore.js';
 export * from './clients/handoff.js';
 export * from './clients/workflow.js';
 

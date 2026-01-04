@@ -19,7 +19,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-sw4rm-sdk = "0.4.0"
+sw4rm-sdk = "0.5.0"
 tokio = { version = "1.0", features = ["full"] }
 ```
 
@@ -225,6 +225,18 @@ For integration tests with a running SW4RM cluster:
 ```bash
 cargo test --features integration-tests
 ```
+
+## Operational Contracts
+
+For production deployments, see the **[Operational Contracts](../docs/OPERATIONAL_CONTRACTS.md)** documentation, which defines:
+
+- Connection timeouts and keep-alive settings
+- Retry policies and error handling
+- Data consistency guarantees
+- Idempotency contracts
+- State persistence guarantees
+
+These are protocol-level contracts that all SW4RM SDKs honor.
 
 ## Contributing
 

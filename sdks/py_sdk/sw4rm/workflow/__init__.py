@@ -19,6 +19,11 @@ complex multi-agent workflows as directed acyclic graphs (DAGs). Inspired by
 CrewAI Flows, it enables sophisticated coordination patterns with dependencies,
 triggers, and state management.
 
+Note: For SDK consistency with Rust and JS, WorkflowClient is also available
+from sw4rm.clients. It is an alias for WorkflowEngine.
+
+    from sw4rm.clients import WorkflowClient  # Same as WorkflowEngine
+
 Core Components:
     - WorkflowBuilder: Fluent API for building workflow definitions
     - WorkflowEngine: Execution engine with DAG validation and orchestration

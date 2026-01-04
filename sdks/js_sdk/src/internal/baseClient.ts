@@ -36,8 +36,8 @@ export class BaseClient {
 
   constructor(opts: ClientOptions) {
     this.address = opts.address;
-    this.deadlineMs = opts.deadlineMs ?? 10000;
-    this.retry = opts.retry ?? { maxAttempts: 3, initialBackoffMs: 200, maxBackoffMs: 2000, multiplier: 2 };
+    this.deadlineMs = opts.deadlineMs ?? 30000;
+    this.retry = opts.retry ?? { maxAttempts: 1, initialBackoffMs: 200, maxBackoffMs: 2000, multiplier: 2 };
     this.userAgent = opts.userAgent ?? 'sw4rm-js-sdk/0.1';
 
     const __filename = fileURLToPath(import.meta.url);

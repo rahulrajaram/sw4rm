@@ -659,7 +659,8 @@ class Agent:
             >>> if response.accepted:
             ...     print(f"Handoff accepted: {response.handoff_id}")
         """
-        from sw4rm.handoff import HandoffRequest, HandoffClient
+        from sw4rm.handoff import HandoffRequest
+        from sw4rm.clients import HandoffClient
         from sw4rm.handoff.context import serialize_context
 
         # Get current context

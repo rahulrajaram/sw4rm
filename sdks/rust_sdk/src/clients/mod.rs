@@ -15,6 +15,7 @@ pub mod tool;
 // Phase 3: New protocol clients
 pub mod handoff;
 pub mod negotiation_room;
+pub mod negotiation_room_store;
 pub mod workflow;
 
 pub use hitl::HitlClient;
@@ -34,4 +35,5 @@ pub use tool::ToolClient;
 // Phase 3: New protocol client exports
 pub use handoff::HandoffClient;
 pub use negotiation_room::NegotiationRoomClient;
+pub use negotiation_room_store::{InMemoryNegotiationRoomStore, NegotiationRoomStore};
 pub use workflow::WorkflowClient;

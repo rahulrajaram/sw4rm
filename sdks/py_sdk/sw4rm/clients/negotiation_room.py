@@ -9,6 +9,27 @@ supports:
 - Coordinating the review process
 
 Based on SPEC_REQUESTS.md section 6.1.
+
+CONCURRENCY FIX (v0.6.0):
+The client now uses a pluggable storage backend (NegotiationRoomStore) instead
+of instance-local storage. This enables multiple client instances to share
+state, which is essential for multi-agent deployments where producer, critic,
+and coordinator agents run in different processes or containers.
+
+Usage patterns:
+    1. Single-process with shared default store (recommended):
+        client1 = NegotiationRoomClient()  # Uses shared default store
+        client2 = NegotiationRoomClient()  # Same store, shared state
+
+    2. Explicit store sharing:
+        store = InMemoryNegotiationRoomStore()
+        producer = NegotiationRoomClient(store=store)
+        critic = NegotiationRoomClient(store=store)
+
+    3. Persistent storage (see colony/stores for backends):
+        from colony.stores.python import JSONFileNegotiationRoomStore
+        store = JSONFileNegotiationRoomStore("/path/to/storage")
+        client = NegotiationRoomClient(store=store)
 """
 from __future__ import annotations
 
@@ -20,6 +41,11 @@ from sw4rm.negotiation_types import (
     NegotiationVote,
     NegotiationDecision,
 )
+from sw4rm.clients.negotiation_room_store import (
+    NegotiationRoomStore,
+    InMemoryNegotiationRoomStore,
+    get_default_store,
+)
 
 
 class NegotiationRoomClient:
@@ -29,20 +55,47 @@ class NegotiationRoomClient:
     review process. Producers submit proposals, critics submit votes,
     and coordinators retrieve votes to make decisions.
 
-    This is an in-memory implementation for Phase 2.2. Future phases
-    will integrate with persistent storage and gRPC services.
+    This client uses a pluggable storage backend, enabling state sharing
+    across multiple client instances. By default, all clients within the
+    same process share a common in-memory store.
 
     Attributes:
-        _proposals: In-memory storage for proposals keyed by artifact_id
-        _votes: In-memory storage for votes keyed by artifact_id
-        _decisions: In-memory storage for decisions keyed by artifact_id
+        _store: The storage backend for proposals, votes, and decisions.
+
+    Example:
+        # Simple usage - all clients share default store
+        >>> client = NegotiationRoomClient()
+        >>> proposal = NegotiationProposal(
+        ...     artifact_type=ArtifactType.CODE,
+        ...     artifact_id="code-123",
+        ...     producer_id="agent-producer",
+        ...     artifact=b"def hello(): pass",
+        ...     artifact_content_type="text/x-python",
+        ...     requested_critics=["critic-1", "critic-2"],
+        ...     negotiation_room_id="room-1"
+        ... )
+        >>> artifact_id = client.submit_proposal(proposal)
+        >>> artifact_id
+        'code-123'
+
+    Example with file-based storage (multi-process, requires colony):
+        >>> from colony.stores.python import JSONFileNegotiationRoomStore
+        >>> store = JSONFileNegotiationRoomStore("/var/lib/sw4rm/negotiation")
+        >>> client = NegotiationRoomClient(store=store)
     """
 
-    def __init__(self) -> None:
-        """Initialize the negotiation room client with in-memory storage."""
-        self._proposals: dict[str, NegotiationProposal] = {}
-        self._votes: dict[str, list[NegotiationVote]] = {}
-        self._decisions: dict[str, NegotiationDecision] = {}
+    def __init__(
+        self,
+        store: Optional[NegotiationRoomStore] = None,
+    ) -> None:
+        """Initialize the negotiation room client.
+
+        Args:
+            store: Optional storage backend. If not provided, uses the
+                   shared default in-memory store (enabling state sharing
+                   across all clients in the same process).
+        """
+        self._store: NegotiationRoomStore = store if store is not None else get_default_store()
 
     def submit_proposal(self, proposal: NegotiationProposal) -> str:
         """Submit an artifact proposal for multi-agent review.
@@ -74,17 +127,8 @@ class NegotiationRoomClient:
             >>> artifact_id
             'code-123'
         """
-        artifact_id = proposal.artifact_id
-
-        if artifact_id in self._proposals:
-            raise ValueError(
-                f"Proposal with artifact_id '{artifact_id}' already exists"
-            )
-
-        self._proposals[artifact_id] = proposal
-        self._votes[artifact_id] = []
-
-        return artifact_id
+        self._store.save_proposal(proposal)
+        return proposal.artifact_id
 
     def submit_vote(self, vote: NegotiationVote) -> None:
         """Submit a critic's vote for an artifact.
@@ -116,21 +160,12 @@ class NegotiationRoomClient:
         """
         artifact_id = vote.artifact_id
 
-        if artifact_id not in self._proposals:
+        if not self._store.has_proposal(artifact_id):
             raise ValueError(
                 f"No proposal found for artifact_id '{artifact_id}'"
             )
 
-        # Check if this critic has already voted
-        existing_votes = self._votes.get(artifact_id, [])
-        for existing_vote in existing_votes:
-            if existing_vote.critic_id == vote.critic_id:
-                raise ValueError(
-                    f"Critic '{vote.critic_id}' has already voted for "
-                    f"artifact '{artifact_id}'"
-                )
-
-        self._votes[artifact_id].append(vote)
+        self._store.add_vote(vote)
 
     def get_votes(self, artifact_id: str) -> list[NegotiationVote]:
         """Retrieve all votes for a specific artifact.
@@ -153,12 +188,12 @@ class NegotiationRoomClient:
             >>> len(votes)
             1
         """
-        if artifact_id not in self._proposals:
+        if not self._store.has_proposal(artifact_id):
             raise ValueError(
                 f"No proposal found for artifact_id '{artifact_id}'"
             )
 
-        return self._votes.get(artifact_id, [])
+        return self._store.get_votes(artifact_id)
 
     def get_decision(self, artifact_id: str) -> Optional[NegotiationDecision]:
         """Retrieve the decision for a specific artifact if available.
@@ -180,12 +215,12 @@ class NegotiationRoomClient:
             >>> decision is None  # Before decision is made
             True
         """
-        if artifact_id not in self._proposals:
+        if not self._store.has_proposal(artifact_id):
             raise ValueError(
                 f"No proposal found for artifact_id '{artifact_id}'"
             )
 
-        return self._decisions.get(artifact_id)
+        return self._store.get_decision(artifact_id)
 
     def store_decision(self, decision: NegotiationDecision) -> None:
         """Store a decision for an artifact.
@@ -218,17 +253,12 @@ class NegotiationRoomClient:
         """
         artifact_id = decision.artifact_id
 
-        if artifact_id not in self._proposals:
+        if not self._store.has_proposal(artifact_id):
             raise ValueError(
                 f"No proposal found for artifact_id '{artifact_id}'"
             )
 
-        if artifact_id in self._decisions:
-            raise ValueError(
-                f"Decision already exists for artifact_id '{artifact_id}'"
-            )
-
-        self._decisions[artifact_id] = decision
+        self._store.save_decision(decision)
 
     def wait_for_decision(
         self,
@@ -260,7 +290,7 @@ class NegotiationRoomClient:
             >>> decision.outcome
             <DecisionOutcome.APPROVED: 1>
         """
-        if artifact_id not in self._proposals:
+        if not self._store.has_proposal(artifact_id):
             raise ValueError(
                 f"No proposal found for artifact_id '{artifact_id}'"
             )
@@ -268,7 +298,7 @@ class NegotiationRoomClient:
         start_time = time.time()
 
         while time.time() - start_time < timeout_s:
-            decision = self.get_decision(artifact_id)
+            decision = self._store.get_decision(artifact_id)
             if decision is not None:
                 return decision
 
@@ -296,7 +326,7 @@ class NegotiationRoomClient:
             >>> proposal.artifact_type
             <ArtifactType.CODE: 3>
         """
-        return self._proposals.get(artifact_id)
+        return self._store.get_proposal(artifact_id)
 
     def list_proposals(
         self,
@@ -315,10 +345,4 @@ class NegotiationRoomClient:
             >>> len(proposals)
             1
         """
-        if negotiation_room_id is None:
-            return list(self._proposals.values())
-
-        return [
-            p for p in self._proposals.values()
-            if p.negotiation_room_id == negotiation_room_id
-        ]
+        return self._store.list_proposals(negotiation_room_id)

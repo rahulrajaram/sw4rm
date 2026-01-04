@@ -252,8 +252,8 @@ print('✓ All protocol stubs imported successfully')
 echo "3. Testing service client instantiation..."
 python3 -c "
 from sw4rm.clients import RouterClient, RegistryClient
-router_client = RouterClient(host='localhost', port=50052)
-registry_client = RegistryClient(host='localhost', port=50051)
+router_client = RouterClient(host='localhost', port=50051)
+registry_client = RegistryClient(host='localhost', port=50052)
 print('✓ Service clients instantiated successfully')
 "
 

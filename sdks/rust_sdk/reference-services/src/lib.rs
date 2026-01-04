@@ -12,6 +12,15 @@ pub mod proto {
         pub mod scheduler {
             tonic::include_proto!("sw4rm.scheduler");
         }
+        pub mod handoff {
+            tonic::include_proto!("sw4rm.handoff");
+        }
+        pub mod workflow {
+            tonic::include_proto!("sw4rm.workflow");
+        }
+        pub mod negotiation_room {
+            tonic::include_proto!("sw4rm.negotiation_room");
+        }
     }
 }
 
@@ -19,3 +28,4 @@ pub mod registry;
 pub mod router;
 pub mod scheduler;
 pub mod agents;
+pub mod coordination;

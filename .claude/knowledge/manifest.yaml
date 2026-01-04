@@ -1,0 +1,217 @@
+# SW4RM Knowledge Manifest
+# =========================
+# This file is the entry point for the swarm-knowledge-guardian agent's memory.
+# It provides a token-efficient map of all knowledge sources, their purpose,
+# and their relationships. The guardian loads this FIRST to understand what
+# knowledge exists without reading every file.
+#
+# DESIGN PRINCIPLES:
+# - Load manifest first (small, structured, comprehensive)
+# - Load summaries on-demand (pre-compressed knowledge)
+# - Only read source files when verification is needed
+# - Update checksums to detect drift without re-reading
+#
+# Last Updated: 2026-01-03
+# Guardian Version: 1.0.0
+
+metadata:
+  protocol_version: "0.5.0"
+  last_full_audit: "2026-01-03T20:00:00Z"  # Second audit completed
+  knowledge_health_score: 98  # 0-100, updated after each audit
+  total_documents: 15
+  total_concepts: 10
+  audit_summary:
+    contradictions_found: 0  # All 8 resolved (4 from first audit + 4 from second audit)
+    critical_issues: 0       # HitlReasonType enum fixed
+    major_issues: 0          # README troubleshooting ports + persistence.md fixed
+    minor_issues: 1          # Conceptual API examples (acceptable with disclaimer)
+    gaps_identified: 2       # EnvelopeState docs, Rust logging port (lower priority)
+  last_fix_session: "2026-01-03T20:00:00Z"
+  fixes_applied:
+    # First Audit Fixes
+    - "documentation/index.md: Fixed Router/Registry ports to match implementation (Router:50051, Registry:50052)"
+    - "documentation/overview.md: Fixed port diagrams and docker-compose examples"
+    - "documentation/protocol/index.md: Fixed port diagram"
+    - "documentation/quickstart/installation.md: Fixed example port assignments"
+    - "sdks/py_sdk/README.md: Extended service ports corrected (Worktree:50062, Tool:50063, Negotiation:50064)"
+    - "glossary.yaml: Communication Class terminology corrected"
+    - "cross-references.yaml: ACK lifecycle stages corrected"
+    # Second Audit Fixes
+    - "sdks/py_sdk/sw4rm/constants.py: HitlReasonType enum corrected to match proto"
+    - "sdks/py_sdk/README.md: Troubleshooting section ports corrected"
+    - "documentation/quickstart/persistence.md: API documentation corrected to match actual SDK implementation"
+  lessons_learned:
+    - "Code/implementation is the source of truth for operational details like ports"
+    - "When documentation contradicts implementation, verify against running code first"
+    - "The guardian initially trusted documentation over implementation - this was backwards"
+    - "SDK constants must be verified against proto definitions, not just documentation"
+    - "Aspirational features should be clearly marked as 'Planned' to avoid user confusion"
+
+# Primary Knowledge Sources
+# Each entry describes what knowledge lives where
+sources:
+  specification:
+    primary: documentation/protocol/spec.md
+    description: "RFC-style protocol specification. THE authoritative source."
+    sections:
+      - id: transport
+        summary_file: summaries/spec-transport.md
+        line_range: [1, 500]  # approximate
+        key_concepts: [gRPC, HTTP/1.1, mTLS, payload chunking]
+      - id: identity
+        summary_file: summaries/spec-identity.md
+        line_range: [500, 800]
+        key_concepts: [agent_id, zero-trust, message signing]
+      - id: messages
+        summary_file: summaries/spec-messages.md
+        line_range: [800, 1500]
+        key_concepts: [Envelope, Three-ID, ACK lifecycle, message types]
+      - id: services
+        summary_file: summaries/spec-services.md
+        line_range: [1500, 2500]
+        key_concepts: [Registry, Router, Scheduler, HITL, Worktree]
+      - id: advanced
+        summary_file: summaries/spec-advanced.md
+        line_range: [2500, 4000]
+        key_concepts: [Negotiation Room, Handoff, Workflow, Voting]
+
+  documentation:
+    index: documentation/index.md
+    pages:
+      - path: documentation/overview.md
+        purpose: "High-level feature overview for newcomers"
+        audience: beginner
+        key_concepts: [what is SW4RM, why use it, core features]
+      - path: documentation/quickstart/index.md
+        purpose: "Complete getting started guide"
+        audience: beginner
+        key_concepts: [installation, first agent, SDK architecture]
+      - path: documentation/quickstart/first-agent.md
+        purpose: "Tutorial: Build your first agent"
+        audience: beginner
+        key_concepts: [echo agent, registration, message handling]
+      - path: documentation/quickstart/persistence.md
+        purpose: "State management patterns"
+        audience: intermediate
+        key_concepts: [PersistenceBackend, ActivityBuffer, recovery]
+      - path: documentation/protocol/index.md
+        purpose: "Protocol landing page"
+        audience: intermediate
+        summary_file: summaries/protocol-index.md
+      - path: documentation/protocol/messages.md
+        purpose: "Message type reference"
+        audience: intermediate
+        key_concepts: [DATA, CONTROL, ACK, HITL, TOOL messages]
+      - path: documentation/protocol/services.md
+        purpose: "Service API reference"
+        audience: intermediate
+        key_concepts: [Registry API, Router API, Scheduler API]
+      - path: documentation/protocol/acks.md
+        purpose: "ACK lifecycle deep dive"
+        audience: advanced
+        key_concepts: [ACK stages, guaranteed delivery, reconciliation]
+      - path: documentation/protocol/advanced-patterns.md
+        purpose: "Multi-agent coordination patterns"
+        audience: advanced
+        key_concepts: [Negotiation, Handoff, Workflow, Three-ID]
+        summary_file: summaries/advanced-patterns.md
+      - path: documentation/examples/index.md
+        purpose: "Examples overview and index"
+        audience: all
+      - path: documentation/architecture/index.md
+        purpose: "System architecture deep dive"
+        audience: advanced
+        key_concepts: [hub-and-spoke, service ports, deployment]
+
+  protos:
+    directory: protos/
+    description: "Canonical message definitions (source of truth for structure)"
+    files:
+      - path: protos/common.proto
+        defines: [ErrorCode, MessageType, CommunicationClass, Modality]
+      - path: protos/router.proto
+        defines: [Envelope, SendRequest, SendResponse]
+      - path: protos/registry.proto
+        defines: [AgentDescriptor, RegisterRequest, HeartbeatRequest]
+      - path: protos/scheduler.proto
+        defines: [TaskRequest, TaskStatus, ControlMessage]
+      - path: protos/activity.proto
+        defines: [ActivityRecord, ACKStage]
+      - path: protos/negotiation_room.proto
+        defines: [NegotiationRoom, Proposal, Vote, Verdict]
+      - path: protos/handoff.proto
+        defines: [HandoffRequest, HandoffAccept, HandoffReject]
+      - path: protos/workflow.proto
+        defines: [WorkflowDefinition, StepDefinition, WorkflowState]
+      - path: protos/hitl.proto
+        defines: [HITLRequest, HITLResponse, EscalationPolicy]
+      - path: protos/tool.proto
+        defines: [ToolCall, ToolResult, ToolError]
+      - path: protos/worktree.proto
+        defines: [WorktreeBinding, BindRequest, UnbindRequest]
+
+  sdks:
+    python:
+      root: sdks/py_sdk/
+      readme: sdks/py_sdk/README.md
+      package: sdks/py_sdk/sw4rm/
+      key_modules:
+        - path: sw4rm/activity_buffer.py
+          implements: [ActivityBuffer, Three-ID deduplication]
+        - path: sw4rm/ack_integration.py
+          implements: [ACKLifecycleManager, MessageProcessor]
+        - path: sw4rm/persistence.py
+          implements: [PersistenceBackend, JSONFilePersistence]
+        - path: sw4rm/config.py
+          implements: [AgentConfig, Endpoints, RetryPolicy]
+        - path: sw4rm/clients/registry.py
+          implements: [RegistryClient]
+        - path: sw4rm/clients/router.py
+          implements: [RouterClient]
+      examples_dir: sdks/py_sdk/examples/
+    rust:
+      root: sdks/rust_sdk/
+      readme: sdks/rust_sdk/README.md
+      key_modules:
+        - path: src/activity_buffer.rs
+          implements: [ActivityBuffer]
+        - path: src/persistence.rs
+          implements: [PersistenceBackend]
+    javascript:
+      root: sdks/js_sdk/
+      readme: sdks/js_sdk/README.md
+      key_modules:
+        - path: src/clients/
+          implements: [RouterClient, RegistryClient]
+        - path: src/persistence/
+          implements: [PersistenceBackend]
+
+# Cross-cutting concerns that span multiple sources
+cross_cutting:
+  three_id_model:
+    authoritative_source: documentation/protocol/spec.md#section-3.3
+    also_documented_in:
+      - documentation/protocol/advanced-patterns.md
+      - sdks/py_sdk/sw4rm/activity_buffer.py (docstring)
+    related_concepts: [idempotency, deduplication, message tracking]
+
+  ack_lifecycle:
+    authoritative_source: documentation/protocol/acks.md
+    also_documented_in:
+      - documentation/protocol/spec.md#section-12
+      - sdks/py_sdk/sw4rm/ack_integration.py
+    related_concepts: [guaranteed delivery, retry, reconciliation]
+
+  service_ports:
+    authoritative_source: documentation/index.md#section-1.3.1
+    values:
+      registry: 50051
+      router: 50052
+      scheduler: 50053
+      hitl: 50061
+      worktree: 50062
+      tools: 50063
+      negotiation: 50064
+      reasoning: 50065
+      logging: 50066
+      connector: 50067

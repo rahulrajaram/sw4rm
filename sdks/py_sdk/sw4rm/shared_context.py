@@ -10,9 +10,14 @@ control and locking mechanisms to prevent race conditions during updates.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional
 import uuid
+
+
+def _utcnow() -> datetime:
+    """Return a timezone-aware UTC timestamp."""
+    return datetime.now(timezone.utc)
 
 
 @dataclass
@@ -36,8 +41,8 @@ class SharedContext:
     version: str
     data: Dict
     locked_by: Optional[str] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=_utcnow)
+    updated_at: datetime = field(default_factory=_utcnow)
 
     def to_dict(self) -> Dict:
         """Convert context to dictionary representation.
@@ -67,12 +72,12 @@ class SharedContext:
         created_at = (
             datetime.fromisoformat(data["created_at"])
             if data.get("created_at")
-            else datetime.utcnow()
+            else _utcnow()
         )
         updated_at = (
             datetime.fromisoformat(data["updated_at"])
             if data.get("updated_at")
-            else datetime.utcnow()
+            else _utcnow()
         )
 
         return cls(
@@ -143,8 +148,8 @@ class SharedContextManager:
             version="1",
             data=initial_data.copy(),
             locked_by=None,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=_utcnow(),
+            updated_at=_utcnow(),
         )
 
         self._contexts[context_id] = context
@@ -228,7 +233,7 @@ class SharedContextManager:
         # Update context
         context.version = new_version
         context.data = data.copy()
-        context.updated_at = datetime.utcnow()
+        context.updated_at = _utcnow()
 
         return context
 
@@ -366,3 +371,6 @@ class SharedContextManager:
             []
         """
         self._contexts.clear()
+def _utcnow() -> datetime:
+    """Return a timezone-aware UTC timestamp."""
+    return datetime.now(timezone.utc)

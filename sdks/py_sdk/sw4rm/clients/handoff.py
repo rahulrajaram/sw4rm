@@ -2,6 +2,9 @@
 
 This module provides the HandoffClient class for managing handoff requests,
 responses, and pending handoffs between agents.
+
+Note: This client was moved from sw4rm.handoff to sw4rm.clients for API
+consistency with other service clients.
 """
 
 from __future__ import annotations

@@ -19,10 +19,13 @@ protos:
 		$(PROTO_DIR)/tool.proto \
 		$(PROTO_DIR)/connector.proto \
 		$(PROTO_DIR)/negotiation.proto \
+		$(PROTO_DIR)/negotiation_room.proto \
 		$(PROTO_DIR)/reasoning.proto \
 		$(PROTO_DIR)/logging.proto \
 		$(PROTO_DIR)/policy.proto \
-		$(PROTO_DIR)/activity.proto
+		$(PROTO_DIR)/activity.proto \
+		$(PROTO_DIR)/handoff.proto \
+		$(PROTO_DIR)/workflow.proto
 
 clean:
 	rm -f $(OUT_DIR)/*_pb2.py $(OUT_DIR)/*_pb2_grpc.py $(OUT_DIR)/*_pb2.pyi

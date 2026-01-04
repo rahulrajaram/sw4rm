@@ -195,14 +195,14 @@ npx tsx examples/hitlEscalation.ts
 **HITL Reason Types:**
 | Type | Description |
 |------|-------------|
-| UNCERTAINTY_HIGH | Agent confidence below threshold |
-| RISK_HIGH | Action requires explicit approval |
-| CONFLICT_UNRESOLVED | Agents cannot agree |
+| TASK_ESCALATION | Agent confidence below threshold |
+| SECURITY_APPROVAL | Action requires explicit approval |
+| CONFLICT | Agents cannot agree |
 | DEBATE_DEADLOCK | Multi-round debate failed |
-| POLICY_REQUIRED | Policy mandates human review |
-| BUDGET_EXCEEDED | Resource limits exceeded |
-| SECURITY_APPROVAL | Security-sensitive action |
-| USER_REQUESTED | Explicit user request |
+| MANUAL_OVERRIDE | Human requested a direct decision |
+| WORKTREE_OVERRIDE | Worktree operations need approval |
+| TOOL_PRIVILEGE_ESCALATION | Tool privilege escalation requested |
+| CONNECTOR_APPROVAL | Connector approval required |
 
 ---
 

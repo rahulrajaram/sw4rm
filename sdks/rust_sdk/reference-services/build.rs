@@ -12,6 +12,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         proto_dir.join("registry.proto"),
         proto_dir.join("router.proto"),
         proto_dir.join("scheduler.proto"),
+        proto_dir.join("handoff.proto"),
+        proto_dir.join("workflow.proto"),
+        proto_dir.join("negotiation_room.proto"),
     ];
 
     // Check if proto files exist

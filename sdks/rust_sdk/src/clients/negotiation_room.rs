@@ -23,12 +23,51 @@
 //! - Coordinating the review process
 //!
 //! Based on SPEC_REQUESTS.md section 6.1.
+//!
+//! # Concurrency Fix (v0.6.0)
+//!
+//! The client now uses a pluggable storage backend (`NegotiationRoomStore`) instead
+//! of instance-local storage. This enables multiple client instances to share
+//! state, which is essential for multi-agent deployments where producer, critic,
+//! and coordinator agents run in different threads or processes.
+//!
+//! ## Usage patterns
+//!
+//! ### 1. Single-process with shared store (recommended)
+//! ```rust
+//! use sw4rm_sdk::clients::negotiation_room_store::InMemoryNegotiationRoomStore;
+//! use sw4rm_sdk::clients::NegotiationRoomClient;
+//! use std::sync::Arc;
+//!
+//! let store = Arc::new(InMemoryNegotiationRoomStore::new());
+//! let producer = NegotiationRoomClient::with_store(store.clone());
+//! let critic = NegotiationRoomClient::with_store(store.clone());
+//! let coordinator = NegotiationRoomClient::with_store(store.clone());
+//! ```
+//!
+//! ### 2. File-based persistence (multi-process, requires colony)
+//! ```rust,ignore
+//! use colony::stores::rust::JsonFileNegotiationRoomStore;
+//! use sw4rm_sdk::clients::NegotiationRoomClient;
+//! use std::sync::Arc;
+//!
+//! let store = Arc::new(JsonFileNegotiationRoomStore::new("/path/to/storage").unwrap());
+//! let client = NegotiationRoomClient::with_store(store);
+//! ```
+//!
+//! ### 3. Backward-compatible (creates isolated store)
+//! ```rust
+//! use sw4rm_sdk::clients::NegotiationRoomClient;
+//!
+//! // Note: Each call creates a NEW isolated store - use with_store for sharing
+//! let client = NegotiationRoomClient::new();
+//! ```
 
+use crate::clients::negotiation_room_store::{InMemoryNegotiationRoomStore, NegotiationRoomStore};
 use crate::{Error, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Type of artifact being negotiated.
@@ -302,38 +341,28 @@ impl NegotiationDecision {
     }
 }
 
-/// Internal storage for the negotiation room client.
-struct NegotiationRoomStorage {
-    proposals: HashMap<String, NegotiationProposal>,
-    votes: HashMap<String, Vec<NegotiationVote>>,
-    decisions: HashMap<String, NegotiationDecision>,
-}
-
-impl NegotiationRoomStorage {
-    fn new() -> Self {
-        Self {
-            proposals: HashMap::new(),
-            votes: HashMap::new(),
-            decisions: HashMap::new(),
-        }
-    }
-}
-
 /// Client for interacting with negotiation rooms.
 ///
 /// Manages the lifecycle of artifact proposals through the multi-agent
 /// review process. Producers submit proposals, critics submit votes,
 /// and coordinators retrieve votes to make decisions.
 ///
-/// This is an in-memory implementation for Phase 3. Future phases
-/// will integrate with gRPC services.
+/// This client uses a pluggable storage backend, enabling state sharing
+/// across multiple client instances. Use `with_store` to share a store
+/// across multiple clients.
 ///
 /// # Example
 ///
 /// ```rust
 /// use sw4rm_sdk::clients::negotiation_room::{NegotiationRoomClient, NegotiationProposal, ArtifactType};
+/// use sw4rm_sdk::clients::negotiation_room_store::InMemoryNegotiationRoomStore;
+/// use std::sync::Arc;
 ///
-/// let client = NegotiationRoomClient::new();
+/// // Create shared store for multiple clients
+/// let store = Arc::new(InMemoryNegotiationRoomStore::new());
+///
+/// let producer = NegotiationRoomClient::with_store(store.clone());
+/// let critic = NegotiationRoomClient::with_store(store.clone());
 ///
 /// let proposal = NegotiationProposal::new(
 ///     ArtifactType::Code,
@@ -345,11 +374,13 @@ impl NegotiationRoomStorage {
 ///     "room-1".to_string(),
 /// );
 ///
-/// let artifact_id = client.submit_proposal(proposal).unwrap();
+/// // Submitted by producer, visible to critic
+/// let artifact_id = producer.submit_proposal(proposal).unwrap();
+/// let retrieved = critic.get_proposal(&artifact_id).unwrap();
 /// ```
 #[derive(Clone)]
 pub struct NegotiationRoomClient {
-    storage: Arc<RwLock<NegotiationRoomStorage>>,
+    store: Arc<dyn NegotiationRoomStore>,
 }
 
 impl Default for NegotiationRoomClient {
@@ -359,11 +390,38 @@ impl Default for NegotiationRoomClient {
 }
 
 impl NegotiationRoomClient {
-    /// Create a new negotiation room client with in-memory storage.
+    /// Create a new negotiation room client with a fresh in-memory storage.
+    ///
+    /// **Note**: This creates an isolated store. For shared state across
+    /// multiple clients, use `with_store` instead.
     pub fn new() -> Self {
         Self {
-            storage: Arc::new(RwLock::new(NegotiationRoomStorage::new())),
+            store: Arc::new(InMemoryNegotiationRoomStore::new()),
         }
+    }
+
+    /// Create a new negotiation room client with a shared storage backend.
+    ///
+    /// This is the recommended way to create clients when you need multiple
+    /// instances to share state (e.g., producer, critic, and coordinator
+    /// agents in different threads).
+    ///
+    /// # Arguments
+    ///
+    /// * `store` - Shared storage backend (wrapped in Arc)
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use sw4rm_sdk::clients::negotiation_room_store::InMemoryNegotiationRoomStore;
+    /// use sw4rm_sdk::clients::NegotiationRoomClient;
+    /// use std::sync::Arc;
+    ///
+    /// let store = Arc::new(InMemoryNegotiationRoomStore::new());
+    /// let client = NegotiationRoomClient::with_store(store);
+    /// ```
+    pub fn with_store(store: Arc<dyn NegotiationRoomStore>) -> Self {
+        Self { store }
     }
 
     /// Submit an artifact proposal for multi-agent review.
@@ -384,22 +442,7 @@ impl NegotiationRoomClient {
     /// Returns an error if a proposal with the same artifact_id already exists.
     pub fn submit_proposal(&self, proposal: NegotiationProposal) -> Result<String> {
         let artifact_id = proposal.artifact_id.clone();
-
-        let mut storage = self
-            .storage
-            .write()
-            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
-
-        if storage.proposals.contains_key(&artifact_id) {
-            return Err(Error::Config(format!(
-                "Proposal with artifact_id '{}' already exists",
-                artifact_id
-            )));
-        }
-
-        storage.proposals.insert(artifact_id.clone(), proposal);
-        storage.votes.insert(artifact_id.clone(), Vec::new());
-
+        self.store.save_proposal(proposal)?;
         Ok(artifact_id)
     }
 
@@ -418,40 +461,16 @@ impl NegotiationRoomClient {
     /// Returns an error if no proposal exists for the vote's artifact_id,
     /// or if the critic has already voted for this artifact.
     pub fn submit_vote(&self, vote: NegotiationVote) -> Result<()> {
-        let artifact_id = vote.artifact_id.clone();
-        let critic_id = vote.critic_id.clone();
+        let artifact_id = &vote.artifact_id;
 
-        let mut storage = self
-            .storage
-            .write()
-            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
-
-        if !storage.proposals.contains_key(&artifact_id) {
+        if !self.store.has_proposal(artifact_id)? {
             return Err(Error::Config(format!(
                 "No proposal found for artifact_id '{}'",
                 artifact_id
             )));
         }
 
-        // Check if this critic has already voted
-        if let Some(existing_votes) = storage.votes.get(&artifact_id) {
-            for existing_vote in existing_votes {
-                if existing_vote.critic_id == critic_id {
-                    return Err(Error::Config(format!(
-                        "Critic '{}' has already voted for artifact '{}'",
-                        critic_id, artifact_id
-                    )));
-                }
-            }
-        }
-
-        storage
-            .votes
-            .entry(artifact_id)
-            .or_insert_with(Vec::new)
-            .push(vote);
-
-        Ok(())
+        self.store.add_vote(vote)
     }
 
     /// Retrieve all votes for a specific artifact.
@@ -472,19 +491,14 @@ impl NegotiationRoomClient {
     ///
     /// Returns an error if no proposal exists for the artifact_id.
     pub fn get_votes(&self, artifact_id: &str) -> Result<Vec<NegotiationVote>> {
-        let storage = self
-            .storage
-            .read()
-            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
-
-        if !storage.proposals.contains_key(artifact_id) {
+        if !self.store.has_proposal(artifact_id)? {
             return Err(Error::Config(format!(
                 "No proposal found for artifact_id '{}'",
                 artifact_id
             )));
         }
 
-        Ok(storage.votes.get(artifact_id).cloned().unwrap_or_default())
+        self.store.get_votes(artifact_id)
     }
 
     /// Retrieve the decision for a specific artifact if available.
@@ -504,19 +518,14 @@ impl NegotiationRoomClient {
     ///
     /// Returns an error if no proposal exists for the artifact_id.
     pub fn get_decision(&self, artifact_id: &str) -> Result<Option<NegotiationDecision>> {
-        let storage = self
-            .storage
-            .read()
-            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
-
-        if !storage.proposals.contains_key(artifact_id) {
+        if !self.store.has_proposal(artifact_id)? {
             return Err(Error::Config(format!(
                 "No proposal found for artifact_id '{}'",
                 artifact_id
             )));
         }
 
-        Ok(storage.decisions.get(artifact_id).cloned())
+        self.store.get_decision(artifact_id)
     }
 
     /// Store a decision for an artifact.
@@ -534,30 +543,16 @@ impl NegotiationRoomClient {
     /// Returns an error if no proposal exists for the decision's artifact_id,
     /// or if a decision already exists for this artifact.
     pub fn store_decision(&self, decision: NegotiationDecision) -> Result<()> {
-        let artifact_id = decision.artifact_id.clone();
+        let artifact_id = &decision.artifact_id;
 
-        let mut storage = self
-            .storage
-            .write()
-            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
-
-        if !storage.proposals.contains_key(&artifact_id) {
+        if !self.store.has_proposal(artifact_id)? {
             return Err(Error::Config(format!(
                 "No proposal found for artifact_id '{}'",
                 artifact_id
             )));
         }
 
-        if storage.decisions.contains_key(&artifact_id) {
-            return Err(Error::Config(format!(
-                "Decision already exists for artifact_id '{}'",
-                artifact_id
-            )));
-        }
-
-        storage.decisions.insert(artifact_id, decision);
-
-        Ok(())
+        self.store.save_decision(decision)
     }
 
     /// Wait for a decision to be made on an artifact.
@@ -585,25 +580,18 @@ impl NegotiationRoomClient {
         timeout: Duration,
     ) -> Result<NegotiationDecision> {
         // Validate proposal exists first
-        {
-            let storage = self
-                .storage
-                .read()
-                .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
-
-            if !storage.proposals.contains_key(artifact_id) {
-                return Err(Error::Config(format!(
-                    "No proposal found for artifact_id '{}'",
-                    artifact_id
-                )));
-            }
+        if !self.store.has_proposal(artifact_id)? {
+            return Err(Error::Config(format!(
+                "No proposal found for artifact_id '{}'",
+                artifact_id
+            )));
         }
 
         let start = std::time::Instant::now();
         let poll_interval = Duration::from_millis(100);
 
         while start.elapsed() < timeout {
-            if let Some(decision) = self.get_decision(artifact_id)? {
+            if let Some(decision) = self.store.get_decision(artifact_id)? {
                 return Ok(decision);
             }
             std::thread::sleep(poll_interval);
@@ -628,12 +616,7 @@ impl NegotiationRoomClient {
     ///
     /// The negotiation proposal if it exists, None otherwise.
     pub fn get_proposal(&self, artifact_id: &str) -> Result<Option<NegotiationProposal>> {
-        let storage = self
-            .storage
-            .read()
-            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
-
-        Ok(storage.proposals.get(artifact_id).cloned())
+        self.store.get_proposal(artifact_id)
     }
 
     /// List all proposals, optionally filtered by negotiation room.
@@ -649,22 +632,7 @@ impl NegotiationRoomClient {
         &self,
         negotiation_room_id: Option<&str>,
     ) -> Result<Vec<NegotiationProposal>> {
-        let storage = self
-            .storage
-            .read()
-            .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
-
-        let proposals: Vec<NegotiationProposal> = match negotiation_room_id {
-            Some(room_id) => storage
-                .proposals
-                .values()
-                .filter(|p| p.negotiation_room_id == room_id)
-                .cloned()
-                .collect(),
-            None => storage.proposals.values().cloned().collect(),
-        };
-
-        Ok(proposals)
+        self.store.list_proposals(negotiation_room_id)
     }
 }
 
@@ -908,5 +876,50 @@ mod tests {
         let retrieved = client.get_decision("test-artifact").unwrap();
         assert!(retrieved.is_some());
         assert_eq!(retrieved.unwrap().outcome, DecisionOutcome::Approved);
+    }
+
+    #[test]
+    fn test_shared_store_across_clients() {
+        let store = Arc::new(InMemoryNegotiationRoomStore::new());
+
+        let producer = NegotiationRoomClient::with_store(store.clone());
+        let critic = NegotiationRoomClient::with_store(store.clone());
+
+        // Producer submits proposal
+        let proposal = NegotiationProposal::new(
+            ArtifactType::Code,
+            "shared-artifact".to_string(),
+            "producer-1".to_string(),
+            b"test content".to_vec(),
+            "text/plain".to_string(),
+            vec!["critic-1".to_string()],
+            "room-1".to_string(),
+        );
+
+        producer.submit_proposal(proposal).unwrap();
+
+        // Critic can see it
+        let retrieved = critic.get_proposal("shared-artifact").unwrap();
+        assert!(retrieved.is_some());
+
+        // Critic submits vote
+        let vote = NegotiationVote::new(
+            "shared-artifact".to_string(),
+            "critic-1".to_string(),
+            8.0,
+            0.9,
+            true,
+            vec![],
+            vec![],
+            vec![],
+            "room-1".to_string(),
+        )
+        .unwrap();
+
+        critic.submit_vote(vote).unwrap();
+
+        // Producer can see the vote
+        let votes = producer.get_votes("shared-artifact").unwrap();
+        assert_eq!(votes.len(), 1);
     }
 }

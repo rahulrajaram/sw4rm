@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 # SW4RM SDK imports
-from sw4rm.handoff.client import HandoffClient
+from sw4rm.clients import HandoffClient
 from sw4rm.handoff.types import HandoffRequest, HandoffResponse, HandoffStatus
 from sw4rm.handoff.context import (
     HandoffContext,

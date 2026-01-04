@@ -11,9 +11,14 @@ Based on SPEC_REQUESTS.md section 6.1.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
+
+def _utcnow() -> datetime:
+    """Return a timezone-aware UTC timestamp."""
+    return datetime.now(timezone.utc)
 
 
 class ArtifactType(Enum):
@@ -71,7 +76,7 @@ class NegotiationProposal:
     def __post_init__(self) -> None:
         """Set created_at to now if not provided."""
         if self.created_at is None:
-            object.__setattr__(self, "created_at", datetime.utcnow())
+            object.__setattr__(self, "created_at", _utcnow())
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert proposal to dictionary representation.
@@ -156,7 +161,7 @@ class NegotiationVote:
         if not (0.0 <= self.confidence <= 1.0):
             raise ValueError(f"confidence must be in range [0, 1], got {self.confidence}")
         if self.voted_at is None:
-            object.__setattr__(self, "voted_at", datetime.utcnow())
+            object.__setattr__(self, "voted_at", _utcnow())
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert vote to dictionary representation.
@@ -290,7 +295,7 @@ class NegotiationDecision:
     def __post_init__(self) -> None:
         """Set decided_at to now if not provided."""
         if self.decided_at is None:
-            object.__setattr__(self, "decided_at", datetime.utcnow())
+            object.__setattr__(self, "decided_at", _utcnow())
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert decision to dictionary representation.

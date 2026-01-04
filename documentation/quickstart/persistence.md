@@ -13,6 +13,15 @@ SW4RM agents maintain two primary types of persistent state:
 
 ## 2.6.2 Persistence Backends
 
+The SDK provides a `PersistenceBackend` protocol that you can implement for custom backends. Two backends are included:
+
+| Backend | Use Case | Status |
+|---------|----------|--------|
+| `JSONFilePersistence` | Development, single-agent | ✅ Implemented |
+| `SQLitePersistence` | Production, single-node | ✅ Implemented |
+| Redis | Distributed deployments | 🔮 Planned |
+| PostgreSQL | Enterprise deployments | 🔮 Planned |
+
 ### JSON File Backend (Development)
 
 The default backend stores state as JSON files on disk. Use this backend for development and single-agent deployments.
@@ -23,152 +32,181 @@ from sw4rm.persistence import JSONFilePersistence
 
 # Configure file-based persistence
 persistence = JSONFilePersistence(
-    base_path="/var/lib/sw4rm/state",
-    agent_id="my-agent-001"
+    file_path="/var/lib/sw4rm/state/activity_buffer.json"
 )
 
 buffer = PersistentActivityBuffer(
     persistence=persistence,
-    max_entries=10000,      # Maximum buffered messages
-    retention_hours=168     # 7 days
+    dedup_window_s=3600  # 1 hour deduplication window
 )
 ```
 
-**File Structure:**
-```
-/var/lib/sw4rm/state/
-  my-agent-001/
-    activity_buffer.json
-    worktree_state.json
-    checkpoints/
-      checkpoint_2025-12-24T10-30-00.json
-```
+**Features:**
 
-### Redis Backend (Production)
+- Atomic writes via temp file + rename
+- Base64 encoding for binary payloads
+- Automatic corruption recovery (returns empty state)
 
-Use Redis for distributed state management in multi-instance deployments.
+### SQLite Backend (Production Single-Node)
+
+Use SQLite for durable persistence with ACID guarantees on single-node deployments.
 
 ```python
-from sw4rm.persistence import RedisPersistence
+from sw4rm.activity_buffer import PersistentActivityBuffer
+from sw4rm.persistence import SQLitePersistence
 
-persistence = RedisPersistence(
-    host="redis.example.com",
-    port=6379,
-    password="secret",
-    db=0,
-    key_prefix="sw4rm:agent:"
+# Configure SQLite persistence
+persistence = SQLitePersistence(
+    db_path="/var/lib/sw4rm/state/activity.sqlite3"
 )
 
 buffer = PersistentActivityBuffer(
     persistence=persistence,
-    max_entries=50000,
-    retention_hours=168
+    dedup_window_s=3600
 )
 ```
 
-**Redis Key Structure:**
-```
-sw4rm:agent:my-agent-001:activity_buffer
-sw4rm:agent:my-agent-001:worktree_state
-sw4rm:agent:my-agent-001:idempotency:{token}
-```
+**Features:**
 
-### PostgreSQL Backend (Enterprise)
-
-Use PostgreSQL for ACID-compliant persistence with advanced query capabilities.
-
-```python
-from sw4rm.persistence import PostgresPersistence
-
-persistence = PostgresPersistence(
-    connection_string="postgresql://user:pass@db.example.com:5432/sw4rm",
-    schema="sw4rm_agents",
-    pool_size=5
-)
-```
+- WAL mode for concurrent reads
+- ACID-compliant transactions
+- Automatic schema creation
+- Indexed message lookups
 
 **Schema:**
 ```sql
-CREATE TABLE activity_buffer (
-    id SERIAL PRIMARY KEY,
-    agent_id VARCHAR(255) NOT NULL,
-    message_id VARCHAR(36) NOT NULL UNIQUE,
-    envelope JSONB NOT NULL,
-    status VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+CREATE TABLE activity_records (
+    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id TEXT UNIQUE NOT NULL,
+    ts_ms INTEGER NOT NULL,
+    direction TEXT NOT NULL,
+    envelope_json TEXT NOT NULL,
+    ack_stage INTEGER NOT NULL,
+    error_code INTEGER NOT NULL,
+    ack_note TEXT NOT NULL
 );
+```
 
-CREATE INDEX idx_activity_agent_status ON activity_buffer(agent_id, status);
-CREATE INDEX idx_activity_created ON activity_buffer(created_at);
+### Custom Backends
+
+Implement the `PersistenceBackend` protocol for custom storage:
+
+```python
+from sw4rm.persistence import PersistenceBackend
+from typing import Dict, List, Any
+
+class MyCustomPersistence:
+    """Custom persistence backend."""
+
+    def save_records(self, records: Dict[str, Dict[str, Any]], order: List[str]) -> None:
+        """Save activity records and their ordering."""
+        # Your implementation here
+        pass
+
+    def load_records(self) -> tuple[Dict[str, Dict[str, Any]], List[str]]:
+        """Load activity records and their ordering."""
+        # Your implementation here
+        return {}, []
+
+    def clear(self) -> None:
+        """Clear all stored data."""
+        # Your implementation here
+        pass
 ```
 
 ## 2.6.3 Activity Buffer Configuration
 
-### Buffer Limits
+### Buffer Parameters
 
-You configure buffer size and overflow behavior using the following parameters:
+The `PersistentActivityBuffer` class provides message tracking with deduplication:
 
 ```python
+from sw4rm.activity_buffer import PersistentActivityBuffer
+
 buffer = PersistentActivityBuffer(
     persistence=persistence,
-    max_entries=10000,          # Maximum messages to retain
-    retention_hours=168,        # Automatic cleanup after 7 days
-    overflow_policy="drop_oldest",  # or "reject_new"
-    checkpoint_interval=300     # Checkpoint every 5 minutes
+    dedup_window_s=3600,  # Deduplication window in seconds (default: 3600)
+    max_items=1000        # Maximum records to retain (default: 1000)
 )
 ```
 
-### Overflow Policies
+### Core Methods
 
-| Policy | Behavior |
-|--------|----------|
-| `drop_oldest` | The buffer removes the oldest entries when the limit is reached. |
-| `reject_new` | The buffer rejects new messages with a `BUFFER_FULL` error. |
+```python
+# Record an incoming message
+buffer.record_incoming(envelope_dict)
+
+# Record an outgoing message
+buffer.record_outgoing(envelope_dict)
+
+# Update with ACK information (pass ACK as dict)
+buffer.ack({
+    "ack_for_message_id": message_id,
+    "ack_stage": 3,  # FULFILLED
+    "error_code": 0,
+    "note": ""
+})
+
+# Get record by message_id
+record = buffer.get(message_id)
+
+# Check for duplicates by idempotency token
+existing = buffer.get_by_idempotency_token(token)
+
+# Find all unacked messages (RECEIVED or READ stage)
+unacked = buffer.unacked()
+
+# Get recent messages
+recent = buffer.recent(n=100)
+
+# Force save to persistence
+buffer.flush()
+```
 
 ## 2.6.4 Message Deduplication
 
 ### Idempotency Token Processing
 
-The activity buffer deduplicates messages using `idempotency_token`:
+The activity buffer deduplicates messages using the Three-ID model:
+
+- **message_id**: Unique per transmission attempt (UUIDv4)
+- **idempotency_token**: Stable across retries for deduplication
+- **correlation_id**: Links related messages (request/response)
 
 ```python
-# First attempt - processed normally
-result = await buffer.process_message(envelope1)
-# result.status = PROCESSED
+# Check if message is a duplicate before processing
+existing = buffer.get_by_idempotency_token(envelope["idempotency_token"])
+if existing:
+    # Duplicate detected - skip processing
+    return existing
 
-# Retry with same idempotency_token - detected as duplicate
-result = await buffer.process_message(envelope2)  # Same token
-# result.status = DUPLICATE_DETECTED
+# Record and process new message
+buffer.record_incoming(envelope)
+# ... process message ...
+buffer.ack({
+    "ack_for_message_id": envelope["message_id"],
+    "ack_stage": 3  # FULFILLED
+})
 ```
 
 ### Deduplication Window
 
-You set the time window for duplicate detection using `dedup_window_seconds`:
+The deduplication window determines how long idempotency tokens are tracked:
 
 ```python
 buffer = PersistentActivityBuffer(
     persistence=persistence,
-    dedup_window_seconds=3600,  # 1 hour (default)
+    dedup_window_s=3600,  # 1 hour (default)
 )
 ```
 
-### Fingerprint-Based Deduplication
-
-The buffer uses SHA-256 fingerprinting for messages without explicit idempotency tokens. The fingerprint enables content-based deduplication:
-
-```python
-from sw4rm.activity_buffer import compute_fingerprint
-
-# Fingerprint based on producer, correlation, and payload hash
-fingerprint = compute_fingerprint(envelope)
-```
+Messages older than `dedup_window_s` may be pruned, allowing the same idempotency token to be reused after the window expires.
 
 ## 2.6.5 Crash Recovery
 
 ### Recovery Flow
 
-When an agent restarts after a crash, the activity buffer reconciles state. The following diagram shows the recovery sequence:
+When an agent restarts after a crash, the activity buffer automatically loads persisted state:
 
 ```mermaid
 sequenceDiagram
@@ -189,32 +227,33 @@ sequenceDiagram
     A->>P: Update state
 ```
 
-### Recovery Configuration
+### Reconciliation
+
+Use the `reconcile()` method to find messages that need retry after a restart:
 
 ```python
-from sw4rm.activity_buffer import RecoveryConfig
+# Load existing state on startup
+buffer = PersistentActivityBuffer(persistence=persistence)
 
-recovery = RecoveryConfig(
-    enable_crash_recovery=True,
-    recovery_timeout_seconds=60,
-    max_recovery_attempts=3,
-    reconciliation_strategy="timestamp",  # or "vector_clock", "sequence"
-    replay_incomplete=True  # Re-request messages in RECEIVED/READ state
-)
-
-buffer = PersistentActivityBuffer(
-    persistence=persistence,
-    recovery_config=recovery
-)
+# Find messages that weren't fully processed
+incomplete = buffer.reconcile()
+for record in incomplete:
+    if record.ack_stage < 3:  # Not yet FULFILLED
+        # Re-process or request replay from Router
+        handle_incomplete_message(record)
 ```
 
-### Reconciliation Strategies
+### Unacked Message Detection
 
-| Strategy | Description | Use Case |
-|----------|-------------|----------|
-| `timestamp` | The buffer orders messages by timestamp. | Use when clocks are synchronized. |
-| `sequence` | The buffer orders messages by sequence number. | Use for single-source ordering. |
-| `vector_clock` | The buffer orders messages causally. | Use for distributed multi-agent systems. |
+The `unacked()` method finds messages that haven't been fully acknowledged (still in RECEIVED or READ stage):
+
+```python
+# Find all messages that need acknowledgment
+stale_messages = buffer.unacked()
+for record in stale_messages:
+    # Trigger retry logic
+    retry_message(record)
+```
 
 ## 2.6.6 Worktree State Persistence
 
@@ -223,75 +262,69 @@ buffer = PersistentActivityBuffer(
 Use `PersistentWorktreeState` to track repository bindings across restarts:
 
 ```python
-from sw4rm.worktree_state import PersistentWorktreeState
+from sw4rm.worktree_state import PersistentWorktreeState, WorktreePersistence
+
+# Configure worktree persistence
+persistence = WorktreePersistence(file_path="/var/lib/sw4rm/worktree.json")
 
 worktree = PersistentWorktreeState(
     persistence=persistence,
-    cleanup_on_unbind=True,     # Remove worktree files on unbind
-    validate_on_restore=True    # Verify repo state on recovery
+    policy=None  # Use default policy, or provide custom WorktreePolicyHook
 )
 
 # Bind to a repository
-await worktree.bind(
-    repo_url="https://github.com/org/repo.git",
-    branch="main",
-    worktree_path="/workspace/repo"
+worktree.bind(
+    repo_id="org/repo",
+    worktree_id="main",
+    metadata={"path": "/workspace/repo"}
 )
 
 # State is automatically persisted
-# On restart, worktree.restore() reloads bindings
+# On restart, bindings are automatically restored from persistence
 ```
 
 ### Worktree Lifecycle
 
 ```python
-# Check current bindings
-bindings = await worktree.list_bindings()
-for binding in bindings:
-    print(f"{binding.repo_url} -> {binding.worktree_path}")
+# Check current binding
+if worktree.is_bound():
+    binding = worktree.current()
+    print(f"{binding.repo_id}/{binding.worktree_id}")
 
-# Switch branch (preserves state)
-await worktree.switch_branch("feature/new-feature")
+# Get detailed status
+status = worktree.status()
+print(f"Bound: {status['bound']}")
 
-# Unbind and cleanup
-await worktree.unbind(worktree_path="/workspace/repo")
+# Switch to different worktree (unbinds then rebinds)
+worktree.switch(repo_id="org/repo", worktree_id="feature-branch")
+
+# Unbind
+worktree.unbind()
 ```
 
-## 2.6.7 Checkpointing
+## 2.6.7 Planned Features
 
-### Automatic Checkpoints
+The following features are planned for future releases:
 
-You enable periodic state snapshots for faster recovery using the following configuration:
+### Checkpointing (🔮 Planned)
+
+Periodic state snapshots for faster recovery:
 
 ```python
+# Planned API - not yet implemented
 buffer = PersistentActivityBuffer(
     persistence=persistence,
     checkpoint_interval=300,     # Checkpoint every 5 minutes
     max_checkpoints=10,          # Keep last 10 checkpoints
-    checkpoint_compression=True  # Compress checkpoint files
 )
 ```
 
-### Manual Checkpoints
+### Multi-Instance Coordination (🔮 Planned)
 
-You create explicit checkpoints at safe points using `create_checkpoint`:
-
-```python
-# Create named checkpoint
-checkpoint_id = await buffer.create_checkpoint(
-    name="pre-migration",
-    metadata={"version": "1.2.3"}
-)
-
-# Restore from checkpoint if needed
-await buffer.restore_checkpoint(checkpoint_id)
-```
-
-## 2.6.8 Multi-Instance Coordination
-
-When you run multiple agent instances, use distributed locking to coordinate access:
+Distributed locking for multi-agent deployments:
 
 ```python
+# Planned API - not yet implemented
 from sw4rm.persistence import DistributedLock
 
 async with DistributedLock(
@@ -299,89 +332,55 @@ async with DistributedLock(
     resource="agent:task-123",
     timeout_seconds=30
 ):
-    # Exclusive access to task
     await process_task()
 ```
 
-## 2.6.9 Retention and Cleanup
+### Retention Policies (🔮 Planned)
 
-### Automatic Cleanup
-
-You configure retention policies for automatic data expiration using the following parameters:
+Automatic data expiration and cleanup:
 
 ```python
+# Planned API - not yet implemented
 buffer = PersistentActivityBuffer(
     persistence=persistence,
     retention_hours=168,         # Delete entries older than 7 days
     cleanup_interval=3600,       # Run cleanup every hour
-    cleanup_batch_size=1000      # Delete 1000 entries per batch
 )
 ```
 
-### Manual Cleanup
+### Health Checks and Metrics (🔮 Planned)
+
+Monitoring and diagnostics for persistence backends:
 
 ```python
-# Remove entries older than specified time
-deleted_count = await buffer.cleanup(
-    older_than_hours=24,
-    status_filter=["FULFILLED", "FAILED"]  # Only completed messages
-)
-```
-
-## 2.6.10 Monitoring and Diagnostics
-
-### Health Checks
-
-```python
-# Check persistence health
+# Planned API - not yet implemented
 health = await persistence.health_check()
-print(f"Backend: {health.backend_type}")
-print(f"Connected: {health.connected}")
-print(f"Latency: {health.latency_ms}ms")
-
-# Check buffer statistics
 stats = buffer.get_statistics()
-print(f"Total entries: {stats.total_entries}")
-print(f"Pending: {stats.pending_count}")
-print(f"Duplicates detected: {stats.duplicate_count}")
 ```
 
-### Metrics Export
+!!! note "Current Workaround"
+    For now, you can implement manual cleanup by periodically calling `buffer.clear()` or by implementing custom logic using `buffer.recent()` to identify old entries.
 
-The persistence layer exports Prometheus-compatible metrics. The following example shows the available metrics:
-
-```
-# HELP sw4rm_activity_buffer_entries Current buffer entry count
-# TYPE sw4rm_activity_buffer_entries gauge
-sw4rm_activity_buffer_entries{agent_id="my-agent",status="pending"} 42
-
-# HELP sw4rm_persistence_operations_total Total persistence operations
-# TYPE sw4rm_persistence_operations_total counter
-sw4rm_persistence_operations_total{operation="write",backend="redis"} 15234
-```
-
-## 2.6.11 Best Practices
+## 2.6.8 Best Practices
 
 ### Development
 
 - Use the JSON file backend for local development.
-- Set short retention periods of 1-2 hours.
-- Enable verbose logging for debugging.
+- Set a reasonable `max_items` limit (default: 1000).
+- Use context manager (`with buffer:`) to ensure data is saved on exit.
 
-### Production
+### Production (Single-Node)
 
-- Use Redis or PostgreSQL for distributed deployments.
-- Configure buffer limits based on expected message volume.
-- Enable checkpointing for faster recovery.
-- Monitor buffer health and latency metrics.
-- Set up alerts for buffer overflow conditions.
+- Use SQLite backend for durable persistence with ACID guarantees.
+- Configure `max_items` based on expected message volume.
+- Call `buffer.flush()` at critical checkpoints.
+- Implement application-level cleanup using `reconcile()` after restarts.
 
 ### Security
 
 - Encrypt sensitive payload data before persistence.
-- Use TLS for Redis and PostgreSQL connections.
-- Implement access control on persistence backends.
-- Audit persistence access in compliance environments.
+- Store persistence files in secure locations with appropriate permissions.
+- Consider encrypting the SQLite database file at rest.
 
 ---
 

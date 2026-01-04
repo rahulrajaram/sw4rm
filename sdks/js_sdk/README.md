@@ -151,9 +151,22 @@ persist.startAutosave();
 - Streaming resilience and interceptor hooks included by default.
 - JSON persistence for ActivityBuffer and ACK states.
 
+## Operational Contracts
+
+For production deployments, see the **[Operational Contracts](../docs/OPERATIONAL_CONTRACTS.md)** documentation, which defines:
+
+- Connection timeouts and keep-alive settings
+- Retry policies and error handling
+- Data consistency guarantees
+- Idempotency contracts
+- State persistence guarantees
+
+These are protocol-level contracts that all SW4RM SDKs honor.
+
 ## Links
 
 - Top-level README (overview and API): `../../README.md`
 - Quickstart for running local services: `../../QUICKSTART.md`
+- Operational Contracts: `../docs/OPERATIONAL_CONTRACTS.md`
 - Python SDK: `../py_sdk/README.md`
 - Rust SDK: `../rust_sdk/README.md`

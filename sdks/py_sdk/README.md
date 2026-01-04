@@ -155,7 +155,7 @@ Manages worktree bindings and state transitions for agents that need file system
 from sw4rm.clients.worktree import WorktreeClient
 import grpc
 
-channel = grpc.insecure_channel("localhost:50054")
+channel = grpc.insecure_channel("localhost:50062")  # Worktree service port
 worktree = WorktreeClient(channel)
 
 # Bind agent to a worktree (UNBOUND -> BOUND_HOME)
@@ -201,7 +201,7 @@ Executes tool calls with unary and streaming support.
 from sw4rm.clients.tool import ToolClient
 import grpc
 
-channel = grpc.insecure_channel("localhost:50055")
+channel = grpc.insecure_channel("localhost:50063")  # Tool service port
 tool_client = ToolClient(channel)
 
 # Execute a unary tool call
@@ -298,7 +298,7 @@ Manages multi-agent negotiation sessions for collaborative decision-making.
 from sw4rm.clients.negotiation import NegotiationClient
 import grpc
 
-channel = grpc.insecure_channel("localhost:50056")
+channel = grpc.insecure_channel("localhost:50064")  # Negotiation service port
 neg_client = NegotiationClient(channel)
 
 # Open a negotiation session
@@ -483,8 +483,11 @@ decision = client.wait_for_decision(artifact_id, timeout_s=30.0)
 
 DAG-based workflow orchestration for multi-agent pipelines.
 
+> **Note:** `WorkflowClient` is also available via `from sw4rm.clients import WorkflowClient` for SDK parity with Rust/JS. It is an alias for `WorkflowEngine`.
+
 ```python
 from sw4rm.workflow import WorkflowBuilder, WorkflowEngine, TriggerType
+# Or: from sw4rm.clients import WorkflowClient  # Same as WorkflowEngine
 
 # Build a workflow DAG
 builder = WorkflowBuilder("data_pipeline")
@@ -603,8 +606,8 @@ persistent_store.save_policy(policy)
 Agent-to-agent task handoff with context preservation.
 
 ```python
+from sw4rm.clients import HandoffClient
 from sw4rm.handoff import (
-    HandoffClient,
     HandoffRequest,
     HandoffContext,
     serialize_context,
@@ -742,9 +745,9 @@ Ensure services are running and accessible:
 nc -zv localhost 50051  # Router
 nc -zv localhost 50052  # Registry
 nc -zv localhost 50053  # Scheduler
-nc -zv localhost 50054  # Worktree
-nc -zv localhost 50055  # Tool
-nc -zv localhost 50056  # Negotiation
+nc -zv localhost 50062  # Worktree
+nc -zv localhost 50063  # Tool
+nc -zv localhost 50064  # Negotiation
 
 # Start reference services
 cd ../../examples/reference-services/
@@ -772,9 +775,22 @@ pip install -e ".[dev]"
 make protos
 ```
 
+## Operational Contracts
+
+For production deployments, see the **[Operational Contracts](../docs/OPERATIONAL_CONTRACTS.md)** documentation, which defines:
+
+- Connection timeouts and keep-alive settings
+- Retry policies and error handling
+- Data consistency guarantees
+- Idempotency contracts
+- State persistence guarantees
+
+These are protocol-level contracts that all SW4RM SDKs honor.
+
 ## Links
 
 - Top-level README (overview and API): `../../README.md`
 - Quickstart for running local services: `../../QUICKSTART.md`
+- Operational Contracts: `../docs/OPERATIONAL_CONTRACTS.md`
 - Rust SDK: `../rust_sdk/README.md`
 - JavaScript SDK: `../js_sdk/README.md`

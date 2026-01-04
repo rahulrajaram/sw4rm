@@ -2,9 +2,14 @@
 
 ([Link to full RFC](https://github.com/rahulrajaram/sw4rm/blob/master/documentation/protocol/spec.md))
 
-**SW4RM Protocol v0.4.0** | **Status: Production Ready** | **Last Updated: 2025-12-24**
+**SW4RM Protocol v0.5.0** | **Status: Production Ready** | **Last Updated: 2026-01-04**
 
 ??? note "Changelog"
+    **0.5.0 (2026-01-04)**
+
+    - Documentation alignment release. Updated protocol docs and examples to
+      match current SDK/proto behavior and clarified planned features.
+
     **0.4.0 (2025-12-24)**
 
     - Added Negotiation Room pattern (Section 3.11.1)
@@ -69,8 +74,8 @@ graph TB
     end
     
     subgraph "Core Infrastructure Services"
-        REGISTRY[Registry Service<br/>:50051<br/>Agent Discovery & Health]
-        ROUTER[Router Service<br/>:50052<br/>Message Delivery & Routing]
+        REGISTRY[Registry Service<br/>:50052<br/>Agent Discovery & Health]
+        ROUTER[Router Service<br/>:50051<br/>Message Delivery & Routing]
         SCHEDULER[Scheduler Service<br/>:50053<br/>Task Distribution & Load Balancing]
     end
     
@@ -540,4 +545,4 @@ Google's A2A focuses on secure, interoperable agent messaging across enterprise 
 - [Message Types](messages.md) - Detailed message specifications
 - [Services](services.md) - Complete service API reference
 - [ACK Lifecycle](acks.md) - Acknowledgment handling patterns
-- [Advanced Patterns (v0.4.0)](advanced-patterns.md) - Negotiation Room, Agent Handoff, Workflow Orchestration, Three-ID Model
+- [Advanced Patterns (v0.5.0)](advanced-patterns.md) - Negotiation Room, Agent Handoff, Workflow Orchestration, Three-ID Model

@@ -10,6 +10,7 @@
     "start:scheduler": "tsx src/scheduler-service.ts",
     "start:multi-agent": "tsx src/sw4rm-multi-agent.ts",
     "start:all": "tsx src/start-services.ts",
+    "start:coordination": "tsx src/coordination/server.ts",
     "dev": "npm run build && npm run start:all"
   },
   "devDependencies": {

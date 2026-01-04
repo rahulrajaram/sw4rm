@@ -54,7 +54,7 @@ from sw4rm.negotiation_types import (
 from sw4rm.policy_types import EffectivePolicy, NegotiationPolicy, ExecutionPolicy
 from sw4rm.policy_store import InMemoryPolicyStore
 from sw4rm.voting.strategies import ConfidenceWeightedAggregator
-from sw4rm.handoff.client import HandoffClient
+from sw4rm.clients import HandoffClient
 from sw4rm.shared_context import SharedContextManager
 from sw4rm.metrics import InMemoryMetricsCollector, MetricName
 from sw4rm.audit import InMemoryAuditor

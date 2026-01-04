@@ -1,0 +1,214 @@
+# SW4RM Canonical Terminology Glossary
+# =====================================
+# This glossary defines the CANONICAL form of all SW4RM terminology.
+# The swarm-knowledge-guardian uses this to detect inconsistent usage.
+#
+# For each term:
+# - canonical: The CORRECT spelling/capitalization
+# - aliases: Common variations that should be normalized
+# - never_use: Incorrect forms that must be flagged
+# - definition: Precise meaning in SW4RM context
+# - first_defined: Where the term is authoritatively defined
+#
+# Last Updated: 2026-01-03 (Second Audit)
+
+terms:
+  # Protocol Name
+  sw4rm:
+    canonical: "SW4RM"
+    aliases: ["SW4RM Protocol", "the protocol"]
+    never_use: ["Swarm", "SWARM", "sw4rm", "Sw4rm", "S.W.4.R.M"]
+    definition: "Supervised Workflow 4 Reliable Messaging - a message-driven agent coordination protocol"
+    first_defined: documentation/index.md
+    pronunciation: "swarm"
+
+  # Core Components
+  agent:
+    canonical: "agent"
+    aliases: ["Agent", "SW4RM agent"]
+    never_use: ["bot", "worker", "node"]
+    definition: "A supervised, process-isolated participant registered with the Registry"
+    first_defined: documentation/protocol/spec.md#section-4.1
+    note: "Lowercase unless starting a sentence"
+
+  envelope:
+    canonical: "Envelope"
+    aliases: ["message envelope", "SW4RM Envelope"]
+    never_use: ["packet", "frame", "wrapper"]
+    definition: "The standard message container with metadata and payload"
+    first_defined: documentation/protocol/spec.md#section-3.3
+    note: "Capitalized when referring to the proto type"
+
+  # Identity Model
+  agent_id:
+    canonical: "agent_id"
+    aliases: ["Agent ID", "agent identifier"]
+    never_use: ["agentId", "agent-id", "AgentID", "agent ID"]
+    definition: "Unique string identifier for an agent within the system"
+    first_defined: documentation/protocol/spec.md#section-6.1
+    note: "snake_case in code context, 'Agent ID' in prose"
+
+  message_id:
+    canonical: "message_id"
+    aliases: ["Message ID"]
+    never_use: ["messageId", "msg_id", "msgId"]
+    definition: "UUIDv4 unique per transmission attempt"
+    first_defined: documentation/protocol/spec.md#section-3.3.1
+
+  idempotency_token:
+    canonical: "idempotency_token"
+    aliases: ["idempotency token", "dedup token"]
+    never_use: ["idempotencyToken", "idempotency-token", "dedup_token"]
+    definition: "Stable identifier across retries for deduplication"
+    first_defined: documentation/protocol/spec.md#section-3.3.2
+
+  correlation_id:
+    canonical: "correlation_id"
+    aliases: ["Correlation ID"]
+    never_use: ["correlationId", "corr_id"]
+    definition: "Links related messages (request/response pairs)"
+    first_defined: documentation/protocol/spec.md#section-3.3.3
+
+  three_id_model:
+    canonical: "Three-ID model"
+    aliases: ["Three-ID", "3-ID model"]
+    never_use: ["three ID model", "3ID", "triple-id"]
+    definition: "The combination of message_id, idempotency_token, and correlation_id"
+    first_defined: documentation/protocol/advanced-patterns.md
+
+  # Services
+  registry:
+    canonical: "Registry"
+    aliases: ["Registry service", "Agent Registry"]
+    never_use: ["registry", "registration service"]
+    definition: "Core service for agent discovery and registration (port 50052)"
+    first_defined: documentation/protocol/services.md
+    note: "Capitalized as a service name. CORRECTED 2026-01-03: Port is 50052, not 50051"
+
+  router:
+    canonical: "Router"
+    aliases: ["Router service", "Message Router"]
+    never_use: ["router", "routing service"]
+    definition: "Core service for message routing between agents (port 50051)"
+    first_defined: documentation/protocol/services.md
+    note: "Capitalized as a service name. CORRECTED 2026-01-03: Port is 50051, not 50052"
+
+  scheduler:
+    canonical: "Scheduler"
+    aliases: ["Scheduler service", "Task Scheduler"]
+    never_use: ["scheduler", "scheduling service"]
+    definition: "Central hub for task distribution and coordination (port 50053)"
+    first_defined: documentation/protocol/services.md
+    note: "Capitalized as a service name; this is the hub in hub-and-spoke"
+
+  # Message Types
+  data_message:
+    canonical: "DATA message"
+    aliases: ["DATA"]
+    never_use: ["data message", "Data message"]
+    definition: "Application payload message (MessageType = 2)"
+    first_defined: documentation/protocol/messages.md
+
+  control_message:
+    canonical: "CONTROL message"
+    aliases: ["CONTROL"]
+    never_use: ["control message", "Control message"]
+    definition: "System command message (MessageType = 1)"
+    first_defined: documentation/protocol/messages.md
+
+  ack:
+    canonical: "ACK"
+    aliases: ["acknowledgement", "acknowledgment"]
+    never_use: ["ack", "Ack", "ACKNOWLEDGEMENT"]
+    definition: "Acknowledgement message confirming receipt/processing"
+    first_defined: documentation/protocol/acks.md
+    note: "All caps for the message type, lowercase in compound terms"
+
+  # ACK Lifecycle
+  ack_stage:
+    canonical: "ACK stage"
+    aliases: ["acknowledgement stage"]
+    never_use: ["ack stage", "ACK Stage", "ackStage"]
+    definition: "Progress state in the ACK lifecycle (RECEIVED, PROCESSING, COMPLETED, etc.)"
+    first_defined: documentation/protocol/acks.md
+
+  guaranteed_delivery:
+    canonical: "guaranteed delivery"
+    aliases: ["at-least-once delivery"]
+    never_use: ["guaranteed-delivery", "Guaranteed Delivery"]
+    definition: "Property that messages are delivered at least once with acknowledgment"
+    first_defined: documentation/protocol/spec.md#section-10
+
+  # Advanced Patterns
+  negotiation_room:
+    canonical: "Negotiation Room"
+    aliases: ["negotiation room pattern"]
+    never_use: ["NegotiationRoom", "negotiation-room", "negroom"]
+    definition: "Multi-agent coordination pattern with producers, critics, and coordinator"
+    first_defined: documentation/protocol/advanced-patterns.md#section-17.5
+
+  handoff:
+    canonical: "Handoff"
+    aliases: ["Agent Handoff", "task handoff"]
+    never_use: ["hand-off", "hand off", "HandOff"]
+    definition: "Protocol for one agent to delegate a task to another"
+    first_defined: documentation/protocol/advanced-patterns.md#section-17.6
+
+  workflow:
+    canonical: "Workflow"
+    aliases: ["Workflow Orchestration"]
+    never_use: ["work-flow", "work flow"]
+    definition: "DAG-based multi-step process definition"
+    first_defined: documentation/protocol/advanced-patterns.md#section-17.7
+
+  hitl:
+    canonical: "HITL"
+    aliases: ["Human-in-the-loop", "human in the loop"]
+    never_use: ["hitl", "Hitl", "HIL", "human-in-the-loop"]
+    definition: "Pattern for escalating decisions to human operators"
+    first_defined: documentation/protocol/services.md
+
+  hitl_reason_type:
+    canonical: "HitlReasonType"
+    aliases: ["HITL reason", "escalation reason"]
+    never_use: ["HitlReason", "HITLReasonType"]
+    definition: "Enum specifying why HITL escalation was triggered"
+    first_defined: protos/common.proto
+    proto_values: ["HITL_REASON_UNSPECIFIED", "CONFLICT", "SECURITY_APPROVAL", "TASK_ESCALATION", "MANUAL_OVERRIDE", "WORKTREE_OVERRIDE", "DEBATE_DEADLOCK", "TOOL_PRIVILEGE_ESCALATION", "CONNECTOR_APPROVAL"]
+    sdk_values_incorrect: ["HITL_REASON_UNSPECIFIED", "UNCERTAINTY_HIGH", "RISK_HIGH", "POLICY_REQUIRED", "USER_REQUESTED", "CONFLICT_UNRESOLVED", "BUDGET_EXCEEDED", "DEBATE_DEADLOCK", "SECURITY_APPROVAL"]
+    critical_issue: "SDK constants.py does NOT match proto definition - needs fix"
+    added: "2026-01-03 (Second Audit)"
+
+  # Architecture
+  hub_and_spoke:
+    canonical: "hub-and-spoke"
+    aliases: ["hub and spoke architecture"]
+    never_use: ["hub-spoke", "hubAndSpoke", "hub & spoke"]
+    definition: "Architecture with Scheduler as central hub, services as spokes"
+    first_defined: documentation/protocol/spec.md#section-4
+
+  # SDK Components
+  activity_buffer:
+    canonical: "ActivityBuffer"
+    aliases: ["Activity Buffer", "message buffer"]
+    never_use: ["activityBuffer", "activity-buffer"]
+    definition: "In-memory message tracking with Three-ID support"
+    first_defined: sdks/py_sdk/sw4rm/activity_buffer.py
+    note: "PascalCase as class name"
+
+  persistence_backend:
+    canonical: "PersistenceBackend"
+    aliases: ["Persistence Backend", "storage backend"]
+    never_use: ["persistenceBackend", "persistence-backend"]
+    definition: "Pluggable interface for durable storage"
+    first_defined: sdks/py_sdk/sw4rm/persistence.py
+    note: "PascalCase as class name"
+
+  # Configuration
+  communication_class:
+    canonical: "Communication Class"
+    aliases: ["comm class"]
+    never_use: ["communicationClass", "communication-class"]
+    definition: "Agent routing preference affecting message priority (PRIVILEGED, STANDARD, BULK)"
+    first_defined: documentation/protocol/spec.md#section-7
+    note: "CORRECTED 2026-01-03: Was incorrectly listed as FIRE_AND_FORGET/PRIORITY"

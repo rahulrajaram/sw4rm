@@ -3,10 +3,10 @@
 Human-in-the-Loop (HITL) Escalation Example for SW4RM Protocol.
 
 This example demonstrates:
-- HITL conflict handling when agent confidence is low or risks are high
+- TASK_ESCALATION for low-confidence decisions
 - CONFLICT escalation flow for unresolved disputes between agents
 - DEBATE_DEADLOCK handling when multi-agent debates fail to converge
-- How to respond to HITL requests and integrate human decisions
+- SECURITY_APPROVAL for high-risk actions
 
 Prerequisites:
   - Generate protobuf stubs: `make protos`
@@ -36,14 +36,14 @@ from sw4rm import constants as C
 class HitlReasonType(Enum):
     """Reasons for HITL escalation."""
     UNSPECIFIED = 0
-    UNCERTAINTY_HIGH = 1
-    RISK_HIGH = 2
-    POLICY_REQUIRED = 3
-    USER_REQUESTED = 4
-    CONFLICT_UNRESOLVED = 5
-    BUDGET_EXCEEDED = 6
-    DEBATE_DEADLOCK = 7
-    SECURITY_APPROVAL = 8
+    CONFLICT = 1
+    SECURITY_APPROVAL = 2
+    TASK_ESCALATION = 3
+    MANUAL_OVERRIDE = 4
+    WORKTREE_OVERRIDE = 5
+    DEBATE_DEADLOCK = 6
+    TOOL_PRIVILEGE_ESCALATION = 7
+    CONNECTOR_APPROVAL = 8
 
 
 @dataclass
@@ -227,7 +227,7 @@ class EscalationHandler:
 
         invocation = HitlInvocation(
             correlation_id=str(uuid.uuid4()),
-            reason_type=HitlReasonType.UNCERTAINTY_HIGH,
+            reason_type=HitlReasonType.TASK_ESCALATION,
             context={
                 "agent_id": self.agent_id,
                 "task": task_description,
@@ -277,7 +277,7 @@ class EscalationHandler:
 
         invocation = HitlInvocation(
             correlation_id=str(uuid.uuid4()),
-            reason_type=HitlReasonType.CONFLICT_UNRESOLVED,
+            reason_type=HitlReasonType.CONFLICT,
             context={
                 "escalating_agent": self.agent_id,
                 "agents_involved": agents_involved,
@@ -389,7 +389,7 @@ class EscalationHandler:
 
         invocation = HitlInvocation(
             correlation_id=str(uuid.uuid4()),
-            reason_type=HitlReasonType.RISK_HIGH,
+            reason_type=HitlReasonType.SECURITY_APPROVAL,
             context={
                 "agent_id": self.agent_id,
                 "action": action_description,
@@ -565,10 +565,10 @@ def main() -> int:
     print("All HITL escalation scenarios completed!")
     print("=" * 60)
     print("\nKey takeaways:")
-    print("1. Use UNCERTAINTY_HIGH when agent confidence is below threshold")
-    print("2. Use CONFLICT_UNRESOLVED when agents cannot agree")
+    print("1. Use TASK_ESCALATION when agent confidence is below threshold")
+    print("2. Use CONFLICT when agents cannot agree")
     print("3. Use DEBATE_DEADLOCK when multi-round debates fail to converge")
-    print("4. Use RISK_HIGH for actions requiring explicit human approval")
+    print("4. Use SECURITY_APPROVAL for actions requiring explicit human approval")
     print("5. Always provide clear context and options for human operators")
 
     return 0

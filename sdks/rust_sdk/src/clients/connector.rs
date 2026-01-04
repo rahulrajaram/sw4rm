@@ -3,24 +3,33 @@ use crate::proto::sw4rm::connector::{
     DescribeToolsRequest, ProviderRegisterRequest, ToolDescriptor as ProtoToolDescriptor,
 };
 use crate::{Error, Result};
+use std::time::Duration;
 use tonic::transport::{Channel, Endpoint};
 
 /// Client for interacting with the SW4RM Connector service
 #[derive(Debug, Clone)]
 pub struct ConnectorClient {
     client: ConnectorServiceClient<Channel>,
+    timeout: Duration,
 }
 
 impl ConnectorClient {
-    /// Create a new connector client
+    /// Create a new connector client with default 30 second timeout
     pub async fn new(endpoint: &str) -> Result<Self> {
+        Self::with_timeout(endpoint, Duration::from_secs(30)).await
+    }
+
+    /// Create a new connector client with custom timeout
+    pub async fn with_timeout(endpoint: &str, timeout: Duration) -> Result<Self> {
         let channel = Endpoint::from_shared(endpoint.to_string())
             .map_err(|e| Error::Config(format!("Invalid endpoint: {}", e)))?
+            .timeout(timeout)
             .connect()
             .await?;
 
         Ok(Self {
             client: ConnectorServiceClient::new(channel),
+            timeout,
         })
     }
 
@@ -44,10 +53,11 @@ impl ConnectorClient {
             })
             .collect();
 
-        let request = tonic::Request::new(ProviderRegisterRequest {
+        let mut request = tonic::Request::new(ProviderRegisterRequest {
             provider_id: provider_id.to_string(),
             tools: proto_tools,
         });
+        request.set_timeout(self.timeout);
 
         self.client.register_provider(request).await?;
         Ok(())
@@ -55,9 +65,10 @@ impl ConnectorClient {
 
     /// Describe available tools from a provider
     pub async fn describe_tools(&mut self, provider_id: &str) -> Result<Vec<ToolDescriptor>> {
-        let request = tonic::Request::new(DescribeToolsRequest {
+        let mut request = tonic::Request::new(DescribeToolsRequest {
             provider_id: provider_id.to_string(),
         });
+        request.set_timeout(self.timeout);
 
         let response = self.client.describe_tools(request).await?;
         let tools = response

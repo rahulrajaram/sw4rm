@@ -1,6 +1,6 @@
-# 3.11 Advanced Patterns (v0.4.0)
+# 3.11 Advanced Patterns (v0.5.0)
 
-This section documents the advanced multi-agent coordination patterns introduced in SW4RM Protocol v0.4.0. These patterns enable sophisticated workflows for artifact approval, agent delegation, and DAG-based orchestration.
+This section documents the advanced multi-agent coordination patterns introduced in SW4RM Protocol v0.5.0. These patterns enable sophisticated workflows for artifact approval, agent delegation, and DAG-based orchestration.
 
 ## 3.11.1 Negotiation Room Pattern
 

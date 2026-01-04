@@ -1,0 +1,150 @@
+name: Proto Generation Check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  proto-sync:
+    name: Verify Proto Files Are In Sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify proto source files exist
+        run: |
+          if [ ! -d protos ] || [ -z "$(ls protos/*.proto 2>/dev/null)" ]; then
+            echo "::error::Proto source directory 'protos/' is missing or empty!"
+            exit 1
+          fi
+          echo "Found proto source files:"
+          ls -1 protos/*.proto
+
+      # -----------------------------------------------------------
+      # Python SDK Proto Check
+      # -----------------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: pyproject.toml
+
+      - name: Install Python proto dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install grpcio grpcio-tools googleapis-common-protos
+
+      - name: Regenerate Python protos
+        working-directory: sdks/py_sdk
+        run: |
+          # Clean existing generated files (preserve __init__.py)
+          rm -f sw4rm/protos/*_pb2.py sw4rm/protos/*_pb2_grpc.py sw4rm/protos/*_pb2.pyi
+
+          # Get the grpc_tools include path
+          GRPC_INCLUDE=$(python -c "import pkg_resources; print(pkg_resources.resource_filename('grpc_tools','_proto'))")
+
+          # Generate proto files
+          python -m grpc_tools.protoc \
+            -I../../protos \
+            -I"$GRPC_INCLUDE" \
+            --python_out=sw4rm/protos \
+            --grpc_python_out=sw4rm/protos \
+            --pyi_out=sw4rm/protos \
+            ../../protos/*.proto
+
+          # Fix relative imports (matching the Makefile behavior)
+          cd sw4rm/protos
+          sed -i 's/^import \(.*_pb2\)/from . import \1/' *_pb2.py *_pb2_grpc.py
+
+      - name: Check Python proto differences
+        run: |
+          # Check for modified files
+          if ! git diff --exit-code sdks/py_sdk/sw4rm/protos/; then
+            echo ""
+            echo "::error::Python proto files are out of sync!"
+            echo "::error::Please run 'make protos' from the repository root and commit the changes."
+            echo ""
+            echo "Files that differ:"
+            git diff --name-only sdks/py_sdk/sw4rm/protos/
+            exit 1
+          fi
+
+          # Check for untracked generated files (new protos added but not committed)
+          UNTRACKED=$(git ls-files --others --exclude-standard sdks/py_sdk/sw4rm/protos/ | grep -E '_pb2\.py$|_pb2_grpc\.py$|_pb2\.pyi$' || true)
+          if [ -n "$UNTRACKED" ]; then
+            echo ""
+            echo "::error::New Python proto files were generated but not committed!"
+            echo "::error::Please run 'make protos' and commit the new files."
+            echo ""
+            echo "Untracked files:"
+            echo "$UNTRACKED"
+            exit 1
+          fi
+
+          echo "Python proto files are in sync."
+
+      # -----------------------------------------------------------
+      # JS/TS SDK Proto Check
+      # -----------------------------------------------------------
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: sdks/js_sdk/package-lock.json
+
+      - name: Install JS dependencies
+        working-directory: sdks/js_sdk
+        run: npm ci
+
+      - name: Regenerate JS/TS protos
+        working-directory: sdks/js_sdk
+        run: |
+          # Clean existing generated files (preserve .gitkeep)
+          rm -f src/types/generated/*_pb.js src/types/generated/*_grpc_pb.js
+          rm -f src/types/generated/*_pb.d.ts src/types/generated/*_grpc_pb.d.ts
+
+          # Generate proto files
+          npm run build:proto
+
+      - name: Check JS/TS proto differences
+        run: |
+          # Check for modified files
+          if ! git diff --exit-code sdks/js_sdk/src/types/generated/; then
+            echo ""
+            echo "::error::JS/TS proto files are out of sync!"
+            echo "::error::Please run 'npm run build:proto' in sdks/js_sdk/ and commit the changes."
+            echo ""
+            echo "Files that differ:"
+            git diff --name-only sdks/js_sdk/src/types/generated/
+            exit 1
+          fi
+
+          # Check for untracked generated files (new protos added but not committed)
+          UNTRACKED=$(git ls-files --others --exclude-standard sdks/js_sdk/src/types/generated/ | grep -E '_pb\.js$|_grpc_pb\.js$|_pb\.d\.ts$|_grpc_pb\.d\.ts$' || true)
+          if [ -n "$UNTRACKED" ]; then
+            echo ""
+            echo "::error::New JS/TS proto files were generated but not committed!"
+            echo "::error::Please run 'npm run build:proto' in sdks/js_sdk/ and commit the new files."
+            echo ""
+            echo "Untracked files:"
+            echo "$UNTRACKED"
+            exit 1
+          fi
+
+          echo "JS/TS proto files are in sync."
+
+      # -----------------------------------------------------------
+      # Summary
+      # -----------------------------------------------------------
+      - name: Success summary
+        run: |
+          echo "All proto files are properly generated and in sync across SDKs."
+          echo ""
+          echo "Checked:"
+          echo "  - Python SDK: sdks/py_sdk/sw4rm/protos/"
+          echo "  - JS/TS SDK: sdks/js_sdk/src/types/generated/"
+          echo ""
+          echo "Note: Rust SDK generates protos at build time via build.rs (not committed)."

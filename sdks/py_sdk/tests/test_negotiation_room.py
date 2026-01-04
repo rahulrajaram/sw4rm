@@ -10,6 +10,10 @@ from threading import Thread
 import pytest
 
 from sw4rm.clients.negotiation_room import NegotiationRoomClient
+from sw4rm.clients.negotiation_room_store import (
+    InMemoryNegotiationRoomStore,
+    reset_default_store,
+)
 from sw4rm.negotiation_coordinator import NegotiationCoordinator
 from sw4rm.negotiation_types import (
     ArtifactType,
@@ -25,10 +29,20 @@ from sw4rm.policy_types import NegotiationPolicy
 # Test Fixtures
 
 
+@pytest.fixture(autouse=True)
+def reset_store_between_tests():
+    """Reset the default store before each test for isolation."""
+    reset_default_store()
+    yield
+    reset_default_store()
+
+
 @pytest.fixture
 def client():
-    """Create a fresh NegotiationRoomClient for each test."""
-    return NegotiationRoomClient()
+    """Create a fresh NegotiationRoomClient for each test with isolated store."""
+    # Use a fresh store per test for isolation
+    store = InMemoryNegotiationRoomStore()
+    return NegotiationRoomClient(store=store)
 
 
 @pytest.fixture
@@ -158,6 +172,70 @@ class TestNegotiationRoomClient:
 
         with pytest.raises(ValueError, match="already voted"):
             client.submit_vote(vote2)
+
+    def test_vote_validation_invalid_score(self, client, sample_proposal):
+        """Test that votes with invalid scores are rejected."""
+        client.submit_proposal(sample_proposal)
+
+        # Score too high
+        with pytest.raises(ValueError, match="score must be in range"):
+            NegotiationVote(
+                artifact_id="code-123",
+                critic_id="critic-1",
+                score=15.0,  # > 10
+                confidence=0.9,
+                passed=True,
+                strengths=[],
+                weaknesses=[],
+                recommendations=[],
+                negotiation_room_id="room-1",
+            )
+
+        # Score too low
+        with pytest.raises(ValueError, match="score must be in range"):
+            NegotiationVote(
+                artifact_id="code-123",
+                critic_id="critic-1",
+                score=-1.0,  # < 0
+                confidence=0.9,
+                passed=True,
+                strengths=[],
+                weaknesses=[],
+                recommendations=[],
+                negotiation_room_id="room-1",
+            )
+
+    def test_vote_validation_invalid_confidence(self, client, sample_proposal):
+        """Test that votes with invalid confidence are rejected."""
+        client.submit_proposal(sample_proposal)
+
+        # Confidence too high
+        with pytest.raises(ValueError, match="confidence must be in range"):
+            NegotiationVote(
+                artifact_id="code-123",
+                critic_id="critic-1",
+                score=8.5,
+                confidence=1.5,  # > 1.0
+                passed=True,
+                strengths=[],
+                weaknesses=[],
+                recommendations=[],
+                negotiation_room_id="room-1",
+            )
+
+        # Confidence too low
+        with pytest.raises(ValueError, match="confidence must be in range"):
+            NegotiationVote(
+                artifact_id="code-123",
+                critic_id="critic-1",
+                score=8.5,
+                confidence=-0.1,  # < 0
+                passed=True,
+                strengths=[],
+                weaknesses=[],
+                recommendations=[],
+                negotiation_room_id="room-1",
+            )
 
     def test_get_votes_empty(self, client, sample_proposal):
         """Test getting votes when none exist yet."""
@@ -783,3 +861,243 @@ class TestNegotiationRoomIntegration:
 
         # Should be escalated due to high variance or failed vote
         assert outcome == DecisionOutcome.ESCALATED_TO_HITL
+
+
+# Shared State Tests (Concurrency Fix v0.6.0)
+
+
+class TestNegotiationRoomSharedState:
+    """Tests for the shared state functionality added in v0.6.0.
+
+    These tests verify that multiple NegotiationRoomClient instances can
+    share the same underlying storage, enabling multi-agent coordination.
+    """
+
+    def test_shared_store_proposal_visibility(self):
+        """Test that proposals are visible across clients sharing a store."""
+        # Create a shared store
+        shared_store = InMemoryNegotiationRoomStore()
+
+        # Create two clients sharing the store
+        producer_client = NegotiationRoomClient(store=shared_store)
+        critic_client = NegotiationRoomClient(store=shared_store)
+
+        # Producer submits a proposal
+        proposal = NegotiationProposal(
+            artifact_type=ArtifactType.CODE,
+            artifact_id="shared-test-1",
+            producer_id="producer-1",
+            artifact=b"test code",
+            artifact_content_type="text/x-python",
+            requested_critics=["critic-1"],
+            negotiation_room_id="room-1",
+        )
+        producer_client.submit_proposal(proposal)
+
+        # Critic should be able to see the proposal
+        retrieved = critic_client.get_proposal("shared-test-1")
+        assert retrieved is not None
+        assert retrieved.artifact_id == "shared-test-1"
+        assert retrieved.producer_id == "producer-1"
+
+    def test_shared_store_vote_visibility(self):
+        """Test that votes are visible across clients sharing a store."""
+        shared_store = InMemoryNegotiationRoomStore()
+
+        producer_client = NegotiationRoomClient(store=shared_store)
+        critic_client = NegotiationRoomClient(store=shared_store)
+        coordinator_client = NegotiationRoomClient(store=shared_store)
+
+        # Producer submits proposal
+        proposal = NegotiationProposal(
+            artifact_type=ArtifactType.CODE,
+            artifact_id="shared-test-2",
+            producer_id="producer-1",
+            artifact=b"test code",
+            artifact_content_type="text/x-python",
+            requested_critics=["critic-1"],
+            negotiation_room_id="room-1",
+        )
+        producer_client.submit_proposal(proposal)
+
+        # Critic submits vote
+        vote = NegotiationVote(
+            artifact_id="shared-test-2",
+            critic_id="critic-1",
+            score=8.5,
+            confidence=0.9,
+            passed=True,
+            strengths=["Good"],
+            weaknesses=[],
+            recommendations=[],
+            negotiation_room_id="room-1",
+        )
+        critic_client.submit_vote(vote)
+
+        # Coordinator should see the vote
+        votes = coordinator_client.get_votes("shared-test-2")
+        assert len(votes) == 1
+        assert votes[0].critic_id == "critic-1"
+
+    def test_shared_store_decision_visibility(self):
+        """Test that decisions are visible across clients sharing a store."""
+        shared_store = InMemoryNegotiationRoomStore()
+
+        producer_client = NegotiationRoomClient(store=shared_store)
+        coordinator_client = NegotiationRoomClient(store=shared_store)
+
+        # Producer submits proposal
+        proposal = NegotiationProposal(
+            artifact_type=ArtifactType.CODE,
+            artifact_id="shared-test-3",
+            producer_id="producer-1",
+            artifact=b"test code",
+            artifact_content_type="text/x-python",
+            requested_critics=["critic-1"],
+            negotiation_room_id="room-1",
+        )
+        producer_client.submit_proposal(proposal)
+
+        # Create a vote for the decision
+        vote = NegotiationVote(
+            artifact_id="shared-test-3",
+            critic_id="critic-1",
+            score=9.0,
+            confidence=0.9,
+            passed=True,
+            strengths=[],
+            weaknesses=[],
+            recommendations=[],
+            negotiation_room_id="room-1",
+        )
+
+        # Coordinator stores decision
+        aggregated = aggregate_votes([vote])
+        decision = NegotiationDecision(
+            artifact_id="shared-test-3",
+            outcome=DecisionOutcome.APPROVED,
+            votes=[vote],
+            aggregated_score=aggregated,
+            policy_version="1.0",
+            reason="Test",
+            negotiation_room_id="room-1",
+        )
+        coordinator_client.store_decision(decision)
+
+        # Producer should see the decision
+        retrieved = producer_client.get_decision("shared-test-3")
+        assert retrieved is not None
+        assert retrieved.outcome == DecisionOutcome.APPROVED
+
+    def test_isolated_stores_no_cross_visibility(self):
+        """Test that separate stores have isolated state."""
+        store_a = InMemoryNegotiationRoomStore()
+        store_b = InMemoryNegotiationRoomStore()
+
+        client_a = NegotiationRoomClient(store=store_a)
+        client_b = NegotiationRoomClient(store=store_b)
+
+        # Submit proposal to store A
+        proposal = NegotiationProposal(
+            artifact_type=ArtifactType.CODE,
+            artifact_id="isolated-test",
+            producer_id="producer-1",
+            artifact=b"test code",
+            artifact_content_type="text/x-python",
+            requested_critics=["critic-1"],
+            negotiation_room_id="room-1",
+        )
+        client_a.submit_proposal(proposal)
+
+        # Client B should NOT see the proposal
+        retrieved = client_b.get_proposal("isolated-test")
+        assert retrieved is None
+
+    def test_default_store_sharing(self):
+        """Test that clients using the default store share state."""
+        # Reset to ensure clean state
+        reset_default_store()
+
+        # Create two clients without explicit store (both use default)
+        client_1 = NegotiationRoomClient()
+        client_2 = NegotiationRoomClient()
+
+        # Submit proposal via client_1
+        proposal = NegotiationProposal(
+            artifact_type=ArtifactType.CODE,
+            artifact_id="default-store-test",
+            producer_id="producer-1",
+            artifact=b"test code",
+            artifact_content_type="text/x-python",
+            requested_critics=["critic-1"],
+            negotiation_room_id="room-1",
+        )
+        client_1.submit_proposal(proposal)
+
+        # Client_2 should see the proposal (shared default store)
+        retrieved = client_2.get_proposal("default-store-test")
+        assert retrieved is not None
+        assert retrieved.artifact_id == "default-store-test"
+
+    def test_thread_safety_concurrent_votes(self):
+        """Test that concurrent votes from different threads work correctly."""
+        import threading
+
+        shared_store = InMemoryNegotiationRoomStore()
+        client = NegotiationRoomClient(store=shared_store)
+
+        # Submit proposal first
+        proposal = NegotiationProposal(
+            artifact_type=ArtifactType.CODE,
+            artifact_id="concurrent-test",
+            producer_id="producer-1",
+            artifact=b"test code",
+            artifact_content_type="text/x-python",
+            requested_critics=[f"critic-{i}" for i in range(10)],
+            negotiation_room_id="room-1",
+        )
+        client.submit_proposal(proposal)
+
+        errors = []
+        successful_votes = []
+        lock = threading.Lock()
+
+        def submit_vote_thread(critic_id: str):
+            try:
+                vote = NegotiationVote(
+                    artifact_id="concurrent-test",
+                    critic_id=critic_id,
+                    score=8.0,
+                    confidence=0.9,
+                    passed=True,
+                    strengths=[],
+                    weaknesses=[],
+                    recommendations=[],
+                    negotiation_room_id="room-1",
+                )
+                client.submit_vote(vote)
+                with lock:
+                    successful_votes.append(critic_id)
+            except Exception as e:
+                with lock:
+                    errors.append((critic_id, str(e)))
+
+        # Submit 10 votes concurrently
+        threads = []
+        for i in range(10):
+            t = threading.Thread(target=submit_vote_thread, args=(f"critic-{i}",))
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
+        # All votes should succeed
+        assert len(errors) == 0, f"Unexpected errors: {errors}"
+        assert len(successful_votes) == 10
+
+        # Verify all votes are recorded
+        votes = client.get_votes("concurrent-test")
+        assert len(votes) == 10
+        critic_ids = {v.critic_id for v in votes}
+        assert critic_ids == {f"critic-{i}" for i in range(10)}

@@ -8,7 +8,7 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 
 setup(
     name="sw4rm-sdk",
-    version="0.4.0",
+    version="0.5.0",
     author="SW4RM",
     description="Python SDK for the SW4RM Agentic Protocol",
     long_description=long_description,

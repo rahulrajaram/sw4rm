@@ -3,10 +3,10 @@
  * Human-in-the-Loop (HITL) Escalation Example for SW4RM Protocol.
  *
  * This example demonstrates:
- * - Triggering HITL escalation when agent confidence is low
- * - Handling HITL decisions for unresolved conflicts
+ * - TASK_ESCALATION when agent confidence is low
+ * - CONFLICT escalation for unresolved agent disagreements
  * - DEBATE_DEADLOCK handling when multi-agent debates fail
- * - Integrating human decisions back into agent workflows
+ * - SECURITY_APPROVAL for high-risk actions
  *
  * HITL is a critical safety mechanism in SW4RM that ensures human
  * oversight for high-stakes decisions and edge cases that agents
@@ -35,14 +35,14 @@ import type { HitlInvocation, HitlDecision } from '../src/clients/hitl.js';
  */
 enum HitlReasonType {
   UNSPECIFIED = 'UNSPECIFIED',
-  UNCERTAINTY_HIGH = 'UNCERTAINTY_HIGH',
-  RISK_HIGH = 'RISK_HIGH',
-  POLICY_REQUIRED = 'POLICY_REQUIRED',
-  USER_REQUESTED = 'USER_REQUESTED',
-  CONFLICT_UNRESOLVED = 'CONFLICT_UNRESOLVED',
-  BUDGET_EXCEEDED = 'BUDGET_EXCEEDED',
-  DEBATE_DEADLOCK = 'DEBATE_DEADLOCK',
+  CONFLICT = 'CONFLICT',
   SECURITY_APPROVAL = 'SECURITY_APPROVAL',
+  TASK_ESCALATION = 'TASK_ESCALATION',
+  MANUAL_OVERRIDE = 'MANUAL_OVERRIDE',
+  WORKTREE_OVERRIDE = 'WORKTREE_OVERRIDE',
+  DEBATE_DEADLOCK = 'DEBATE_DEADLOCK',
+  TOOL_PRIVILEGE_ESCALATION = 'TOOL_PRIVILEGE_ESCALATION',
+  CONNECTOR_APPROVAL = 'CONNECTOR_APPROVAL',
 }
 
 /**
@@ -204,7 +204,7 @@ class EscalationHandler {
 
     const invocation: ExtendedHitlInvocation = {
       correlation_id: `corr-${Date.now()}`,
-      reason_type: HitlReasonType.UNCERTAINTY_HIGH,
+      reason_type: HitlReasonType.TASK_ESCALATION,
       context: {
         agent_id: this.agentId,
         task: taskDescription,
@@ -247,7 +247,7 @@ class EscalationHandler {
 
     const invocation: ExtendedHitlInvocation = {
       correlation_id: `corr-${Date.now()}`,
-      reason_type: HitlReasonType.CONFLICT_UNRESOLVED,
+      reason_type: HitlReasonType.CONFLICT,
       context: {
         escalating_agent: this.agentId,
         agents_involved: agentsInvolved,
@@ -341,7 +341,7 @@ class EscalationHandler {
 
     const invocation: ExtendedHitlInvocation = {
       correlation_id: `corr-${Date.now()}`,
-      reason_type: HitlReasonType.RISK_HIGH,
+      reason_type: HitlReasonType.SECURITY_APPROVAL,
       context: {
         agent_id: this.agentId,
         action: actionDescription,
@@ -509,7 +509,7 @@ async function scenario5_SdkClientDemo(): Promise<void> {
   console.log('');
   console.log('  // Submit invocation');
   console.log('  const decision = await client.decide({');
-  console.log('    reason_type: "UNCERTAINTY_HIGH",');
+  console.log('    reason_type: "TASK_ESCALATION",');
   console.log('    context: Buffer.from(JSON.stringify({ task: "classify", confidence: 0.45 })),');
   console.log('    proposed_actions: ["public", "internal", "confidential"],');
   console.log('    priority: 1');
@@ -542,20 +542,20 @@ async function main(): Promise<number> {
   console.log('='.repeat(60));
 
   console.log('\nHITL Reason Types:');
-  console.log('  UNCERTAINTY_HIGH   - Agent confidence below threshold');
-  console.log('  RISK_HIGH          - Action requires explicit approval');
-  console.log('  CONFLICT_UNRESOLVED - Agents cannot agree');
-  console.log('  DEBATE_DEADLOCK    - Multi-round debate failed to converge');
-  console.log('  POLICY_REQUIRED    - Policy mandates human review');
-  console.log('  BUDGET_EXCEEDED    - Resource limits exceeded');
-  console.log('  SECURITY_APPROVAL  - Security-sensitive action');
-  console.log('  USER_REQUESTED     - Explicit user request for human review');
+  console.log('  TASK_ESCALATION     - Agent confidence below threshold');
+  console.log('  SECURITY_APPROVAL   - Action requires explicit approval');
+  console.log('  CONFLICT            - Agents cannot agree');
+  console.log('  DEBATE_DEADLOCK      - Multi-round debate failed to converge');
+  console.log('  MANUAL_OVERRIDE     - Human requested a direct decision');
+  console.log('  WORKTREE_OVERRIDE   - Worktree operations need approval');
+  console.log('  TOOL_PRIVILEGE_ESCALATION - Tool privilege escalation requested');
+  console.log('  CONNECTOR_APPROVAL  - Connector approval required');
 
   console.log('\nKey takeaways:');
-  console.log('1. Use UNCERTAINTY_HIGH when agent confidence is below threshold');
-  console.log('2. Use CONFLICT_UNRESOLVED when agents cannot agree');
+  console.log('1. Use TASK_ESCALATION when agent confidence is below threshold');
+  console.log('2. Use CONFLICT when agents cannot agree');
   console.log('3. Use DEBATE_DEADLOCK when multi-round debates fail to converge');
-  console.log('4. Use RISK_HIGH for actions requiring explicit human approval');
+  console.log('4. Use SECURITY_APPROVAL for actions requiring explicit human approval');
   console.log('5. Always provide clear context and options for human operators');
   console.log('6. Handle timeout scenarios gracefully with fallback behavior');
 

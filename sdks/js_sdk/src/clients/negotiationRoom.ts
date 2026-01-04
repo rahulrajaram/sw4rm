@@ -24,7 +24,42 @@
  * - Coordinating the review process
  *
  * Based on SPEC_REQUESTS.md section 6.1.
+ *
+ * ## Concurrency Fix (v0.6.0)
+ *
+ * The client now uses a pluggable storage backend (NegotiationRoomStore) instead
+ * of instance-local storage. This enables multiple client instances to share
+ * state, which is essential for multi-agent deployments where producer, critic,
+ * and coordinator agents run in different processes or workers.
+ *
+ * ### Usage patterns
+ *
+ * 1. Single-process with shared default store (recommended):
+ * ```typescript
+ * const client1 = new NegotiationRoomClient();  // Uses shared default store
+ * const client2 = new NegotiationRoomClient();  // Same store, shared state
+ * ```
+ *
+ * 2. Explicit store sharing:
+ * ```typescript
+ * const store = new InMemoryNegotiationRoomStore();
+ * const producer = new NegotiationRoomClient({ store });
+ * const critic = new NegotiationRoomClient({ store });
+ * ```
+ *
+ * 3. File-based persistence (multi-process, requires colony):
+ * ```typescript
+ * import { JsonFileNegotiationRoomStore } from 'colony/stores/typescript/jsonFileStore';
+ * const store = new JsonFileNegotiationRoomStore("/path/to/storage");
+ * const client = new NegotiationRoomClient({ store });
+ * ```
  */
+
+import {
+  NegotiationRoomStore,
+  InMemoryNegotiationRoomStore,
+  getDefaultStore,
+} from './negotiationRoomStore.js';
 
 /**
  * Type of artifact being negotiated.
@@ -195,19 +230,69 @@ function validateVote(vote: NegotiationVote): void {
 }
 
 /**
+ * Configuration options for NegotiationRoomClient.
+ */
+export interface NegotiationRoomClientOptions {
+  /**
+   * Storage backend for proposals, votes, and decisions.
+   * If not provided, uses the shared default in-memory store.
+   */
+  store?: NegotiationRoomStore;
+}
+
+/**
  * Client for interacting with negotiation rooms.
  *
  * Manages the lifecycle of artifact proposals through the multi-agent
  * review process. Producers submit proposals, critics submit votes,
  * and coordinators retrieve votes to make decisions.
  *
- * This is an in-memory implementation for Phase 2. Future phases
- * will integrate with persistent storage and gRPC services.
+ * This client uses a pluggable storage backend, enabling state sharing
+ * across multiple client instances. By default, all clients within the
+ * same process share a common in-memory store.
+ *
+ * @example
+ * ```typescript
+ * // Simple usage - all clients share default store
+ * const client = new NegotiationRoomClient();
+ *
+ * const proposal: NegotiationProposal = {
+ *   artifactType: ArtifactType.CODE,
+ *   artifactId: "code-123",
+ *   producerId: "agent-producer",
+ *   artifact: new TextEncoder().encode("def hello(): pass"),
+ *   artifactContentType: "text/x-python",
+ *   requestedCritics: ["critic-1", "critic-2"],
+ *   negotiationRoomId: "room-1"
+ * };
+ * const artifactId = await client.submitProposal(proposal);
+ * console.log(artifactId); // "code-123"
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // Explicit store sharing
+ * import { InMemoryNegotiationRoomStore } from './negotiationRoomStore';
+ *
+ * const store = new InMemoryNegotiationRoomStore();
+ * const producer = new NegotiationRoomClient({ store });
+ * const critic = new NegotiationRoomClient({ store });
+ *
+ * // Producer and critic now share state
+ * ```
  */
 export class NegotiationRoomClient {
-  private proposals: Map<string, NegotiationProposal> = new Map();
-  private votes: Map<string, NegotiationVote[]> = new Map();
-  private decisions: Map<string, NegotiationDecision> = new Map();
+  private readonly store: NegotiationRoomStore;
+
+  /**
+   * Create a new negotiation room client.
+   *
+   * @param options - Configuration options. If no store is provided,
+   *                  uses the shared default in-memory store.
+   */
+  constructor(options: NegotiationRoomClientOptions = {}) {
+    this.store = options.store || getDefaultStore();
+  }
 
   /**
    * Submit an artifact proposal for multi-agent review.
@@ -236,24 +321,8 @@ export class NegotiationRoomClient {
    * ```
    */
   async submitProposal(proposal: NegotiationProposal): Promise<string> {
-    const artifactId = proposal.artifactId;
-
-    if (this.proposals.has(artifactId)) {
-      throw new NegotiationValidationError(
-        `Proposal with artifact_id '${artifactId}' already exists`
-      );
-    }
-
-    // Set createdAt if not provided
-    const proposalWithTimestamp: NegotiationProposal = {
-      ...proposal,
-      createdAt: proposal.createdAt || new Date().toISOString(),
-    };
-
-    this.proposals.set(artifactId, proposalWithTimestamp);
-    this.votes.set(artifactId, []);
-
-    return artifactId;
+    await this.store.saveProposal(proposal);
+    return proposal.artifactId;
   }
 
   /**
@@ -287,7 +356,7 @@ export class NegotiationRoomClient {
   async submitVote(vote: NegotiationVote): Promise<void> {
     const artifactId = vote.artifactId;
 
-    if (!this.proposals.has(artifactId)) {
+    if (!(await this.store.hasProposal(artifactId))) {
       throw new NegotiationValidationError(
         `No proposal found for artifact_id '${artifactId}'`
       );
@@ -296,24 +365,7 @@ export class NegotiationRoomClient {
     // Validate score and confidence ranges
     validateVote(vote);
 
-    // Check if this critic has already voted
-    const existingVotes = this.votes.get(artifactId) || [];
-    for (const existingVote of existingVotes) {
-      if (existingVote.criticId === vote.criticId) {
-        throw new NegotiationValidationError(
-          `Critic '${vote.criticId}' has already voted for artifact '${artifactId}'`
-        );
-      }
-    }
-
-    // Set votedAt if not provided
-    const voteWithTimestamp: NegotiationVote = {
-      ...vote,
-      votedAt: vote.votedAt || new Date().toISOString(),
-    };
-
-    existingVotes.push(voteWithTimestamp);
-    this.votes.set(artifactId, existingVotes);
+    await this.store.addVote(vote);
   }
 
   /**
@@ -334,13 +386,13 @@ export class NegotiationRoomClient {
    * ```
    */
   async getVotes(artifactId: string): Promise<NegotiationVote[]> {
-    if (!this.proposals.has(artifactId)) {
+    if (!(await this.store.hasProposal(artifactId))) {
       throw new NegotiationValidationError(
         `No proposal found for artifact_id '${artifactId}'`
       );
     }
 
-    return this.votes.get(artifactId) || [];
+    return this.store.getVotes(artifactId);
   }
 
   /**
@@ -362,13 +414,13 @@ export class NegotiationRoomClient {
    * ```
    */
   async getDecision(artifactId: string): Promise<NegotiationDecision | null> {
-    if (!this.proposals.has(artifactId)) {
+    if (!(await this.store.hasProposal(artifactId))) {
       throw new NegotiationValidationError(
         `No proposal found for artifact_id '${artifactId}'`
       );
     }
 
-    return this.decisions.get(artifactId) || null;
+    return this.store.getDecision(artifactId);
   }
 
   /**
@@ -401,25 +453,13 @@ export class NegotiationRoomClient {
   async storeDecision(decision: NegotiationDecision): Promise<void> {
     const artifactId = decision.artifactId;
 
-    if (!this.proposals.has(artifactId)) {
+    if (!(await this.store.hasProposal(artifactId))) {
       throw new NegotiationValidationError(
         `No proposal found for artifact_id '${artifactId}'`
       );
     }
 
-    if (this.decisions.has(artifactId)) {
-      throw new NegotiationValidationError(
-        `Decision already exists for artifact_id '${artifactId}'`
-      );
-    }
-
-    // Set decidedAt if not provided
-    const decisionWithTimestamp: NegotiationDecision = {
-      ...decision,
-      decidedAt: decision.decidedAt || new Date().toISOString(),
-    };
-
-    this.decisions.set(artifactId, decisionWithTimestamp);
+    await this.store.saveDecision(decision);
   }
 
   /**
@@ -448,7 +488,7 @@ export class NegotiationRoomClient {
     timeoutMs: number = 30000,
     pollIntervalMs: number = 100
   ): Promise<NegotiationDecision> {
-    if (!this.proposals.has(artifactId)) {
+    if (!(await this.store.hasProposal(artifactId))) {
       throw new NegotiationValidationError(
         `No proposal found for artifact_id '${artifactId}'`
       );
@@ -457,7 +497,7 @@ export class NegotiationRoomClient {
     const startTime = Date.now();
 
     while (Date.now() - startTime < timeoutMs) {
-      const decision = await this.getDecision(artifactId);
+      const decision = await this.store.getDecision(artifactId);
       if (decision !== null) {
         return decision;
       }
@@ -486,7 +526,7 @@ export class NegotiationRoomClient {
    * ```
    */
   async getProposal(artifactId: string): Promise<NegotiationProposal | null> {
-    return this.proposals.get(artifactId) || null;
+    return this.store.getProposal(artifactId);
   }
 
   /**
@@ -504,15 +544,7 @@ export class NegotiationRoomClient {
   async listProposals(
     negotiationRoomId?: string
   ): Promise<NegotiationProposal[]> {
-    const allProposals = Array.from(this.proposals.values());
-
-    if (negotiationRoomId === undefined) {
-      return allProposals;
-    }
-
-    return allProposals.filter(
-      (p) => p.negotiationRoomId === negotiationRoomId
-    );
+    return this.store.listProposals(negotiationRoomId);
   }
 }
 
