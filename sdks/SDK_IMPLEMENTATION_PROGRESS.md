@@ -60,7 +60,7 @@ Created GitHub Actions workflow (`.github/workflows/proto-check.yml`) to detect 
 - Rust excluded (compiles at build time via `build.rs`)
 - Actionable `::error::` annotations
 
-### Files Changed (v0.7.0)
+### Files Changed (v0.6.0)
 
 **Python SDK:**
 - `sdks/py_sdk/reference-services/coordination/` - New directory with server implementations
@@ -92,18 +92,18 @@ Service                | Rust        | JS/TS       | Python      | Server Availa
 -----------------------|-------------|-------------|-------------|------------------
 ActivityService        | grpc        | grpc        | grpc        | Yes
 ConnectorService       | grpc        | grpc        | grpc        | Yes
-HandoffService         | grpc        | grpc        | grpc        | Yes (v0.7.0)
+HandoffService         | grpc        | grpc        | grpc        | Yes (v0.6.0)
 HitlService            | grpc        | grpc        | grpc        | Yes
 LoggingService         | grpc        | grpc        | grpc        | Yes
 NegotiationService     | grpc        | grpc        | grpc        | Yes
-NegotiationRoomService | grpc        | grpc        | grpc        | Yes (v0.7.0)
+NegotiationRoomService | grpc        | grpc        | grpc        | Yes (v0.6.0)
 ReasoningProxy         | grpc        | grpc        | grpc        | Yes
 RegistryService        | grpc        | grpc        | grpc        | Yes
 RouterService          | grpc        | grpc        | grpc        | Yes
 SchedulerService       | grpc        | grpc        | grpc        | Yes
 SchedulerPolicyService | grpc        | grpc        | grpc        | Yes
 ToolService            | grpc        | grpc        | grpc        | Yes
-WorkflowService        | grpc        | grpc        | grpc        | Yes (v0.7.0)
+WorkflowService        | grpc        | grpc        | grpc        | Yes (v0.6.0)
 WorktreeService        | grpc        | grpc        | grpc        | Yes
 
 **All 15 services now have full gRPC client implementations across all 3 SDKs.**
@@ -135,6 +135,15 @@ See [COLONY_SPEC_PROGRESS.md](./COLONY_SPEC_PROGRESS.md) for ecosystem extras, p
 
 ## Completed Items (v0.6.0)
 
+**Protocol Specification:**
+- [x] Spec v0.6.0 released with full alignment to proto definitions
+- [x] Policy-based auto-approval thresholds for Negotiation Room (§17.5)
+- [x] DAG validation and cycle detection for Workflow Orchestration (§17.7)
+- [x] Three-ID model documentation (§11.3) - `message_id`, `correlation_id`, `idempotency_token`
+- [x] Sequence diagrams for Negotiation Room (C.10), Handoff (C.11), Workflow (C.12)
+- [x] Appendix A expanded with complete proto file reference table
+
+**SDK Implementation:**
 - [x] Python HandoffClient moved to `sw4rm.clients`
 - [x] Python WorkflowClient added to `sw4rm.clients`
 - [x] Python Makefile fixed for all 15 proto files
@@ -169,6 +178,7 @@ See [COLONY_SPEC_PROGRESS.md](./COLONY_SPEC_PROGRESS.md) for ecosystem extras, p
 
 ## Evidence Links
 
+- Protocol spec: `documentation/protocol/spec.md` (v0.6.0)
 - Proto definitions: `protos/*.proto` (15 service protos + 2 message-only)
 - Python clients: `sdks/py_sdk/sw4rm/clients/`
 - Rust clients: `sdks/rust_sdk/src/clients/`

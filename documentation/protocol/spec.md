@@ -1,6 +1,6 @@
 # RFC: SW4RM - Interruptible, Message-Driven Agent Coordination Protocol
 
-Version: 0.5.0 (2026-01-04)
+Version: 0.6.0 (2026-01-10)
 
 ## Versioning and Changelog
 
@@ -9,6 +9,8 @@ This specification follows semantic versioning principles adapted for pre-1.0 de
 The versioning scope encompasses this document and the canonical protocol buffer namespace guidance (`sw4rm.*`). Until version 1.0, MINOR releases MAY introduce breaking changes, which are explicitly documented and called out in migration guidance.
 
 **Changelog:**
+
+- **0.6.0 (2026-01-10)**: Spec completeness release. Added policy-based auto-approval thresholds for Negotiation Room (§17.5). Added DAG validation and cycle detection requirements for Workflow Orchestration (§17.7). Expanded Appendix A with complete proto file reference table. Added explicit three-ID model documentation (§11.3) clarifying `message_id`, `correlation_id`, and `idempotency_token` semantics. Added sequence diagrams for Negotiation Room (C.10), Handoff (C.11), and Workflow (C.12) patterns.
 
 - **0.5.0 (2026-01-04)**: Documentation alignment release. Updated protocol docs
   and examples to reflect actual SDK/proto behavior and clarified planned vs
@@ -187,6 +189,16 @@ For long-lived streams, implementations SHOULD support durable resumption. Two p
 - Opaque token resumption: Consumers resume using an implementation-defined opaque token that encodes position.
 
 Implementations MUST bound backlog processing to protect memory and latency. Receivers SHOULD provide time/size windows for resume, and MAY require checkpointing or periodic heartbeats to extend resume windows. Expired resume positions MUST fail with a clear error that includes recovery guidance.
+
+### 5.6. SDK Implementation Guidance
+
+SDK implementers building clients for SW4RM services should consult the supplementary SDK documentation for behavioral contracts and cross-SDK consistency requirements:
+
+- **Operational Contracts**: Detailed behavioral specifications for HandoffClient, WorkflowClient, and NegotiationRoomClient including state machine rules, validation requirements, and edge case handling. See [Operational Contracts Documentation](../../sdks/docs/OPERATIONAL_CONTRACTS.md).
+
+- **Error Codes**: Cross-SDK error code mappings, exception handling patterns, and gRPC status code requirements for Phase 3 integration. See [Error Codes Documentation](../../sdks/docs/ERROR_CODES.md).
+
+These documents ensure behavioral consistency across Python, Rust, and TypeScript SDK implementations.
 
 ## 6. Identity and Security
 
@@ -438,6 +450,8 @@ When HLC is enabled, messages MUST include `hlc_timestamp`.
 
 Implementations MUST support these core error codes: `buffer_full`, `no_route`, `ack_timeout`, `agent_unavailable`, `agent_shutdown`, `validation_error`, `permission_denied`, `unsupported_message_type`, `oversize_payload`, `tool_timeout`, `partial_delivery` (reserved), `forced_preemption`, `internal_error`.
 
+For SDK-specific error handling patterns and cross-SDK error code mappings, see [Error Codes Documentation](../../sdks/docs/ERROR_CODES.md).
+
 ### 11.2 Idempotency Guarantees
 
 Implementations MAY provide exactly-once semantics through `idempotency_token` usage. When present, idempotency tokens MUST remain constant across all retries of the same logical operation. The Scheduler MUST maintain a persistent cache mapping tokens to terminal outcomes for at least the configured `deduplication_window` (default 3600 seconds).
@@ -449,6 +463,49 @@ On message arrival with idempotency token, implementations MUST handle as follow
 - New token: record RECEIVED state and proceed with normal processing.
 
 Idempotency tokens SHOULD follow the format `{producer_id}:{operation_type}:{deterministic_hash}` computed over canonical parameters. The Router MUST perform deduplication by idempotency token when present; otherwise MUST deduplicate by `(producer_id, sequence_number)`. Retry operations MUST generate new `message_id` values while preserving the original idempotency token.
+
+### 11.3 Three-ID Model (Envelope Identification)
+
+The SW4RM protocol uses three distinct identifiers to track messages across their lifecycle. Understanding these identifiers is essential for implementing correct deduplication, correlation, and retry semantics.
+
+| Identifier | Scope | Mutability | Purpose |
+|------------|-------|------------|---------|
+| `message_id` | Per attempt | New on each retry | Uniquely identifies a specific transmission attempt |
+| `correlation_id` | Per workflow/session | Stable across entire flow | Groups related messages for tracing and debugging |
+| `idempotency_token` | Per logical operation | Stable across retries | Enables exactly-once semantics via deduplication |
+
+**`message_id` (Required)**:
+
+- MUST be a UUIDv4 generated for each message transmission.
+- MUST be unique across all messages in the system.
+- Retry attempts MUST generate new `message_id` values.
+- Used for acknowledgment targeting (`ack_for_message_id`).
+
+**`correlation_id` (Required)**:
+
+- MUST be a UUIDv4 that groups related operations.
+- For workflows: Set to `workflow_id` to correlate all workflow messages.
+- For negotiations: Set to `negotiation_id` for room-based correlation.
+- For request-response pairs: Response MUST echo the request's `correlation_id`.
+- Enables end-to-end distributed tracing and log aggregation.
+
+**`idempotency_token` (Optional)**:
+
+- MUST remain constant across all retries of the same logical operation.
+- Used by the Router/Scheduler for deduplication.
+- Format: `{producer_id}:{operation_type}:{deterministic_hash}`
+- When present, duplicate tokens return cached results instead of re-execution.
+- Absence of token falls back to `(producer_id, sequence_number)` deduplication.
+
+**Relationship Example**:
+
+```
+Logical operation: Create user "alice"
+  Attempt 1: message_id=m1, correlation_id=wf123, idempotency_token=agent1:create:abc
+  Attempt 2 (retry): message_id=m2, correlation_id=wf123, idempotency_token=agent1:create:abc
+
+Result: m2 deduplicated by token; returns cached result from m1.
+```
 
 ## 12. Addressing and Modalities
 
@@ -567,6 +624,30 @@ When a negotiation timeout fires and requires HITL escalation (e.g., `DEBATE_DEA
 ## Appendix A - Protobuf Package Namespace
 
 The canonical `.proto` package namespace for this specification is `sw4rm.*`. Earlier drafts MAY show other prefixes; use `sw4rm.*` for conformance and code generation. See the `protos/` directory and the stubs below.
+
+### Proto File Reference
+
+The following proto files define the SW4RM protocol services and messages:
+
+| Proto File | Package Namespace | Description |
+|------------|-------------------|-------------|
+| `common.proto` | `sw4rm.common` | Shared types (Empty, Timestamp wrappers) |
+| `registry.proto` | `sw4rm.registry` | Agent registration and capability discovery |
+| `router.proto` | `sw4rm.router` | Message routing service |
+| `scheduler.proto` | `sw4rm.scheduler` | Task scheduling and execution control |
+| `scheduler_policy.proto` | `sw4rm.scheduler_policy` | Scheduling policy configuration |
+| `worktree.proto` | `sw4rm.worktree` | Repository worktree binding |
+| `tool.proto` | `sw4rm.tool` | MCP-compatible tool invocation |
+| `hitl.proto` | `sw4rm.hitl` | Human-in-the-loop escalation |
+| `negotiation.proto` | `sw4rm.negotiation` | Inter-agent debate/negotiation |
+| `negotiation_room.proto` | `sw4rm.negotiation_room` | Producer-critic-coordinator pattern (§17.5) |
+| `handoff.proto` | `sw4rm.handoff` | Agent-to-agent task handoff (§17.6) |
+| `workflow.proto` | `sw4rm.workflow` | DAG-based workflow orchestration (§17.7) |
+| `connector.proto` | `sw4rm.connector` | External service integration |
+| `reasoning.proto` | `sw4rm.reasoning` | Inference engine proxy |
+| `activity.proto` | `sw4rm.activity` | Activity buffer tracking |
+| `logging.proto` | `sw4rm.logging` | Observability and audit |
+| `policy.proto` | `sw4rm.policy` | Policy definitions (EffectivePolicy) |
 
 ## 16. Repository and Worktree Binding
 
@@ -721,6 +802,33 @@ The decision includes the complete vote list, aggregated score, policy version, 
 
 Implementations MUST support `WaitForDecision` RPC for synchronous workflows where the Producer blocks until a decision is rendered. Implementations SHOULD support configurable timeout.
 
+#### Policy-Based Auto-Approval
+
+Implementations SHOULD support configurable policy thresholds for automatic decision outcomes. When policy-based auto-approval is enabled:
+
+**Approval Thresholds**: Implementations MUST support the following configurable thresholds:
+
+- `min_score_threshold`: Minimum aggregated score required for auto-approval (RECOMMENDED default: 7.0)
+- `min_confidence_threshold`: Minimum average confidence required (RECOMMENDED default: 0.7)
+- `min_pass_ratio`: Minimum proportion of critics that passed the artifact (RECOMMENDED default: 0.8)
+- `max_std_dev`: Maximum score standard deviation for auto-approval (RECOMMENDED default: 2.0)
+
+**Auto-Approval Rules**: The Coordinator SHOULD apply auto-approval when ALL of the following conditions are met:
+
+1. `aggregated_score.weighted_mean >= min_score_threshold`
+2. Average confidence across votes >= `min_confidence_threshold`
+3. Proportion of votes with `passed=true` >= `min_pass_ratio`
+4. `aggregated_score.std_dev <= max_std_dev`
+
+**Auto-Escalation Rules**: The Coordinator MUST escalate to HITL when ANY of the following conditions are met:
+
+1. Any critic vote has `confidence < 0.3` (high uncertainty)
+2. `aggregated_score.std_dev > 3.0` (extreme disagreement)
+3. Any critic explicitly requests escalation via recommendations
+4. Policy timeout expires before sufficient votes are received
+
+**Policy Version Tracking**: Decisions MUST include the `policy_version` field identifying which policy configuration was applied. Implementations SHOULD support policy versioning to enable audit and rollback.
+
 ### 17.6 Agent Handoff Protocol
 
 The Handoff Protocol enables safe delegation of work between agents when capability requirements change or workload balancing is needed.
@@ -816,6 +924,26 @@ The `input_mapping` and `output_mapping` fields enable data flow between nodes t
 
 - Before node execution: Values from `workflow_data` are extracted per `input_mapping`
 - After node completion: Node outputs are written back to `workflow_data` per `output_mapping`
+
+#### DAG Validation and Cycle Detection
+
+Implementations MUST validate workflow definitions to ensure they form valid Directed Acyclic Graphs (DAGs). Validation MUST occur during `CreateWorkflow` before the workflow is persisted.
+
+**Cycle Detection Requirements**:
+
+1. Implementations MUST detect cycles in the dependency graph before accepting a workflow definition.
+2. When a cycle is detected, `CreateWorkflow` MUST fail with `error_code=workflow_cycle_detected`.
+3. The error response SHOULD include the nodes involved in the cycle to aid debugging.
+
+**Validation Algorithm**: Implementations SHOULD use topological sort (Kahn's algorithm or DFS-based) to detect cycles. The algorithm MUST complete in O(V + E) time where V is the number of nodes and E is the number of dependency edges.
+
+**Additional Validation Rules**:
+
+- All `node_id` values referenced in `dependencies` MUST exist in the workflow's `nodes` map.
+- Self-referential dependencies (node depending on itself) MUST be rejected.
+- Implementations SHOULD warn (but MAY accept) workflows with unreachable nodes (nodes with no path from any root node).
+
+**Root Node Detection**: Nodes with empty `dependencies` lists are root nodes and MUST be executed first. A valid workflow MUST have at least one root node.
 
 #### Workflow Operations
 
@@ -1341,6 +1469,79 @@ sequenceDiagram
     H-->>S: HITL_DECISION(decide=B)
     S->>FE: DECISION B
     S->>GQL: DECISION B
+```
+
+### C.10 Negotiation Room: Producer-Critic-Coordinator Flow
+
+```mermaid
+sequenceDiagram
+    participant P as Producer Agent
+    participant NR as NegotiationRoom Service
+    participant C1 as Critic Agent 1
+    participant C2 as Critic Agent 2
+    participant CO as Coordinator
+    participant H as HITL
+    P->>NR: SubmitProposal(artifact, critics=[C1,C2])
+    NR-->>P: artifact_id
+    NR->>C1: notify: artifact ready for review
+    NR->>C2: notify: artifact ready for review
+    C1->>NR: SubmitVote(score=8, confidence=0.9, passed=true)
+    C2->>NR: SubmitVote(score=6, confidence=0.7, passed=true)
+    CO->>NR: aggregate votes
+    Note over CO: weighted_mean=7.2, std_dev=1.0
+    alt Auto-Approve (meets thresholds)
+        CO->>NR: NegotiationDecision(APPROVED)
+    else High Disagreement
+        CO->>H: HITL_INVOCATION(NEGOTIATION_CONFLICT)
+        H-->>CO: HITL_DECISION
+        CO->>NR: NegotiationDecision(outcome)
+    end
+    NR-->>P: decision notification
+```
+
+### C.11 Agent Handoff Flow
+
+```mermaid
+sequenceDiagram
+    participant A as Agent A (origin)
+    participant HS as Handoff Service
+    participant S as Scheduler
+    participant B as Agent B (target)
+    A->>HS: RequestHandoff(to=B, context, capabilities_required)
+    HS->>S: validate capabilities
+    S-->>HS: B has required capabilities
+    HS->>B: pending handoff notification
+    HS-->>A: request_id (PENDING)
+    B->>HS: AcceptHandoff(request_id)
+    HS-->>A: HandoffResponse(accepted=true)
+    Note over A: Stop work on context
+    A->>HS: CompleteHandoff(request_id, COMPLETED)
+    Note over B: Resume work with context_snapshot
+```
+
+### C.12 DAG Workflow Execution
+
+```mermaid
+sequenceDiagram
+    participant O as Orchestrator
+    participant WS as Workflow Service
+    participant A as Agent A (node1)
+    participant B as Agent B (node2)
+    participant C as Agent C (node3)
+    O->>WS: CreateWorkflow(definition)
+    Note over WS: Validate DAG (no cycles)
+    WS-->>O: workflow_id
+    O->>WS: StartWorkflow(workflow_id, initial_data)
+    WS->>A: execute node1 (root, no deps)
+    A-->>WS: node1 COMPLETED, output
+    Note over WS: Update workflow_data
+    par Parallel execution
+        WS->>B: execute node2 (deps: [node1])
+        WS->>C: execute node3 (deps: [node1])
+    end
+    B-->>WS: node2 COMPLETED
+    C-->>WS: node3 COMPLETED
+    WS-->>O: workflow COMPLETED
 ```
 
 ---

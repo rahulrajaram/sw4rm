@@ -1,0 +1,24 @@
+{
+  "bindings_extracted": 0,
+  "config_hash": "c005605ff6b5840bd5147e7d8ea6c3d82a5451cea3e2affa0e4aef818f3ad2db",
+  "driver": "pyright",
+  "driver_version": "unknown",
+  "language": "python",
+  "languages_indexed": [
+    "python"
+  ],
+  "root": "/home/rahul/Documents/sigagent",
+  "schema_version": 1,
+  "snapshot_id": "f1305a85969029bef56867d9f5498454d65f3e55fad331b5335c9a8358399b10",
+  "stats": {
+    "confidence": {
+      "may": 0,
+      "must": 10556,
+      "unknown": 0
+    },
+    "files_discovered": 181,
+    "references_found": 4334,
+    "symbols_indexed": 2011,
+    "types_extracted": 0
+  }
+}
