@@ -1,4 +1,5 @@
 // Base gRPC client with metadata, deadlines, and simple retry
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as grpc from '@grpc/grpc-js';
@@ -42,7 +43,9 @@ export class BaseClient {
 
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const protosDir = path.resolve(__dirname, '../../../../protos');
+
+    // Resolve protos directory - try multiple locations for dev vs npm package
+    const protosDir = this.resolveProtosDir(__dirname);
 
     const loaderOpts: protoLoader.Options = {
       keepCase: true,
@@ -74,6 +77,32 @@ export class BaseClient {
     this.interceptors.use(loggingInterceptor());
     if (opts.interceptors) opts.interceptors(this.interceptors);
     if (opts.errorMapper) opts.errorMapper(this.errorMapper);
+  }
+
+  /**
+   * Resolves the protos directory, checking multiple locations:
+   * 1. npm package: ./protos relative to package root
+   * 2. Monorepo dev: ../../../../protos relative to this file
+   */
+  private resolveProtosDir(dirname: string): string {
+    // Candidate paths in order of preference
+    const candidates = [
+      // npm package structure: node_modules/@sw4rm/js-sdk/protos
+      path.resolve(dirname, '../../protos'),
+      // Alternative npm structure: dist/esm/internal -> protos
+      path.resolve(dirname, '../../../protos'),
+      // Monorepo development: sdks/js_sdk/src/internal -> protos
+      path.resolve(dirname, '../../../../protos'),
+    ];
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate) && fs.existsSync(path.join(candidate, 'common.proto'))) {
+        return candidate;
+      }
+    }
+
+    // Fallback to monorepo path (will error at load time if not found)
+    return candidates[candidates.length - 1];
   }
 
   protected channelCredentials(): grpc.ChannelCredentials {

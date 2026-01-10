@@ -14,7 +14,8 @@
     }
   },
   "scripts": {
-    "build": "npm run build:proto && npm run build:lib",
+    "build": "npm run build:proto && npm run build:lib && npm run copy:protos",
+    "copy:protos": "rm -rf protos && cp -r ../../protos protos",
     "example": "tsx",
     "build:proto": "npm run proto:js && npm run proto:ts",
     "build:lib": "npm run build:esm && npm run build:cjs && npm run build:types",
@@ -30,6 +31,7 @@
   },
   "files": [
     "dist",
+    "protos",
     "README.md",
     "LICENSE"
   ],

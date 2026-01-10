@@ -198,3 +198,295 @@ impl ToolClient {
         &self.endpoint
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test ExecutionPolicyConfig default values
+    #[test]
+    fn test_execution_policy_config_default() {
+        let config = ExecutionPolicyConfig::default();
+
+        assert_eq!(config.timeout, Some(Duration::from_secs(30)));
+        assert_eq!(config.max_retries, 3);
+        assert_eq!(config.backoff, "exponential");
+        assert!(!config.worktree_required);
+        assert_eq!(config.network_policy, "restricted");
+        assert_eq!(config.privilege_level, "default");
+        assert_eq!(config.budget_cpu_ms, 30000);
+        assert_eq!(config.budget_wall_ms, 30000);
+    }
+
+    /// Test ExecutionPolicyConfig custom values
+    #[test]
+    fn test_execution_policy_config_custom() {
+        let config = ExecutionPolicyConfig {
+            timeout: Some(Duration::from_secs(60)),
+            max_retries: 5,
+            backoff: "linear".to_string(),
+            worktree_required: true,
+            network_policy: "full".to_string(),
+            privilege_level: "elevated".to_string(),
+            budget_cpu_ms: 60000,
+            budget_wall_ms: 120000,
+        };
+
+        assert_eq!(config.timeout, Some(Duration::from_secs(60)));
+        assert_eq!(config.max_retries, 5);
+        assert_eq!(config.backoff, "linear");
+        assert!(config.worktree_required);
+        assert_eq!(config.network_policy, "full");
+        assert_eq!(config.privilege_level, "elevated");
+    }
+
+    /// Test ExecutionPolicyConfig without timeout
+    #[test]
+    fn test_execution_policy_config_no_timeout() {
+        let config = ExecutionPolicyConfig {
+            timeout: None,
+            ..ExecutionPolicyConfig::default()
+        };
+
+        assert!(config.timeout.is_none());
+    }
+
+    /// Test ToolCall construction
+    #[test]
+    fn test_tool_call_construction() {
+        let tool_call = ToolCall {
+            call_id: "call-123".to_string(),
+            tool_name: "read_file".to_string(),
+            provider_id: "provider-1".to_string(),
+            content_type: "application/json".to_string(),
+            args: b"{\"path\": \"/tmp/test.txt\"}".to_vec(),
+            policy: None,
+            stream: false,
+        };
+
+        assert_eq!(tool_call.call_id, "call-123");
+        assert_eq!(tool_call.tool_name, "read_file");
+        assert_eq!(tool_call.provider_id, "provider-1");
+        assert_eq!(tool_call.content_type, "application/json");
+        assert!(!tool_call.stream);
+    }
+
+    /// Test ToolCall with minimal parameters
+    #[test]
+    fn test_tool_call_minimal() {
+        let tool_call = ToolCall {
+            call_id: "call-1".to_string(),
+            tool_name: "echo".to_string(),
+            provider_id: String::new(),
+            content_type: String::new(),
+            args: vec![],
+            policy: None,
+            stream: false,
+        };
+
+        assert_eq!(tool_call.call_id, "call-1");
+        assert_eq!(tool_call.tool_name, "echo");
+        assert!(tool_call.provider_id.is_empty());
+    }
+
+    /// Test ToolCall with execution policy
+    #[test]
+    fn test_tool_call_with_policy() {
+        let policy = ExecutionPolicy {
+            timeout: Some(prost_types::Duration {
+                seconds: 30,
+                nanos: 0,
+            }),
+            max_retries: 3,
+            backoff: "exponential".to_string(),
+            worktree_required: false,
+            network_policy: "restricted".to_string(),
+            privilege_level: "default".to_string(),
+            budget_cpu_ms: 30000,
+            budget_wall_ms: 30000,
+        };
+
+        let tool_call = ToolCall {
+            call_id: "call-1".to_string(),
+            tool_name: "long_running".to_string(),
+            provider_id: "provider-1".to_string(),
+            content_type: "application/json".to_string(),
+            args: vec![],
+            policy: Some(policy),
+            stream: false,
+        };
+
+        assert!(tool_call.policy.is_some());
+        let p = tool_call.policy.unwrap();
+        assert_eq!(p.max_retries, 3);
+    }
+
+    /// Test ToolCall with streaming enabled
+    #[test]
+    fn test_tool_call_streaming() {
+        let tool_call = ToolCall {
+            call_id: "call-1".to_string(),
+            tool_name: "stream_logs".to_string(),
+            provider_id: "provider-1".to_string(),
+            content_type: "application/json".to_string(),
+            args: vec![],
+            policy: None,
+            stream: true,
+        };
+
+        assert!(tool_call.stream);
+    }
+
+    /// Test ToolCallParams structure
+    #[test]
+    fn test_tool_call_params() {
+        let params = ToolCallParams {
+            call_id: "call-123",
+            tool_name: "read_file",
+            provider_id: "provider-1",
+            content_type: "application/json",
+            args: b"{\"path\": \"/test\"}".to_vec(),
+            policy: None,
+            stream: false,
+        };
+
+        assert_eq!(params.call_id, "call-123");
+        assert_eq!(params.tool_name, "read_file");
+        assert_eq!(params.provider_id, "provider-1");
+        assert_eq!(params.content_type, "application/json");
+        assert!(!params.stream);
+    }
+
+    /// Test ToolCallParams with policy
+    #[test]
+    fn test_tool_call_params_with_policy() {
+        let policy_config = ExecutionPolicyConfig::default();
+
+        let params = ToolCallParams {
+            call_id: "call-1",
+            tool_name: "test",
+            provider_id: "provider",
+            content_type: "application/json",
+            args: vec![],
+            policy: Some(policy_config),
+            stream: false,
+        };
+
+        assert!(params.policy.is_some());
+        let p = params.policy.unwrap();
+        assert_eq!(p.max_retries, 3);
+    }
+
+    /// Test binary args
+    #[test]
+    fn test_binary_args() {
+        let binary_data: Vec<u8> = vec![0x00, 0x01, 0x02, 0xff, 0xfe, 0xfd];
+
+        let tool_call = ToolCall {
+            call_id: "call-1".to_string(),
+            tool_name: "process_binary".to_string(),
+            provider_id: "provider-1".to_string(),
+            content_type: "application/octet-stream".to_string(),
+            args: binary_data.clone(),
+            policy: None,
+            stream: false,
+        };
+
+        assert_eq!(tool_call.args, binary_data);
+    }
+
+    /// Test large args payload
+    #[test]
+    fn test_large_args() {
+        // 1MB of data
+        let large_data: Vec<u8> = vec![b'x'; 1024 * 1024];
+
+        let tool_call = ToolCall {
+            call_id: "call-1".to_string(),
+            tool_name: "process_large".to_string(),
+            provider_id: "provider-1".to_string(),
+            content_type: "application/octet-stream".to_string(),
+            args: large_data.clone(),
+            policy: None,
+            stream: false,
+        };
+
+        assert_eq!(tool_call.args.len(), 1024 * 1024);
+    }
+
+    /// Test cancel request (minimal ToolCall)
+    #[test]
+    fn test_cancel_request() {
+        let cancel_call = ToolCall {
+            call_id: "call-to-cancel".to_string(),
+            tool_name: String::new(),
+            provider_id: String::new(),
+            content_type: "application/json".to_string(),
+            args: b"{}".to_vec(),
+            policy: None,
+            stream: false,
+        };
+
+        assert_eq!(cancel_call.call_id, "call-to-cancel");
+        assert!(cancel_call.tool_name.is_empty());
+    }
+
+    /// Test ExecutionPolicy conversion
+    #[test]
+    fn test_execution_policy_conversion() {
+        let config = ExecutionPolicyConfig {
+            timeout: Some(Duration::from_secs(45)),
+            max_retries: 5,
+            backoff: "linear".to_string(),
+            worktree_required: true,
+            network_policy: "full".to_string(),
+            privilege_level: "elevated".to_string(),
+            budget_cpu_ms: 50000,
+            budget_wall_ms: 60000,
+        };
+
+        let policy = ExecutionPolicy {
+            timeout: config.timeout.map(|t| prost_types::Duration {
+                seconds: t.as_secs() as i64,
+                nanos: t.subsec_nanos() as i32,
+            }),
+            max_retries: config.max_retries,
+            backoff: config.backoff.clone(),
+            worktree_required: config.worktree_required,
+            network_policy: config.network_policy.clone(),
+            privilege_level: config.privilege_level.clone(),
+            budget_cpu_ms: config.budget_cpu_ms,
+            budget_wall_ms: config.budget_wall_ms,
+        };
+
+        assert_eq!(policy.max_retries, 5);
+        assert_eq!(policy.backoff, "linear");
+        assert!(policy.worktree_required);
+        assert!(policy.timeout.is_some());
+        let t = policy.timeout.unwrap();
+        assert_eq!(t.seconds, 45);
+    }
+
+    /// Test multiple tool calls
+    #[test]
+    fn test_multiple_tool_calls() {
+        let calls: Vec<ToolCall> = vec!["read_file", "write_file", "execute"]
+            .into_iter()
+            .enumerate()
+            .map(|(i, name)| ToolCall {
+                call_id: format!("call-{}", i),
+                tool_name: name.to_string(),
+                provider_id: "provider-1".to_string(),
+                content_type: "application/json".to_string(),
+                args: vec![],
+                policy: None,
+                stream: false,
+            })
+            .collect();
+
+        assert_eq!(calls.len(), 3);
+        assert_eq!(calls[0].tool_name, "read_file");
+        assert_eq!(calls[1].tool_name, "write_file");
+        assert_eq!(calls[2].tool_name, "execute");
+    }
+}

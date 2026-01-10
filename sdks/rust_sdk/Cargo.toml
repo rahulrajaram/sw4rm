@@ -39,6 +39,10 @@ pin-project-lite = "0.2"
 tokio-stream = "0.1"
 mockall = { version = "0.12", optional = true }
 
+# Audit module dependencies
+sha2 = "0.10"
+hex = "0.4"
+
 # Protobuf build dependencies
 [build-dependencies]
 tonic-build = "0.12"

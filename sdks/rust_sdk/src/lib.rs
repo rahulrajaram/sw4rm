@@ -65,6 +65,7 @@
 pub mod ack_integration;
 pub mod acks;
 pub mod activity_buffer;
+pub mod audit;
 pub mod clients;
 pub mod config;
 pub mod constants;
@@ -95,6 +96,10 @@ pub use secrets::*;
 pub use types::*;
 
 // Phase 3: Re-export new modules
+pub use audit::{
+    AuditPolicy, AuditProof, AuditRecord, Auditor, InMemoryAuditor, NoOpAuditor,
+    compute_envelope_hash, create_simple_proof, verify_audit_proof,
+};
 pub use policy_store::{
     EffectivePolicy, EscalationPolicy, ExecutionPolicy, InMemoryPolicyStore,
     JsonFilePolicyStore, NegotiationPolicy, PolicyStore, ScoringConfig,

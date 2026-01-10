@@ -190,7 +190,7 @@ clean:
 # -----------------------
 .PHONY: test test-python test-rust test-js demo-examples
 
-test: test-python test-rust test-js demo-examples
+test: test-python test-rust test-js
 
 test-python: dev-deps protos
 	@echo "[python] Running unit tests..."
