@@ -188,9 +188,9 @@ clean:
 # -----------------------
 # Unified Testing
 # -----------------------
-.PHONY: test test-python test-rust test-js demo-examples
+.PHONY: test test-python test-rust test-js test-lisp demo-examples
 
-test: test-python test-rust test-js
+test: test-python test-rust test-js test-lisp
 
 test-python: dev-deps protos
 	@echo "[python] Running unit tests..."
@@ -223,6 +223,21 @@ test-js:
 	else \
 	  echo "[js] Node.js not found. Install Node >= 20 to run JS tests."; \
 	  exit 3; \
+	fi
+
+test-lisp:
+	@set -e; \
+	if command -v sbcl >/dev/null 2>&1; then \
+	  if [ -f "$$HOME/quicklisp/setup.lisp" ]; then \
+	    echo "[lisp] Running Common Lisp tests..."; \
+	    $(MAKE) -C sdks/cl_sdk test; \
+	  else \
+	    echo "[lisp] Quicklisp not found at $$HOME/quicklisp/setup.lisp. Install Quicklisp to run Lisp tests."; \
+	    exit 4; \
+	  fi; \
+	else \
+	  echo "[lisp] SBCL not found. Install SBCL to run Lisp tests."; \
+	  exit 5; \
 	fi
 
 # Run JS ACK demo examples that exercise Router + ACK flow

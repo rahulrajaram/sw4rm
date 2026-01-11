@@ -1,0 +1,68 @@
+name: Common Lisp CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lisp:
+    name: SBCL Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SBCL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sbcl
+
+      - name: Install Quicklisp
+        run: |
+          curl -O https://beta.quicklisp.org/quicklisp.lisp
+          sbcl --non-interactive \
+               --load quicklisp.lisp \
+               --eval '(quicklisp-quickstart:install)' \
+               --eval '(ql:add-to-init-file)'
+
+      - name: Cache Quicklisp
+        uses: actions/cache@v4
+        with:
+          path: ~/quicklisp
+          key: ${{ runner.os }}-quicklisp-${{ hashFiles('sdks/cl_sdk/sw4rm-orchestrator.asd') }}
+          restore-keys: |
+            ${{ runner.os }}-quicklisp-
+
+      - name: Install dependencies
+        working-directory: sdks/cl_sdk
+        run: |
+          sbcl --non-interactive \
+               --load ~/quicklisp/setup.lisp \
+               --eval '(push #p"." asdf:*central-registry*)' \
+               --eval '(ql:quickload :sw4rm-orchestrator :silent t)' \
+               --eval '(format t "~%Dependencies installed successfully~%")'
+
+      - name: Run tests
+        working-directory: sdks/cl_sdk
+        run: |
+          sbcl --non-interactive \
+               --load ~/quicklisp/setup.lisp \
+               --eval '(push #p"." asdf:*central-registry*)' \
+               --eval '(ql:quickload :sw4rm-orchestrator/test :silent t)' \
+               --eval '(asdf:test-system :sw4rm-orchestrator)' \
+               --eval '(sb-ext:exit :code 0)'
+
+      - name: Verify examples load
+        working-directory: sdks/cl_sdk
+        run: |
+          sbcl --non-interactive \
+               --load ~/quicklisp/setup.lisp \
+               --eval '(push #p"." asdf:*central-registry*)' \
+               --eval '(ql:quickload :sw4rm-orchestrator :silent t)' \
+               --eval '(load "examples/envelope-semantics.lisp")' \
+               --eval '(load "examples/cross-swarm-handoff.lisp")' \
+               --eval '(load "examples/microservices.lisp")' \
+               --eval '(load "examples/negotiation-room.lisp")' \
+               --eval '(load "examples/checkpoint-restore.lisp")' \
+               --eval '(format t "~%All examples loaded successfully~%")' \
+               --eval '(sb-ext:exit :code 0)'

@@ -198,7 +198,7 @@ SDK implementers building clients for SW4RM services should consult the suppleme
 
 - **Error Codes**: Cross-SDK error code mappings, exception handling patterns, and gRPC status code requirements for Phase 3 integration. See [Error Codes Documentation](../../sdks/docs/ERROR_CODES.md).
 
-These documents ensure behavioral consistency across Python, Rust, and TypeScript SDK implementations.
+These documents ensure behavioral consistency across Python, Rust, TypeScript, and Common Lisp SDK implementations.
 
 ## 6. Identity and Security
 

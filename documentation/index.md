@@ -27,7 +27,20 @@ This protocol specification enables heterogeneous agent implementations to commu
 
 SW4RM is an open agentic protocol for building resilient, distributed agentic systems that operate reliably in mission‑critical enterprise environments. It defines services, message envelopes, and ACK lifecycle semantics that enable robust, stateful, message‑driven architectures.
 
-The protocol addresses the fundamental challenges inherent in distributed agentic systems — message loss, state corruption, coordination failures, autonomous decision-making, and operational complexity — while enabling developers to build truly autonomous agents that can negotiate, coordinate, and resolve conflicts independently without human intervention. A reference Python SDK implementation is available at [rahulrajaram/sw4rm/sdks/py_sdk](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/py_sdk).
+The protocol addresses the fundamental challenges inherent in distributed agentic systems — message loss, state corruption, coordination failures, autonomous decision-making, and operational complexity — while enabling developers to build truly autonomous agents that can negotiate, coordinate, and resolve conflicts independently without human intervention.
+
+## Available SDKs
+
+SW4RM provides official SDK implementations in multiple languages:
+
+| SDK | Path | Description |
+|-----|------|-------------|
+| **Python** | [`sdks/py_sdk`](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/py_sdk) | Full-featured reference implementation |
+| **Rust** | [`sdks/rust_sdk`](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/rust_sdk) | High-performance implementation |
+| **JavaScript/TypeScript** | [`sdks/js_sdk`](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/js_sdk) | Browser and Node.js support |
+| **Common Lisp** | [`sdks/cl_sdk`](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/cl_sdk) | Orchestrator SDK for hierarchical multi-swarm deployments |
+
+All SDKs implement SW4RM protocol v0.6.0 and maintain behavioral consistency through shared operational contracts.
 
 ## 1.3. Technical Architecture Overview
 

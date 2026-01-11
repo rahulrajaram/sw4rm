@@ -1,0 +1,52 @@
+# Dockerfile.coordination
+#
+# SW4RM Common Lisp Coordination Server
+# (Unified server for Handoff, Workflow, NegotiationRoom services)
+#
+# Build:
+#   docker build -f Dockerfile.coordination -t sw4rm-cl-coordination ../../..
+#
+# Run:
+#   docker run -p 50060:50060 sw4rm-cl-coordination
+
+FROM debian:bookworm-slim
+
+# Install SBCL and dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    sbcl \
+    curl \
+    ca-certificates \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up working directory
+WORKDIR /app
+
+# Install Quicklisp
+RUN curl -O https://beta.quicklisp.org/quicklisp.lisp && \
+    sbcl --non-interactive \
+         --load quicklisp.lisp \
+         --eval '(quicklisp-quickstart:install)' && \
+    rm quicklisp.lisp
+
+# Copy the SDK
+COPY sdks/cl_sdk /app/sdks/cl_sdk
+
+# Install SDK dependencies
+RUN sbcl --non-interactive \
+         --load ~/quicklisp/setup.lisp \
+         --eval '(push #p"/app/sdks/cl_sdk/" asdf:*central-registry*)' \
+         --eval '(ql:quickload :sw4rm-orchestrator :silent t)' \
+         --eval '(format t "~%Dependencies installed~%")'
+
+# Copy coordination service files
+COPY sdks/cl_sdk/reference-services/coordination /app/coordination
+
+# Expose port
+EXPOSE 50060
+
+# Run service
+CMD ["sbcl", "--non-interactive", \
+     "--load", "/root/quicklisp/setup.lisp", \
+     "--load", "/app/coordination/server.lisp", \
+     "--eval", "(coordination-server:main)"]

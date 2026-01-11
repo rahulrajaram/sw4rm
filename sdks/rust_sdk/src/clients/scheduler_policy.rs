@@ -126,8 +126,8 @@ mod tests {
     #[test]
     fn test_get_negotiation_policy_request() {
         let request = GetNegotiationPolicyRequest {};
-        // Just verify it can be constructed (empty message)
-        assert!(std::mem::size_of_val(&request) >= 0);
+        let default = GetNegotiationPolicyRequest::default();
+        assert_eq!(request, default);
     }
 
     /// Test SetPolicyProfilesRequest with empty list
@@ -142,8 +142,8 @@ mod tests {
     #[test]
     fn test_list_policy_profiles_request() {
         let request = ListPolicyProfilesRequest {};
-        // Just verify it can be constructed (empty message)
-        assert!(std::mem::size_of_val(&request) >= 0);
+        let default = ListPolicyProfilesRequest::default();
+        assert_eq!(request, default);
     }
 
     /// Test GetEffectivePolicyRequest construction

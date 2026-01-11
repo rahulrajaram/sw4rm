@@ -1,5 +1,5 @@
 site_name: SW4RM Agentic Protocol
-site_description: Open agentic protocol with a reference Python SDK
+site_description: Open agentic protocol with SDKs for Python, Rust, JavaScript, and Common Lisp
 site_author: SW4RM Team
 site_url: https://sw4rm.ai
 

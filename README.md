@@ -5,12 +5,13 @@
 [![JS CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-js.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-js.yml)
 [![Examples: ACK Demo](https://github.com/rahulrajaram/sw4rm/actions/workflows/examples-sdk-usage.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/examples-sdk-usage.yml)
 
-SW4RM is an open agentic protocol for building message-driven agents with guaranteed delivery, persistent state, and rich observability. This repository provides three SDKs that implement the protocol — Python, Rust, and JavaScript — including clients, lightweight runtimes, and helpers for ACK lifecycle, worktree/state handling, and more.
+SW4RM is an open agentic protocol for building message-driven agents with guaranteed delivery, persistent state, and rich observability. This repository provides four SDKs that implement the protocol — Python, Rust, JavaScript, and Common Lisp — including clients, lightweight runtimes, and helpers for ACK lifecycle, worktree/state handling, and more.
 
 SDKs
 - Python: `sdks/py_sdk` — see `sdks/py_sdk/README.md`
 - Rust: `sdks/rust_sdk` — see `sdks/rust_sdk/README.md`
 - JavaScript: `sdks/js_sdk` — see `sdks/js_sdk/README.md`
+- Common Lisp: `sdks/cl_sdk` — see `sdks/cl_sdk/README.md` (Orchestrator SDK for hierarchical multi-swarm deployments)
 
 ## CI Workflows
 
