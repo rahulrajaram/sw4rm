@@ -131,7 +131,7 @@ The site supports:
 
 1. Create a new `.md` file in the appropriate directory
 2. Add to the `nav` section in `mkdocs.yml`
-3. Use relative links: `[Link text](../other-section/page.md)`
+3. Use relative links: `[Protocol Specification](protocol/spec.md)`
 
 ## Future Enhancements
 

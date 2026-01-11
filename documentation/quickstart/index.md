@@ -1,6 +1,54 @@
 # 2. Comprehensive Getting Started Guide
 
-Terminology: In SW4RM, an “Agent” is a supervised, process‑isolated participant with registry‑backed identity, explicit message lifecycles, and cooperative preemption (see “Agents and Agentic Interaction” in documentation/index.md). This differs from the common “LLM wrapper” usage.
+Terminology: In SW4RM, an "Agent" is a supervised, process‑isolated participant with registry‑backed identity, explicit message lifecycles, and cooperative preemption (see "Agents and Agentic Interaction" in documentation/index.md). This differs from the common "LLM wrapper" usage.
+
+## 2.0. Quick Start (5 Minutes)
+
+**Want to get started fast?** Follow this minimal path to create your first working agent:
+
+1. **Install the SDK:**
+   ```bash
+   cd /path/to/sw4rm-sdk
+   python -m pip install -e ".[dev]"
+   make protos
+   ```
+
+2. **Create `my_first_agent.py`** with this minimal example:
+   ```python
+   #!/usr/bin/env python3
+   import grpc
+   from sw4rm.clients.registry import RegistryClient
+   from sw4rm.clients.router import RouterClient
+   from sw4rm import constants as C
+
+   agent_id = "quickstart-agent"
+
+   # Connect
+   router_ch = grpc.insecure_channel("localhost:50051")
+   registry_ch = grpc.insecure_channel("localhost:50052")
+   registry = RegistryClient(registry_ch)
+   router = RouterClient(router_ch)
+
+   # Register
+   response = registry.register({
+       "agent_id": agent_id,
+       "name": "MyFirstAgent",
+       "capabilities": ["processing"],
+       "communication_class": C.STANDARD,
+   })
+   print(f"Registered: {response.accepted}")
+
+   # Process messages
+   for item in router.stream_incoming(agent_id):
+       envelope = getattr(item, "msg", item)
+       print(f"Received: {envelope.message_type}")
+   ```
+
+3. **Run it:** `python my_first_agent.py`
+
+For a complete tutorial with persistence, ACK handling, and testing, see the [full QUICKSTART tutorial](https://github.com/rahulrajaram/sw4rm/blob/master/QUICKSTART.md) (to be migrated here soon).
+
+---
 
 This comprehensive guide provides detailed instructions for developing, configuring, and deploying production-ready agents using the SW4RM SDKs. The guide covers every aspect from system requirements and architectural concepts to advanced configuration patterns and troubleshooting procedures.
 

@@ -494,7 +494,7 @@ ack: {
 - The system collects metrics for throughput, latency, and error rates.
 - The system logs in structured format with correlation IDs.
 
-## 3.9. Comparison with Google's Agent-to-Agent Protocol {#39-comparison-with-googles-agent-to-agent-protocol}
+## 3.9. Comparison with Google's Agent-to-Agent Protocol
 
 ### Overview of Google's A2A Protocol
 

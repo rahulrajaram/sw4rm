@@ -147,6 +147,37 @@ scheduler.shutdown_agent(
 )
 ```
 
+### ActivityClient
+
+Persists and retrieves negotiation artifacts via ActivityService. This is separate from the local Activity Buffer used by agents and the Scheduler.
+
+```python
+from sw4rm.clients.activity import ActivityClient
+from datetime import datetime, timezone
+import grpc
+
+channel = grpc.insecure_channel("localhost:PORT")  # Activity service address
+activity = ActivityClient(channel)
+
+# Append an artifact for a negotiation
+created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+response = activity.append_artifact(
+    negotiation_id="neg-123",
+    kind="contract",  # common kinds: contract, diff, decision, score, note
+    version="v3",
+    content_type="application/json",
+    content=b'{"contract": "v3 data"}',
+    created_at=created_at,
+)
+if not response.ok:
+    raise RuntimeError(response.reason)
+
+# List artifacts (optionally filter by kind)
+artifacts = activity.list_artifacts(negotiation_id="neg-123", kind="contract")
+for artifact in artifacts.items:
+    print(f"{artifact.kind} {artifact.version} {artifact.content_type}")
+```
+
 ### WorktreeClient
 
 Manages worktree bindings and state transitions for agents that need file system access.
@@ -232,6 +263,79 @@ for frame in tool_client.call_stream(call_config):
 # Cancel a running tool call
 tool_client.cancel({"call_id": "call-001"})
 ```
+
+### ConnectorClient
+
+Registers tool providers and describes their tool capabilities.
+
+```python
+from sw4rm.clients.connector import ConnectorClient
+import grpc
+
+channel = grpc.insecure_channel("localhost:PORT")  # Connector service address
+connector = ConnectorClient(channel)
+
+# Register a tool provider and its tools
+tools = [
+    {
+        "tool_name": "code_analyzer",
+        "input_schema": "https://example.com/schemas/code_analyzer/input.json",
+        "output_schema": "https://example.com/schemas/code_analyzer/output.json",
+        "idempotent": True,
+        "needs_worktree": True,
+        "default_timeout_s": 30,
+        "max_concurrency": 4,
+        "side_effects": "filesystem",
+    }
+]
+response = connector.register_provider(
+    provider_id="static-analyzer-v2",
+    tools=tools
+)
+if not response.ok:
+    raise RuntimeError(response.reason)
+
+# Fetch tool descriptors for a provider
+described = connector.describe_tools(provider_id="static-analyzer-v2")
+for tool in described.tools:
+    print(tool.tool_name, tool.idempotent)
+```
+
+### LoggingClient
+
+Ingests structured log events for audit trails and observability.
+
+```python
+from sw4rm.clients.logging import LoggingClient
+from google.protobuf.timestamp_pb2 import Timestamp
+from datetime import datetime, timezone
+import grpc
+import json
+
+channel = grpc.insecure_channel("localhost:50066")  # Logging service port
+logging_client = LoggingClient(channel)
+
+ts = Timestamp()
+ts.FromDatetime(datetime.now(timezone.utc))
+
+event = {
+    "ts": ts,
+    "correlation_id": "corr-123",
+    "agent_id": "agent-1",
+    "event_type": "task_started",
+    "level": "INFO",
+    "details_json": json.dumps({
+        "task_id": "task-1",
+        "queue": "default"
+    }),
+}
+
+response = logging_client.ingest(event)
+if not response.ok:
+    raise RuntimeError("Log ingest failed")
+```
+
+> **Tip:** If you see `RuntimeError: Protobuf stubs not generated`, run `make protos`.
 
 ### SchedulerPolicyClient
 

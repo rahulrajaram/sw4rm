@@ -8,7 +8,7 @@ Automate multi-stage deployments with durable state, approvals, and auditability
 
 
 - Key capabilities: persistent pipeline state, approval workflows with escalation, Git worktree binding, immutable audit logs.
-- Architectural reference: see [DevOps Automation and Infrastructure Orchestration](../index.md#151-example-1-devops-automation-and-infrastructure-orchestration).
+- Architectural reference: see [DevOps Automation and Infrastructure Orchestration](../index.md).
 
 ## 4.2. Data Processing and ETL Pipeline Management
 
@@ -16,11 +16,11 @@ Build resilient streaming and batch pipelines with checkpointing, schema evoluti
 
 
 - Key capabilities: checkpoint-based recovery, schema evolution handling, real-time quality checks, dead letter queues.
-- Architectural reference: see [Data Processing and ETL Pipeline Management](../index.md#152-example-2-data-processing-and-etl-pipeline-management).
+- Architectural reference: see [Data Processing and ETL Pipeline Management](../index.md).
 
 ## 4.3. Where to Start
 
 
-- Run example agents locally: see [Examples](./index.md#41-available-examples) and the `examples/` folder.
+- Run example agents locally: see [Running the Examples](./index.md) and the `examples/` folder.
 - Map requirements to primitives: approvals (HITL), repository context (Worktree), durable delivery (Router/ACK), and observability (audit/tracing).
 - For production rollouts, review [Deployment Patterns](./deployment.md).

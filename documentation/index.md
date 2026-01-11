@@ -42,6 +42,8 @@ SW4RM provides official SDK implementations in multiple languages:
 
 All SDKs implement SW4RM protocol v0.6.0 and maintain behavioral consistency through shared operational contracts.
 
+For gRPC service client APIs exposed by these SDKs, see the [SDK Clients](clients/index.md) reference.
+
 ## 1.3. Technical Architecture Overview
 
 SW4RM implements a **process-based architecture** where agents are independent processes that communicate through a central scheduler. The base case consists of multiple agent processes coordinating task execution and message exchange via standardized protocols. These are gRPC-based message formats, acknowledgment lifecycle, scheduling primitives, and negotiation protocols defined in the SW4RM specification. This architecture can scale from single-node deployments with local process communication to distributed microservices deployments across multiple hosts.
@@ -114,7 +116,7 @@ digraph G {
 ```
 </div>
 
-## 1.4. Enterprise Problem Resolution {#14-enterprise-problem-resolution}
+## 1.4. Enterprise Problem Resolution
 
 **Enterprises lack standardized inter-process communication (IPC) mechanisms for agentic systems, resulting in ad-hoc implementations that fail under production conditions.** Traditional distributed agentic systems exhibit systemic failures when these inadequate IPC mechanisms encounter real-world operational challenges. Common failure modes include:
 
@@ -145,7 +147,7 @@ SW4RM addresses these enterprise challenges through systematic architectural sol
 
 - **Duplicate Detection**: Idempotency tokens prevent duplicate message processing during retry scenarios
 
-### 1.4.2. Persistent State Management Architecture {#142-persistent-state-management-architecture}
+### 1.4.2. Persistent State Management Architecture
 
 **Multi-Level State Persistence**: SW4RM provides comprehensive state management across multiple persistence domains with different consistency and performance characteristics.
 
@@ -256,7 +258,7 @@ SW4RM addresses these enterprise challenges through systematic architectural sol
 
 SW4RM provides specialized implementations for complex enterprise scenarios that require reliable, stateful, and coordinated agentic systems. Each use case demonstrates the SDK's capability to handle specific enterprise requirements including fault tolerance, compliance, security, and operational excellence.
 
-### 1.5.1. Example 1: DevOps Automation and Infrastructure Orchestration {#151-example-1-devops-automation-and-infrastructure-orchestration}
+### 1.5.1. Example 1: DevOps Automation and Infrastructure Orchestration
 
 **Technical Implementation Requirements**:
 
@@ -313,7 +315,7 @@ sequenceDiagram
 - **Multi-Environment Orchestration**: Coordinated deployments across multiple environments ensure consistent application delivery through environment-specific configuration management and dependency orchestration.
 - **Compliance Automation**: Automated compliance checks integrate policy validation directly into deployment pipelines with comprehensive reporting capabilities for audit requirements and regulatory frameworks.
 
-### 1.5.2. Example 2: Data Processing and ETL Pipeline Management {#152-example-2-data-processing-and-etl-pipeline-management}
+### 1.5.2. Example 2: Data Processing and ETL Pipeline Management
 
 **Technical Requirements**:
 
@@ -420,7 +422,7 @@ sequenceDiagram
 
 This section previously included comparative and performance-oriented content. To avoid implying guarantees, it has been condensed to focus on qualitative architectural choices and trade-offs. Quantitative performance varies by workload, environment, and configuration.
 
-## 1.7. Detailed System Architecture {#17-detailed-system-architecture}
+## 1.7. Detailed System Architecture
 
 SW4RM SDK implements a **microservices architecture** with clearly defined service boundaries, standardized communication protocols, and comprehensive fault tolerance mechanisms. The architecture supports horizontal scaling, multi-tenancy, and zero-downtime deployments.
 

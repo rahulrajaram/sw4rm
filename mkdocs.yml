@@ -90,6 +90,23 @@ nav:
     - Deployment Patterns: examples/deployment.md
   - Architecture:
     - architecture/index.md
+  - SDK Clients:
+    - clients/index.md
+    - Router Client: clients/router.md
+    - Registry Client: clients/registry.md
+    - Scheduler Client: clients/scheduler.md
+    - Activity Client: clients/activity.md
+    - Connector Client: clients/connector.md
+    - Reasoning Client: clients/reasoning.md
+    - Scheduler Policy Client: clients/scheduler-policy.md
+    - Logging Client: clients/logging.md
+    - Handoff Client: clients/handoff.md
+    - HITL Client: clients/hitl.md
+    - Negotiation Client: clients/negotiation.md
+    - Negotiation Room Client: clients/negotiation-room.md
+    - Tool Client: clients/tool.md
+    - Workflow Client: clients/workflow.md
+    - Worktree Client: clients/worktree.md
 
 extra:
   social:

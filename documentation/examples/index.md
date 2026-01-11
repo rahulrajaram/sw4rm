@@ -32,7 +32,7 @@ Comprehensive examples demonstrating SW4RM SDK usage across Python, JavaScript/T
 
 </div>
 
-See [Reference Services](#46-reference-services) for detailed setup instructions.
+See the Reference Services section for detailed setup instructions.
 
 ## 4.2. SDK Feature Examples {#42-sdk-feature-examples}
 

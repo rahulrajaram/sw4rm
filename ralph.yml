@@ -1,0 +1,20 @@
+# Ralph - Documentation Quality Loop Configuration
+# ================================================
+# Autonomous agent for systematic documentation quality improvement
+# of the SW4RM Agentic Protocol project.
+
+cli:
+  backend: "codex"
+  args: ["exec"]
+  prompt_mode: "arg"
+
+event_loop:
+  prompt_file: "/home/rahul/Documents/sigagent/RALPH_PROMPT.md"
+  max_iterations: 50
+
+memories:
+  enabled: true
+  inject: auto
+
+tasks:
+  enabled: true

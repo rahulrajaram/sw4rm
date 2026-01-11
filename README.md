@@ -49,9 +49,9 @@ Reproduce locally
 
 ## Quick Start
 
-Looking for a local all-in-one stack? See the DevCore Quickstart to run in-repo Registry, Router, Scheduler, and Negotiation services:
+Looking for a local all-in-one stack? See the comprehensive getting started guide:
 
-- DevCore Quickstart: `QUICKSTART.md` (section "DevCore (Rust) Quickstart")
+- Getting Started Guide: [`documentation/quickstart/`](documentation/quickstart/index.md) with a 5-minute quick start section
 
 ### Basic Agent
 ```python
@@ -406,7 +406,7 @@ Notes
 make test
 
 # Run examples against local services
-# See QUICKSTART.md for how to start the in-repo services
+# See documentation/quickstart/index.md for setup instructions
 python examples/advanced_agent.py --router localhost:50051 --registry localhost:50052
 python examples/test_client.py --router localhost:50051 --registry localhost:50052
 ```

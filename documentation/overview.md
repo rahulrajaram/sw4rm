@@ -19,7 +19,7 @@ Note on terminology: This definition intentionally departs from some prevailing 
 
 Modern day computing stack employs well-defined communication protocols at each abstraction layer: operating systems provide POSIX IPC primitives (pipes, shared memory, message queues, semaphores), the network layer standardizes TCP/IP and UDP with socket APIs, application protocols include HTTP/REST, gRPC, and GraphQL with defined message semantics, message brokers implement AMQP and MQTT specifications, and AI tool integration uses the Model Context Protocol (MCP) for LLM-tool communication.
 
-**Agentic systems lack comprehensive standardization.** While protocols like MCP address specific use cases (tool integration), no universal standard exists for agent-to-agent communication, task scheduling, and message exchange between heterogeneous implementations, along with supporting capabilities like agent discovery and capability negotiation. SW4RM defines agent-to-agent communication more thoroughly than existing specifications like Google's A2A protocol (detailed comparison available in [Protocol Specification §3.9](protocol/index.md#39-comparison-with-googles-agent-to-agent-protocol)).
+**Agentic systems lack comprehensive standardization.** While protocols like MCP address specific use cases (tool integration), no universal standard exists for agent-to-agent communication, task scheduling, and message exchange between heterogeneous implementations, along with supporting capabilities like agent discovery and capability negotiation. SW4RM defines agent-to-agent communication more thoroughly than existing specifications like Google's A2A protocol (detailed comparison available in [Protocol Specification §3.9](protocol/index.md)).
 
 ### 1.1.2. Technical Implications
 
