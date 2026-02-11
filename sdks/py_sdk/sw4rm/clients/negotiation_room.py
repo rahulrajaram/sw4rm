@@ -10,7 +10,7 @@ supports:
 
 Based on SPEC_REQUESTS.md section 6.1.
 
-CONCURRENCY FIX (v0.6.0):
+CONCURRENCY FIX (v0.5.0):
 The client now uses a pluggable storage backend (NegotiationRoomStore) instead
 of instance-local storage. This enables multiple client instances to share
 state, which is essential for multi-agent deployments where producer, critic,

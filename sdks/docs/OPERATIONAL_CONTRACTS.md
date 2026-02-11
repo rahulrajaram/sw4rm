@@ -1,6 +1,6 @@
 # SW4RM SDK Operational Contracts
 
-**Version:** 0.6.0
+**Version:** 0.5.0
 **Last Updated:** 2026-01-10
 **Status:** Normative
 
@@ -137,7 +137,7 @@ The following gRPC status codes are **NOT retryable**:
 - `UNAUTHENTICATED` (16): Missing or invalid credentials
 - `UNIMPLEMENTED` (12): Method not supported
 
-**JavaScript SDK:** No automatic retry by default (as of v0.6.0). Applications must explicitly configure retry policy via `ClientOptions.retry` if needed.
+**JavaScript SDK:** No automatic retry by default (as of v0.5.0). Applications must explicitly configure retry policy via `ClientOptions.retry` if needed.
 
 ## 4. Data Consistency Guarantees
 
@@ -299,7 +299,7 @@ The following gRPC status codes are **NOT retryable**:
 - **Persistent Backends (colony/stores):** Durable storage with backend-specific guarantees
 
 **Concurrency:**
-- **v0.6.0 Fix:** Multiple client instances now share state via pluggable backend
+- **v0.5.0 Fix:** Multiple client instances now share state via pluggable backend
 - **Producer/Critic/Coordinator:** Can run in same or different processes if using shared backend
 
 ## 5. Error Handling
@@ -523,7 +523,7 @@ def call_with_correlation(client_method, *args, **kwargs):
 
 ### 7.3. Negotiation Room Concurrency
 
-**Fixed in v0.6.0:** Multiple client instances now share state via pluggable backend
+**Fixed in v0.5.0:** Multiple client instances now share state via pluggable backend
 **Migration:** Update to use shared default store or explicit store instances
 **See:** Migration guide in `sdks/py_sdk/CHANGELOG.md`
 
@@ -557,7 +557,7 @@ def call_with_correlation(client_method, *args, **kwargs):
 
 ## 8. Version Compatibility
 
-**SDK Version:** 0.6.0
+**SDK Version:** 0.5.0
 **Protocol Version:** 0.5.0
 **Proto Compatibility:** All SDKs use same proto definitions from `protos/`
 

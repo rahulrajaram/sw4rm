@@ -296,8 +296,8 @@ def test_sw4rm_config_defaults():
     """Test SW4RMConfig default values."""
     cfg = config.SW4RMConfig()
 
-    assert cfg.router_addr in ("localhost:50051", os.getenv("SW4RM_ROUTER_ADDR", "localhost:50051"))
-    assert cfg.default_timeout_ms == 10000
+    assert cfg.router_addr in ("http://localhost:50051", os.getenv("SW4RM_ROUTER_ADDR", "http://localhost:50051"))
+    assert cfg.default_timeout_ms == 30000
     assert cfg.max_retries == 3
     assert cfg.enable_metrics is True
     assert cfg.enable_tracing is True

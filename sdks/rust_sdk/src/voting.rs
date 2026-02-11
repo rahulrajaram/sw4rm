@@ -591,7 +591,7 @@ pub struct VoteSummary {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
 /// use sw4rm_sdk::voting::aggregate_votes;
 /// use sw4rm_sdk::clients::negotiation_room::NegotiationVote;
 ///
@@ -600,7 +600,7 @@ pub struct VoteSummary {
 ///     NegotiationVote::new("art1".into(), "c2".into(), 7.0, 0.7, true, vec![], vec![], vec![], "room1".into()).unwrap(),
 /// ];
 ///
-/// let aggregated = aggregate_votes(&votes)?;
+/// let aggregated = aggregate_votes(&votes).unwrap();
 /// println!("Weighted score: {:.2}", aggregated.weighted_mean);
 /// ```
 pub fn aggregate_votes(votes: &[NegotiationVote]) -> Result<AggregatedScore> {
@@ -626,11 +626,14 @@ pub fn aggregate_votes(votes: &[NegotiationVote]) -> Result<AggregatedScore> {
 ///
 /// # Example
 ///
-/// ```ignore
+/// ```rust
 /// use sw4rm_sdk::voting::{aggregate_votes_with_strategy, MajorityVoteAggregator};
+/// use sw4rm_sdk::clients::negotiation_room::NegotiationVote;
 ///
-/// let votes = get_votes();
-/// let aggregated = aggregate_votes_with_strategy(&votes, &MajorityVoteAggregator::new())?;
+/// let votes = vec![
+///     NegotiationVote::new("art1".into(), "c1".into(), 8.0, 0.9, true, vec![], vec![], vec![], "room1".into()).unwrap(),
+/// ];
+/// let aggregated = aggregate_votes_with_strategy(&votes, &MajorityVoteAggregator::new()).unwrap();
 /// ```
 pub fn aggregate_votes_with_strategy<S: AggregationStrategy>(
     votes: &[NegotiationVote],

@@ -286,5 +286,5 @@ All SDKs MUST have integration tests that verify:
 ---
 
 **Last Updated**: 2026-01-10
-**SDK Versions**: Python 0.6.0, Rust 0.6.0, TypeScript 0.6.0
+**SDK Versions**: Python 0.5.0, Rust 0.5.0, TypeScript 0.5.0
 **Phase**: 2 (In-Memory Mode)

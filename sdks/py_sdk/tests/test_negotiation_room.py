@@ -863,11 +863,11 @@ class TestNegotiationRoomIntegration:
         assert outcome == DecisionOutcome.ESCALATED_TO_HITL
 
 
-# Shared State Tests (Concurrency Fix v0.6.0)
+# Shared State Tests (Concurrency Fix v0.5.0)
 
 
 class TestNegotiationRoomSharedState:
-    """Tests for the shared state functionality added in v0.6.0.
+    """Tests for the shared state functionality added in v0.5.0.
 
     These tests verify that multiple NegotiationRoomClient instances can
     share the same underlying storage, enabling multi-agent coordination.

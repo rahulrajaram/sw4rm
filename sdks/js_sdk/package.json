@@ -1,6 +1,6 @@
 {
   "name": "@sw4rm/js-sdk",
-  "version": "0.6.0",
+  "version": "0.5.0",
   "description": "SW4RM Agentic Protocol JavaScript/TypeScript SDK",
   "type": "module",
   "main": "./dist/cjs/index.cjs",
