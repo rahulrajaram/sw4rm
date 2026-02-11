@@ -199,7 +199,7 @@ digraph SDK_Architecture {
 The `MessageProcessor` component provides a registry for message handlers and routes incoming messages to appropriate handler functions. Handler registration uses Python type hints to validate message types at registration time. The component supports configurable concurrency limits to prevent resource exhaustion during high-volume message processing. Error handling includes exception catching and classification, with configurable retry policies for transient failures. Message validation can be enabled to verify incoming messages against protocol buffer schemas before processing.
 
 **Configuration Options**:
-```python
+```yaml
 MessageProcessorConfig:
     max_concurrent_handlers: int = 10          # Maximum concurrent message handlers
     handler_timeout_seconds: int = 300         # Per-handler timeout duration
@@ -243,7 +243,7 @@ The `ACKLifecycleManager` supports exponential backoff retry strategies with con
 The `PersistentActivityBuffer` maintains a history of processed messages using configurable storage backends including file-based storage, Redis, and PostgreSQL. Message deduplication uses SHA-256 fingerprinting to identify and prevent duplicate message processing. The component supports crash recovery through state reconciliation mechanisms that can use vector clocks, timestamps, or sequence numbers depending on configuration. Retention policies automatically clean up old messages based on age or count limits to prevent unbounded storage growth. Optional compression can be enabled to reduce storage space requirements for message history.
 
 **Recovery Mechanisms**:
-```python
+```yaml
 RecoveryConfig:
     enable_crash_recovery: bool = True         # Enable automatic crash recovery
     recovery_timeout_seconds: int = 60         # Maximum recovery time

@@ -306,7 +306,246 @@ Before running examples, ensure you have the appropriate runtime and dependencie
     cargo build
     ```
 
-## 4.6. Example READMEs
+## 4.6. Step-by-Step Walkthroughs
+
+Detailed walkthroughs for understanding and extending the Python SDK examples.
+
+### Echo Agent Walkthrough
+
+**File:** `sdks/py_sdk/examples/echo_agent.py`
+
+**Concepts:** Agent registration, message streaming, signal handling, graceful shutdown
+
+#### Prerequisites
+
+- Running Registry service on localhost:50052
+- Running Router service on localhost:50051
+- Generated protobuf stubs (`make protos`)
+
+#### Step-by-Step
+
+1. **Parse arguments** (lines 31-37) - Agent ID, name, router/registry addresses from command line or environment
+2. **Create gRPC channels** (lines 44-45) - Insecure channels to Router and Registry services
+3. **Create clients** (lines 47-48) - `RegistryClient` and `RouterClient` instances
+4. **Register agent** (lines 51-65) - Submit `AgentDescriptor` with capabilities to Registry
+5. **Set up signal handler** (lines 67-73) - Catch SIGINT for graceful shutdown
+6. **Stream messages** (lines 76-97) - Use `router.stream_incoming(agent_id)` for message loop
+7. **Echo DATA messages** (lines 86-97) - Build response envelope with same payload
+8. **Graceful shutdown** (lines 98-105) - Deregister from Registry on exit
+
+#### Key Code Sections
+
+```python
+# Registration (lines 51-63)
+descriptor = {
+    "agent_id": args.agent_id,
+    "name": args.name,
+    "capabilities": ["echo"],
+    "communication_class": 2,  # STANDARD
+}
+registry.register(descriptor)
+
+# Message loop (lines 76-97)
+for item in router.stream_incoming(args.agent_id):
+    if stop:
+        break
+    if msg.message_type == 2:  # DATA
+        env = build_envelope(
+            producer_id=args.agent_id,
+            message_type=2,
+            payload=msg.payload,
+            correlation_id=msg.correlation_id,
+        )
+        router.send_message(env)
+```
+
+#### Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| "Protobuf stubs not generated" | Generate protobuf stubs in `sdks/py_sdk/` (command below). |
+| Connection refused | Ensure Router/Registry services are running |
+| Agent not receiving messages | Verify agent_id matches sender's target |
+
+```bash
+make protos
+```
+
+---
+
+### Three-ID Demo Walkthrough
+
+**File:** `sdks/py_sdk/examples/three_id_demo.py`
+
+**Concepts:** Message envelope, Three-ID model, deduplication, workflow correlation
+
+#### Prerequisites
+
+- SDK installed (`pip install -e ".[dev]"`)
+- No services required (standalone demo)
+
+#### Step-by-Step
+
+1. **Envelope lifecycle** (lines 21-45) - Create envelope, transition through states
+2. **Three-ID semantics** (lines 48-101) - Demonstrate message_id vs correlation_id vs idempotency_token
+3. **Deduplication** (lines 104-161) - Use ActivityBuffer with idempotency tokens
+4. **Workflow correlation** (lines 164-208) - Link messages in a workflow
+
+#### Key Concepts
+
+| ID | Scope | Changes on Retry |
+|----|-------|------------------|
+| `message_id` | Per-attempt | Yes (new UUID) |
+| `correlation_id` | Workflow/session | No (stable) |
+| `idempotency_token` | Operation | No (stable for dedup) |
+
+#### Key Code Sections
+
+```python
+# Generate idempotency token (lines 60-65)
+op_hash = compute_deterministic_hash(operation_params)
+idem_token = make_idempotency_token("agent-dev", "git_commit", op_hash)
+
+# Deduplication check (lines 137-149)
+existing = buffer.get_by_idempotency_token(token)
+if existing:
+    if is_terminal_state(existing.state):
+        # Return cached result
+        ...
+    else:
+        # Reject - operation in progress
+        ...
+```
+
+---
+
+### Negotiation Debate Walkthrough
+
+**File:** `sdks/py_sdk/examples/negotiation_debate_example.py`
+
+**Concepts:** Multi-agent negotiation, producer-critic-coordinator pattern, voting, decision policies
+
+#### Prerequisites
+
+- SDK installed (`pip install -e ".[dev]"`)
+- No services required (uses in-memory NegotiationRoomClient)
+
+#### Step-by-Step
+
+1. **Create agents** (lines 364-370) - Producer, Critics (with expertise), Coordinator
+2. **Submit proposal** (lines 401-406) - Producer creates artifact and requests critics
+3. **Critics evaluate** (lines 414-476) - Each critic scores, identifies strengths/weaknesses
+4. **Aggregate votes** (lines 483) - Coordinator collects and aggregates votes
+5. **Apply policy** (lines 285-334) - Check thresholds, determine outcome
+6. **Store decision** (lines 281) - Record decision with full audit trail
+
+#### Decision Policy
+
+| Outcome | Condition |
+|---------|-----------|
+| APPROVED | `weighted_mean >= 7.0` AND all critics passed |
+| REVISION_REQUESTED | `weighted_mean < 5.0` OR any critic failed |
+| ESCALATED_TO_HITL | `std_dev > 2.0` (high disagreement) |
+
+#### Key Code Sections
+
+```python
+# Producer submits (lines 89-99)
+proposal = NegotiationProposal(
+    artifact_type=ArtifactType.CODE,
+    artifact_id=artifact_id,
+    producer_id=self.agent_id,
+    artifact=json.dumps(artifact_content).encode(),
+    requested_critics=critics,
+)
+self.room_client.submit_proposal(proposal)
+
+# Critic votes (lines 172-184)
+vote = NegotiationVote(
+    artifact_id=artifact_id,
+    critic_id=self.agent_id,
+    score=7.5,
+    confidence=0.78,
+    passed=True,
+    strengths=["..."],
+    weaknesses=["..."],
+)
+self.room_client.submit_vote(vote)
+
+# Coordinator decides (lines 249-283)
+votes = self.room_client.get_votes(artifact_id)
+aggregated = aggregate_votes(votes)
+outcome, reason = self._apply_policy(votes, aggregated)
+```
+
+#### Scenarios Demonstrated
+
+1. **Revision Requested** - Security critic fails the artifact
+2. **Approved** - All critics pass with high scores
+3. **HITL Escalation** - Critics strongly disagree (high std_dev)
+
+---
+
+### Handoff Example Walkthrough
+
+**File:** `sdks/py_sdk/examples/handoff_example.py`
+
+**Concepts:** Agent-to-agent handoff, capability matching, context transfer
+
+#### Prerequisites
+
+- SDK installed
+- No services required (standalone demo)
+
+#### Key Flow
+
+1. Source agent determines it needs specialist help
+2. Creates `HandoffRequest` with context and required capabilities
+3. Target agent evaluates request via `on_handoff_request()`
+4. If accepted, target receives context via `on_handoff_received()`
+5. Source agent transitions or completes
+
+---
+
+### Workflow Orchestration Walkthrough
+
+**File:** `sdks/py_sdk/examples/workflow_orchestration_example.py`
+
+**Concepts:** DAG workflows, dependency management, parallel execution
+
+#### Key Components
+
+- `WorkflowDefinition` - DAG of workflow nodes
+- `WorkflowEngine` - Validates DAG, detects cycles, executes
+- `WorkflowNode` - Individual task with dependencies
+
+#### Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| `CycleDetectedError` | Remove circular dependencies in workflow |
+| Node not executing | Check `depends_on` list is correct |
+
+---
+
+### HITL Escalation Walkthrough
+
+**File:** `sdks/py_sdk/examples/hitl_escalation_example.py`
+
+**Concepts:** Human-in-the-loop, escalation triggers, decision waiting
+
+#### Escalation Triggers
+
+| Reason Type | When Used |
+|-------------|-----------|
+| `CONFLICT` | Agents cannot reach consensus |
+| `SECURITY_APPROVAL` | Action requires security review |
+| `TASK_ESCALATION` | Complexity exceeds agent capability |
+| `DEBATE_DEADLOCK` | Negotiation cannot resolve |
+
+---
+
+## 4.7. Example READMEs
 
 Each SDK has comprehensive README files in the examples directory:
 

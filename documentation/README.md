@@ -117,7 +117,7 @@ The site supports:
 
 === "Python"
     ```python
-    from sw4rm import SDK
+    from sw4rm.clients import RouterClient
     ```
 
 === "Installation"  

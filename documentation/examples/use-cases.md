@@ -2,6 +2,8 @@
 
 Representative enterprise scenarios that demonstrate how to apply the SW4RM SDK to real problems. Each use case links to deeper architectural context and concrete patterns.
 
+Related resources: [Examples overview](./index.md) · [Deployment Patterns](./deployment.md)
+
 ## 4.1. DevOps Automation and Infrastructure Orchestration
 
 Automate multi-stage deployments with durable state, approvals, and auditability. Agents coordinate pipeline execution, request approvals, and perform Git- and Kubernetes-backed rollouts while preserving at-least-once semantics and full traceability.

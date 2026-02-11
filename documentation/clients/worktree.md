@@ -1,4 +1,4 @@
-# 6.17. Worktree Client
+# 6.18. Worktree Client
 
 The Worktree Client talks to the `sw4rm.worktree.WorktreeService` service. Use it to:
 
@@ -15,7 +15,7 @@ Worktree bindings follow a simple state machine:
 - `SWITCH_PENDING` -> `BOUND_HOME` via `reject_switch`.
 - Any state -> `UNBOUND` via `unbind`.
 
-## 6.17.1. Service Overview
+## 6.18.1. Service Overview
 
 The service exposes six RPCs:
 
@@ -94,7 +94,7 @@ The service exposes six RPCs:
 | `worktree_id` | string | Active worktree identifier. |
 | `state` | string | Current worktree state. |
 
-## 6.17.2. Constructors
+## 6.18.2. Constructors
 
 ### Python
 
@@ -115,7 +115,7 @@ The service exposes six RPCs:
 
 - `endpoint`: Full gRPC URL (for example, `http://host:50062`).
 
-## 6.17.3. Key Methods
+## 6.18.3. Key Methods
 
 ### `bind` / `bind_worktree`
 
@@ -196,7 +196,7 @@ The service exposes six RPCs:
 The default policy allows all binds, unbinds, and switches. Provide a custom
 `WorktreePolicyHook` to enforce allowlists or environment rules.
 
-## 6.17.4. Usage Examples
+## 6.18.4. Usage Examples
 
 === "Python"
     ```python

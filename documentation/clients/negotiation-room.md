@@ -110,6 +110,18 @@ Field names are snake_case in Python/Rust and camelCase in JS/TS.
 
 ## 6.14.3. Key Methods
 
+### Default store helpers (Python)
+
+`get_default_negotiation_room_store() -> InMemoryNegotiationRoomStore`
+
+- Returns the shared in-memory store used when constructing `NegotiationRoomClient()` without a store.
+- Useful for explicitly sharing state across multiple client instances in the same process.
+
+`reset_default_negotiation_room_store() -> None`
+
+- Clears the default store singleton (primarily for tests).
+- The next `NegotiationRoomClient()` without a store will allocate a fresh in-memory store.
+
 ### `submit_proposal` / `submitProposal`
 
 **Python**
@@ -235,7 +247,107 @@ client.store_decision(decision)
 
 For advanced policies, use the voting strategies in `sw4rm.voting` (Python) or `sw4rm_sdk::voting` (Rust) before storing a decision.
 
-## 6.14.5. Usage Examples
+## 6.14.5. Voting Strategies
+
+The voting helpers expose multiple aggregation strategies. Each strategy returns an `AggregatedScore` with the strategy result stored in `weighted_mean`.
+
+### SimpleAverageAggregator
+
+- Use when you want a transparent baseline.
+- Computes the arithmetic mean across scores.
+- Ignores critic confidence values (`weighted_mean == mean`).
+
+### ConfidenceWeightedAggregator (recommended)
+
+- Use for default negotiation room decisions.
+- Weights each score by its critic confidence.
+- Falls back to the simple mean if all confidences are zero.
+
+Formula:
+
+```
+weighted_mean = sum(score_i * confidence_i) / sum(confidence_i)
+```
+
+### MajorityVoteAggregator
+
+- Use for binary go/no-go reviews.
+- Counts pass vs fail votes and maps the majority outcome to a score.
+
+Score mapping:
+
+- All passed: 10.0
+- Majority passed (>50%): 7.5
+- Tie: 5.0
+- Majority failed (>50%): 2.5
+- All failed: 0.0
+
+### BordaCountAggregator
+
+- Use when you want to reduce outlier influence.
+- Ranks scores from highest to lowest and assigns position-based points.
+- Normalizes the points to a 0-10 scale.
+
+### Strategy Selection Guide
+
+| Scenario | Recommended strategy |
+|----------|----------------------|
+| General purpose | ConfidenceWeightedAggregator |
+| Binary approval | MajorityVoteAggregator |
+| Outlier resistance | BordaCountAggregator |
+| Baseline comparison | SimpleAverageAggregator |
+
+### Python Example: Swapping Strategies
+
+```python
+from sw4rm.negotiation_types import NegotiationVote
+from sw4rm.voting import (
+    VotingAggregator,
+    SimpleAverageAggregator,
+    ConfidenceWeightedAggregator,
+    MajorityVoteAggregator,
+    BordaCountAggregator,
+)
+
+votes = [
+    NegotiationVote(
+        artifact_id="artifact-123",
+        critic_id="critic-1",
+        score=8.5,
+        confidence=0.9,
+        passed=True,
+        strengths=["Clear API"],
+        weaknesses=["Missing edge cases"],
+        recommendations=["Add retries"],
+        negotiation_room_id="room-1",
+    ),
+    NegotiationVote(
+        artifact_id="artifact-123",
+        critic_id="critic-2",
+        score=6.5,
+        confidence=0.6,
+        passed=False,
+        strengths=["Readable code"],
+        weaknesses=["No tests"],
+        recommendations=["Add unit tests"],
+        negotiation_room_id="room-1",
+    ),
+]
+
+strategies = [
+    ("simple", SimpleAverageAggregator()),
+    ("confidence", ConfidenceWeightedAggregator()),
+    ("majority", MajorityVoteAggregator()),
+    ("borda", BordaCountAggregator()),
+]
+
+for name, strategy in strategies:
+    aggregator = VotingAggregator(strategy)
+    aggregated = aggregator.aggregate(votes)
+    print(name, aggregated.weighted_mean)
+```
+
+## 6.14.6. Usage Examples
 
 === "Python"
     ```python

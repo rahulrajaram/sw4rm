@@ -3,6 +3,12 @@
 Version: draft
 Date: 2025-12-25
 
+Related documents:
+
+- [Protocol Specification](./index.md)
+- [Protocol RFC](./spec.md)
+- [Protocol Extensions](./extensions/index.md)
+
 ## 1) Explicit Request/Response Semantics
 
 Problem: The protocol defines message lifecycle + agent WAITING, but does not
@@ -107,4 +113,3 @@ Proposed addition:
 
 - Require `context_snapshot_content_type` (application/json, application/protobuf,
   text/plain) and enforce modality compatibility with target Agent.
-

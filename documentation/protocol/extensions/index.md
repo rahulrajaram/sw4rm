@@ -2,6 +2,12 @@
 
 This directory contains optional protocol extensions that build on the core SW4RM specification. Extensions are identified by the prefix `SW4-NNN` and follow a consistent structure.
 
+Related documents:
+
+- [Protocol Specification](../index.md)
+- [Protocol RFC](../spec.md)
+- [Spec Enhancements (Draft)](../spec_enhancements.md)
+
 ## Extension Index
 
 | ID | Title | Status | Extends |

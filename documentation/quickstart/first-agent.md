@@ -179,6 +179,7 @@ Add service registration and message processing:
 Add cleanup and shutdown logic:
 
 ```python
+class MyFirstAgent:
     def shutdown(self):
         """Clean shutdown."""
         print("🔄 Shutting down...")

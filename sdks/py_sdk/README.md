@@ -779,20 +779,24 @@ print(f"Version: {params.get('v')}")  # "1"
 The SDK provides structured logging, distributed tracing, and feature flags.
 
 ```python
-# Structured logging
-from sw4rm.logging import get_logger, LogContext
+# Structured logging (correlation comes from tracing context)
+from sw4rm.logging import get_logger
+from sw4rm.tracing import create_trace, with_trace_context
 
-logger = get_logger("my_agent")
-with LogContext(correlation_id="wf-123", agent_id="agent-1"):
-    logger.info("Processing task", extra={"task_id": "t-456"})
+logger = get_logger("my_agent", agent_id="agent-1")
+trace = create_trace(metadata={"workflow_id": "wf-123"})
+with with_trace_context(trace):
+    logger.info("Processing task", task_id="t-456")
 
 # Distributed tracing
-from sw4rm.tracing import Tracer, SpanContext
+from sw4rm.tracing import create_child_span
 
-tracer = Tracer(service_name="my-agent")
-with tracer.start_span("process_message") as span:
-    span.set_attribute("message_type", "DATA")
-    # ... do work ...
+root = create_trace(metadata={"service": "my-agent"})
+with with_trace_context(root):
+    child = create_child_span(root, metadata={"operation": "process_message"})
+    with with_trace_context(child):
+        # ... do work ...
+        pass
 
 # Feature flags
 from sw4rm.feature_flags import FeatureFlags

@@ -28,4 +28,12 @@ JavaScript/TypeScript.
 - [Negotiation Room Client](negotiation-room.md)
 - [Tool Client](tool.md)
 - [Workflow Client](workflow.md)
+- [Workflow Engine](workflow-engine.md)
 - [Worktree Client](worktree.md)
+- [Policy Store](policy-store.md)
+- [Shared Context Manager](shared-context.md)
+
+## 6.3. Error Handling
+
+- [Exceptions Reference](exceptions.md) - Complete exception hierarchy and error codes
+- [Error Handling Patterns](error-handling.md) - Client-specific error handling strategies

@@ -273,11 +273,26 @@ with tempfile.TemporaryDirectory() as tmpdir:
 # Test 5: Message Processing Pipeline
 echo "5. Testing message processing pipeline..."
 python3 -c "
-from sw4rm import SDK
-sdk = SDK(agent_id='test-diagnostic-agent')
-@sdk.handler('DATA')
-def test_handler(message):
+import grpc
+from sw4rm import constants as C
+from sw4rm.ack_integration import ACKLifecycleManager, MessageProcessor
+from sw4rm.activity_buffer import PersistentActivityBuffer
+from sw4rm.clients.router import RouterClient
+
+channel = grpc.insecure_channel("localhost:50051")
+router = RouterClient(channel)
+buffer = PersistentActivityBuffer(max_items=10)
+ack_manager = ACKLifecycleManager(
+    router_client=router,
+    activity_buffer=buffer,
+    agent_id="test-diagnostic-agent",
+)
+processor = MessageProcessor(ack_manager)
+
+def test_handler(envelope):
     return {'status': 'success', 'processed': True}
+
+processor.register_handler(C.DATA, test_handler)
 print('✓ Message processing pipeline configured successfully')
 "
 

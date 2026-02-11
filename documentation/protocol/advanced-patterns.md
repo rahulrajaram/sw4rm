@@ -77,10 +77,11 @@ The Coordinator computes `AggregatedScore` from all votes:
 
 ```python
 # Python SDK example
-from sw4rm.voting import aggregate_votes
+from sw4rm.voting import VotingAggregator, ConfidenceWeightedAggregator
 
 votes = [vote1, vote2, vote3]  # NegotiationVote objects
-aggregated = aggregate_votes(votes)
+aggregator = VotingAggregator(ConfidenceWeightedAggregator())
+aggregated = aggregator.aggregate(votes)
 
 print(f"Mean score: {aggregated.mean}")
 print(f"Weighted mean: {aggregated.weighted_mean}")
@@ -102,9 +103,9 @@ For synchronous workflows, Producers can block until a decision is rendered:
 
 ```python
 # Wait for decision with timeout
-decision = await client.wait_for_decision(
-    negotiation_room_id=room_id,
-    timeout_seconds=300
+decision = client.wait_for_decision(
+    artifact_id=artifact_id,
+    timeout_s=300
 )
 ```
 
@@ -158,22 +159,30 @@ message HandoffRequest {
 ### Accept/Reject Semantics
 
 ```python
-# Python SDK example - handling incoming handoffs
-from sw4rm.handoff import HandoffClient
+# Python SDK example - initiating and accepting a handoff
+from sw4rm.clients import HandoffClient
+from sw4rm.handoff import deserialize_context
+from sw4rm.handoff.types import HandoffRequest
 
-async def handle_handoffs(client: HandoffClient, agent_id: str):
-    pending = await client.get_pending_handoffs(agent_id)
+client = HandoffClient()
+request = HandoffRequest(
+    from_agent="producer-1",
+    to_agent="reviewer-1",
+    reason="Needs security review",
+    context_snapshot=b"...",
+    capabilities_required=["security-review"],
+)
 
-    for request in pending:
-        if can_handle(request.capabilities_required):
-            await client.accept_handoff(request.request_id)
-            context = deserialize_context(request.context_snapshot)
-            await process_handoff_work(context)
-        else:
-            await client.reject_handoff(
-                request.request_id,
-                reason="Missing required capabilities"
-            )
+response = client.request_handoff(request)
+if response.accepted and can_handle(request.capabilities_required):
+    client.accept_handoff(response.handoff_id)
+    context = deserialize_context(request.context_snapshot)
+    process_handoff_work(context)
+else:
+    client.reject_handoff(
+        response.handoff_id,
+        reason="Missing required capabilities"
+    )
 ```
 
 ### Context Transfer
@@ -251,26 +260,24 @@ message WorkflowNode {
 
 ```python
 # Python SDK example
-from sw4rm.workflow import WorkflowClient
+from sw4rm.workflow import WorkflowBuilder, WorkflowEngine, TriggerType
 
-client = WorkflowClient(channel)
+builder = WorkflowBuilder("data_pipeline")
+builder.add_node("fetch", "fetcher_agent", TriggerType.EVENT)
+builder.add_node("transform", "transformer_agent")
+builder.add_dependency("fetch", "transform")
 
-# Create workflow definition
-workflow_id = await client.create_workflow(definition)
+workflow = builder.build()
 
-# Start execution with initial data
-await client.start_workflow(
-    workflow_id=workflow_id,
-    initial_data={"input_file": "/data/source.csv"}
-)
+def executor(node, input_data):
+    # Replace with real execution logic
+    return {"node": node.node_id, "output": input_data}
 
-# Monitor progress
-state = await client.get_workflow_state(workflow_id)
+engine = WorkflowEngine(workflow, executor=executor)
+state = engine.execute(initial_data={"input_file": "/data/source.csv"})
+
 for node_id, node_state in state.node_states.items():
     print(f"{node_id}: {node_state.status}")
-
-# Resume from specific node (recovery)
-await client.resume_workflow(workflow_id, from_node="transform")
 ```
 
 ### Input/Output Mapping

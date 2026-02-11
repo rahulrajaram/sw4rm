@@ -194,9 +194,9 @@ Implementations MUST bound backlog processing to protect memory and latency. Rec
 
 SDK implementers building clients for SW4RM services should consult the supplementary SDK documentation for behavioral contracts and cross-SDK consistency requirements:
 
-- **Operational Contracts**: Detailed behavioral specifications for HandoffClient, WorkflowClient, and NegotiationRoomClient including state machine rules, validation requirements, and edge case handling. See [Operational Contracts Documentation](../../sdks/docs/OPERATIONAL_CONTRACTS.md).
+- **Client Documentation**: Detailed behavioral specifications for HandoffClient, WorkflowClient, NegotiationRoomClient, and other clients including state machine rules, validation requirements, and edge case handling. See [SDK Clients](../clients/index.md).
 
-- **Error Codes**: Cross-SDK error code mappings, exception handling patterns, and gRPC status code requirements for Phase 3 integration. See [Error Codes Documentation](../../sdks/docs/ERROR_CODES.md).
+- **Error Handling**: Exception types, error code mappings, and error handling patterns for SDK implementations. See [Exceptions Reference](../clients/exceptions.md) and [Error Handling Patterns](../clients/error-handling.md).
 
 These documents ensure behavioral consistency across Python, Rust, TypeScript, and Common Lisp SDK implementations.
 
@@ -450,7 +450,7 @@ When HLC is enabled, messages MUST include `hlc_timestamp`.
 
 Implementations MUST support these core error codes: `buffer_full`, `no_route`, `ack_timeout`, `agent_unavailable`, `agent_shutdown`, `validation_error`, `permission_denied`, `unsupported_message_type`, `oversize_payload`, `tool_timeout`, `partial_delivery` (reserved), `forced_preemption`, `internal_error`.
 
-For SDK-specific error handling patterns and cross-SDK error code mappings, see [Error Codes Documentation](../../sdks/docs/ERROR_CODES.md).
+For SDK-specific error handling patterns and error code mappings, see [Exceptions Reference](../clients/exceptions.md).
 
 ### 11.2 Idempotency Guarantees
 

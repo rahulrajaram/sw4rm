@@ -65,7 +65,43 @@ For a system-wide view including services, data stores, and ports, see Detailed 
 - Persistent state model: [Persistent State Management Architecture](../index.md)
 - Protocol services and messages: [Services](../protocol/services.md) and [Messages](../protocol/messages.md)
 
-## 5.2. Core Principles
+## 5.2. Agent State Machine
+
+The SW4RM agent runtime implements a 12-state machine for lifecycle management:
+
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    [*] --> INITIALIZING: create
+    INITIALIZING --> RUNNABLE: start()
+    RUNNABLE --> SCHEDULED: schedule()
+    SCHEDULED --> RUNNING: run()
+
+    RUNNING --> WAITING: wait()
+    RUNNING --> WAITING_RESOURCES: wait_resources()
+    RUNNING --> SUSPENDED: suspend()
+    RUNNING --> COMPLETED: complete()
+    RUNNING --> FAILED: fail()
+    RUNNING --> SHUTTING_DOWN: shutdown()
+
+    WAITING --> RUNNING: event
+    WAITING_RESOURCES --> RUNNING: resources
+    SUSPENDED --> RESUMED: resume()
+    RESUMED --> RUNNING: auto
+
+    FAILED --> RECOVERING: recover()
+    RECOVERING --> RUNNABLE: success
+    RECOVERING --> FAILED: failure
+
+    SHUTTING_DOWN --> FAILED: timeout
+
+    COMPLETED --> [*]
+```
+
+See [State Machines](state-machines.md) for detailed transition documentation, lifecycle hooks, and recovery protocols.
+
+## 5.3. Core Principles
 
 
 - **Persistence by design**: All stateful runtime components (Activity Buffer, Worktree State, configuration) persist across restarts using pluggable backends. Writes are made durable before emitting downstream ACKs, and on startup the runtime replays the log and reconciles ordering (e.g., vector clocks) to guarantee consistent recovery.
@@ -73,7 +109,7 @@ For a system-wide view including services, data stores, and ports, see Detailed 
 - **Explicit ACK lifecycle**: Delivery confirmation is explicit (RECEIVED → READ → FULFILLED) with `idempotency_token`s, bounded retries with exponential backoff, and DLQ on exhaustion. This yields at-least-once delivery while preventing duplicate side effects in handlers via idempotent processing.
 - **Composability**: SDK components are modular and replaceable—use only MessageProcessor, ACKLifecycleManager, ActivityBuffer, or Worktree integrations you need. Clients are loosely coupled through protobuf contracts, enabling incremental adoption and component swaps behind stable interfaces.
 
-## 5.3. Runtime Data Flow
+## 5.4. Runtime Data Flow
 
 The sequence below shows a typical end-to-end message journey with ACK lifecycle and persistence.
 
@@ -163,7 +199,7 @@ Explanation
 
 Learn more about message types and services in the Protocol Specification: [Messages](../protocol/messages.md) and [Services](../protocol/services.md).
 
-## 5.4. Components and Services
+## 5.5. Components and Services
 
 
 - **MessageProcessor**: Registers typed handlers, applies the policy chain, and routes inbound/outbound messages based on conversation context and addressing. It executes handlers in bounded worker pools with timeouts, propagates trace/causal metadata, and enforces backpressure to protect latency targets.
@@ -174,7 +210,7 @@ Learn more about message types and services in the Protocol Specification: [Mess
 
  Deeper system context and diagrams: [Detailed System Architecture](../index.md)
 
-## 5.5. State and Persistence
+## 5.6. State and Persistence
 
 The SDK provides multi-level persistence for robustness and recovery:
 
@@ -185,7 +221,7 @@ The SDK provides multi-level persistence for robustness and recovery:
 
  Design details and recovery strategies: [Persistent State Management Architecture](../index.md)
 
-## 5.6. Reliability and Failure Modes
+## 5.7. Reliability and Failure Modes
 
 
 - **Delivery semantics**: Implements at-least-once delivery with bounded retries, exponential backoff with jitter, and DLQ on exhaustion, while preserving the same `idempotency_token` across attempts. Timeouts are enforced with monotonic clocks and traced so operators can correlate redeliveries with upstream failures.
@@ -195,7 +231,7 @@ The SDK provides multi-level persistence for robustness and recovery:
 
  See system-wide guarantees and tradeoffs: [Enterprise Problem Resolution](../index.md)
 
-## 5.7. Security
+## 5.8. Security
 
 
 - **Transport**: Enforces mutual TLS (TLS 1.3) with certificate rotation, strict cipher suites, and optional certificate pinning/SPKI checks. Handshake and session lifetimes are configurable, and all channels require authenticated peers before any data exchange.
@@ -204,21 +240,21 @@ The SDK provides multi-level persistence for robustness and recovery:
 
 Security and audit considerations appear throughout the protocol and runtime sections.
 
-## 5.8. Scaling Considerations
+## 5.9. Scaling Considerations
 
 
 - **Horizontal scaling**: Scale stateless services with additional replicas; partition work by tenant/conversation/shard to maintain locality where appropriate.
 - **Resource isolation**: Use bulkheads, timeouts, and quotas to prevent cascading failures; configure pools and queues per deployment context.
 - **Caching**: Apply bounded caches with explicit TTLs where they simplify repeated lookups.
 
-## 5.9. Extensibility
+## 5.10. Extensibility
 
 
 - **Policy hooks**: Extensible hook points run at ingress, pre-dispatch, post-handler, and egress with deterministic priority, deadlines, and failure isolation. Plugins are expected to be side-effect aware and can mutate headers/payloads under explicit policies with full tracing.
 - **Handler model**: Handlers are registered per message type with typed payloads and concurrency controls, supporting sync or async execution. The model encourages idempotent operations, retry-safety, and structured error signaling to integrate cleanly with ACK semantics.
 - **Versioning**: Protobuf evolution guidelines (field reservations, `oneof`, additive changes) maintain wire compatibility across SDK and services. Semantic versioning signals breaking changes, and schema migration tools assist with staged rollouts.
 
-## 5.10. Deployment Topologies
+## 5.11. Deployment Topologies
 
 
 - **Local development**: Runs all core services on localhost with in-memory or file-backed storage for rapid feedback, optional insecure transport, and hot-reload of configuration. Make targets or Compose files bootstrap the stack with seeded data and example agents.
@@ -227,7 +263,7 @@ Security and audit considerations appear throughout the protocol and runtime sec
 
 See examples and patterns: [Deployment Patterns](../examples/deployment.md)
 
-## 5.11. What’s Next
+## 5.12. What's Next
 
 
 - **Protocol Specification**: Dive into the gRPC services, message envelopes, and ACK semantics to design custom integrations or services. Start here when you need authoritative contract details and behavior guarantees; see [Protocol](../protocol/index.md).

@@ -84,12 +84,19 @@ nav:
     - Message Types: protocol/messages.md
     - Services: protocol/services.md
     - ACK Lifecycle: protocol/acks.md
+    - Activity Buffer: protocol/activity-buffer.md
+    - Voting Strategies: protocol/voting-strategies.md
+    - Content Types: protocol/content-types.md
+    - Handoff Serialization: protocol/handoff-serialization.md
+    - Protocol Extensions: protocol/extensions/index.md
+    - Spec Enhancements (Draft): protocol/spec_enhancements.md
   - Examples:
     - examples/index.md
     - Use Cases: examples/use-cases.md
     - Deployment Patterns: examples/deployment.md
   - Architecture:
     - architecture/index.md
+    - State Machines: architecture/state-machines.md
   - SDK Clients:
     - clients/index.md
     - Router Client: clients/router.md
@@ -106,7 +113,14 @@ nav:
     - Negotiation Room Client: clients/negotiation-room.md
     - Tool Client: clients/tool.md
     - Workflow Client: clients/workflow.md
+    - Workflow Engine: clients/workflow-engine.md
     - Worktree Client: clients/worktree.md
+    - Policy Store: clients/policy-store.md
+    - Shared Context Manager: clients/shared-context.md
+    - Exceptions: clients/exceptions.md
+    - Error Handling: clients/error-handling.md
+  - Migration:
+    - Deprecations: migration/deprecations.md
 
 extra:
   social:

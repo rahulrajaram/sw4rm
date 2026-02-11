@@ -4,6 +4,13 @@
 
 **SW4RM Protocol v0.5.0** | **Status: Production Ready** | **Last Updated: 2026-01-04**
 
+Related documents:
+
+- [Protocol RFC](spec.md)
+- [Protocol Extensions](extensions/index.md)
+- [Voting Strategies](voting-strategies.md)
+- [Spec Enhancements (Draft)](spec_enhancements.md)
+
 ??? note "Changelog"
     **0.5.0 (2026-01-04)**
 

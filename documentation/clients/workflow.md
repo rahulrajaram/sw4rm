@@ -160,7 +160,79 @@ Python's `WorkflowClient` is an engine for a single workflow definition, while J
 **Python**
 `get_execution_plan() -> list[set[str]]`
 
-## 6.16.4. Usage Examples
+For a Python-focused API reference and engine behavior details, see the
+[Workflow Engine](workflow-engine.md) documentation.
+
+## 6.16.4. WorkflowBuilder (Python)
+
+`WorkflowBuilder` provides a fluent API for assembling `WorkflowDefinition` DAGs
+with validation. It is available from `sw4rm.workflow`.
+
+### Constructor
+
+`WorkflowBuilder(workflow_id: str)`
+
+- `workflow_id`: Non-empty workflow identifier.
+
+Raises `WorkflowBuilderError` if the workflow ID is empty.
+
+### Node and dependency management
+
+`add_node(node_id: str, agent_id: str, trigger_type: TriggerType = TriggerType.EVENT) -> WorkflowBuilder`
+
+- Adds a node with optional trigger type (default: `EVENT`).
+- Raises `WorkflowBuilderError` for empty IDs or duplicate `node_id`.
+
+`add_dependency(from_node: str, to_node: str) -> WorkflowBuilder`
+
+- Adds a dependency edge so `to_node` waits for `from_node`.
+- Raises `WorkflowBuilderError` if either node is missing or identical.
+
+`add_dependencies(from_nodes: list[str], to_node: str) -> WorkflowBuilder`
+
+- Convenience wrapper to add multiple dependencies to one node.
+
+`remove_node(node_id: str) -> WorkflowBuilder`
+
+- Removes a node and clears any dependencies referencing it.
+- Raises `WorkflowBuilderError` if the node does not exist.
+
+### Triggers, mappings, and metadata
+
+`set_trigger(node_id: str, trigger_type: TriggerType) -> WorkflowBuilder`
+
+`set_input_mapping(node_id: str, input_mapping: dict[str, str]) -> WorkflowBuilder`
+
+`set_output_mapping(node_id: str, output_mapping: dict[str, str]) -> WorkflowBuilder`
+
+`set_node_metadata(node_id: str, metadata: dict[str, Any]) -> WorkflowBuilder`
+
+`set_workflow_metadata(metadata: dict[str, Any]) -> WorkflowBuilder`
+
+All mapping/metadata setters raise `WorkflowBuilderError` if the node is missing.
+
+### Build and inspection
+
+`build(validate: bool = True) -> WorkflowDefinition`
+
+- Returns an immutable `WorkflowDefinition`.
+- When `validate=True`, the builder constructs a `WorkflowEngine` to detect cycles.
+- Validation failures raise `WorkflowBuilderError`; the underlying cause is a
+  `CycleDetectedError` with the cycle path in its message.
+
+`clone() -> WorkflowBuilder`
+
+- Returns a deep copy of the builder (nodes, metadata, and mappings).
+
+`get_node_count() -> int`
+
+`has_node(node_id: str) -> bool`
+
+`get_node_dependencies(node_id: str) -> set[str]`
+
+`get_node_dependencies` raises `WorkflowBuilderError` if the node does not exist.
+
+## 6.16.5. Usage Examples
 
 === "Python"
     ```python
