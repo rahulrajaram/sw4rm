@@ -70,6 +70,7 @@ examples/reference-services/python/client_server_llm/.*_session_id
 
 # Documentation build output
 site/
+documentation/dev/
 # Transient decision logs (keep out of VC)
 DECISIONS_LOG.txt
 
