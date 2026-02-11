@@ -3,7 +3,7 @@
 ;;;; Manages agent worktree bindings and state transitions for Git worktree
 ;;;; access control.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 

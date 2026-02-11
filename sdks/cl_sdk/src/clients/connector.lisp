@@ -2,7 +2,7 @@
 ;;;;
 ;;;; Manages tool provider registration and discovery.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 

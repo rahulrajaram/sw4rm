@@ -2,7 +2,7 @@
 ;;;;
 ;;;; Manages activity artifact logging and retrieval for negotiation sessions.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 

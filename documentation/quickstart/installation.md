@@ -62,6 +62,50 @@ This comprehensive installation guide provides detailed procedures for installin
 
 ## Comprehensive SDK Installation Procedures
 
+### Quick Install by Language
+
+=== "Python"
+    ```bash
+    pip install sw4rm-sdk
+    # Or with all optional dependencies:
+    pip install "sw4rm-sdk[all]"
+    ```
+
+=== "Rust"
+    ```bash
+    cargo add sw4rm-sdk
+    ```
+    Or add to `Cargo.toml`:
+    ```toml
+    [dependencies]
+    sw4rm-sdk = "0.5.0"
+    tokio = { version = "1.0", features = ["full"] }
+    ```
+
+=== "JavaScript/TypeScript"
+    ```bash
+    npm install @sw4rm/js-sdk
+    # Or with yarn:
+    yarn add @sw4rm/js-sdk
+    ```
+
+=== "Common Lisp"
+    ```lisp
+    ;; Using ASDF (from local checkout):
+    (asdf:load-system :sw4rm-sdk)
+
+    ;; Or add to your system definition:
+    (asdf:defsystem #:my-agent
+      :depends-on (#:sw4rm-sdk))
+    ```
+    The Common Lisp SDK requires SBCL 2.3+ or CCL 1.12+ and uses ASDF for system definition. Clone the SDK repository and ensure `sdks/cl_sdk/` is on your ASDF source registry.
+
+All SDKs require access to the proto definitions for gRPC stub generation. Run the following from the repository root to generate stubs for all languages:
+
+```bash
+make protos
+```
+
 ### Development Environment Installation (Recommended for New Users)
 
 **Complete Development Setup with All Optional Dependencies**:

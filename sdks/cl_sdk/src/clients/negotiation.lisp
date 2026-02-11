@@ -3,7 +3,7 @@
 ;;;; Manages multi-agent negotiation sessions with proposals, counter-proposals,
 ;;;; evaluations, and decisions.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 

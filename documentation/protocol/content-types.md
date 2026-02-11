@@ -536,7 +536,7 @@ application/vnd.sw4rm.<category>.<type>+<format>[;v=<version>][;param=value]
 | `vnd.sw4rm` | Yes | Vendor namespace |
 | `<category>` | Yes | Domain category (e.g., `scheduler`, `negotiation`) |
 | `<type>` | Yes | Specific type (e.g., `seed`, `proposal`) |
-| `+<format>` | Yes | Serialization format (usually `json`) |
+| `+<format>` | Yes | Serialization format (e.g., `json`, `protobuf`) |
 | `;v=<version>` | No | Schema version number |
 | `;param=value` | No | Additional parameters |
 

@@ -4,7 +4,7 @@
 ;;;; Room pattern. Supports submitting artifacts for review, collecting votes
 ;;;; from critics, and coordinating the review process.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 

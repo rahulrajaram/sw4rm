@@ -2,7 +2,7 @@
 ;;;;
 ;;;; Provides centralized log ingestion and querying for agent activities.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 

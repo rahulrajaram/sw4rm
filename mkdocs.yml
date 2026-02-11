@@ -79,6 +79,7 @@ nav:
     - quickstart/index.md
     - Installation: quickstart/installation.md
     - Your First Agent: quickstart/first-agent.md
+    - Persistence: quickstart/persistence.md
   - Protocol Specification:
     - protocol/index.md
     - Message Types: protocol/messages.md
@@ -88,7 +89,9 @@ nav:
     - Voting Strategies: protocol/voting-strategies.md
     - Content Types: protocol/content-types.md
     - Handoff Serialization: protocol/handoff-serialization.md
+    - Advanced Patterns: protocol/advanced-patterns.md
     - Protocol Extensions: protocol/extensions/index.md
+    - Spec Extensions: protocol/spec_extensions.md
     - Spec Enhancements (Draft): protocol/spec_enhancements.md
   - Examples:
     - examples/index.md
@@ -119,6 +122,7 @@ nav:
     - Shared Context Manager: clients/shared-context.md
     - Exceptions: clients/exceptions.md
     - Error Handling: clients/error-handling.md
+    - SDK Extensions: clients/sdk-extensions.md
   - Migration:
     - Deprecations: migration/deprecations.md
 
@@ -136,4 +140,4 @@ extra_javascript:
   - assets/collapse-mobile-nav.js
   - assets/diagram-fullscreen.js
 
-copyright: Copyright &copy; 2025 SW4RM Team
+copyright: Copyright &copy; 2025-2026 SW4RM Team

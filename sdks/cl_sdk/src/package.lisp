@@ -1,6 +1,6 @@
 ;;;; package.lisp - Package definition for SW4RM SDK
 
-(defpackage #:sw4rm
+(defpackage #:sw4rm-sdk
   (:use #:cl #:alexandria)
   (:documentation "SW4RM Protocol SDK for Common Lisp.
 

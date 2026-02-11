@@ -1,6 +1,6 @@
 ;;;; envelope.lisp - Envelope construction and manipulation
 
-(in-package #:sw4rm)
+(in-package #:sw4rm-sdk)
 
 ;;;; Three-ID Envelope Model (spec §11.3)
 ;;;

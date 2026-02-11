@@ -51,7 +51,7 @@ Policy message types live in `policy.proto` (`NegotiationPolicy`, `PolicyProfile
 `set_negotiation_policy(policy: NegotiationPolicy) -> SetNegotiationPolicyResponse`
 
 **JavaScript/TypeScript**
-`setWagglePolicy(policy: any): Promise<{ ok: boolean; reason?: string }>`
+`setNegotiationPolicy(policy: any): Promise<{ ok: boolean; reason?: string }>`
 
 **Rust**
 `set_negotiation_policy(policy: NegotiationPolicy) -> Result<bool>`
@@ -67,7 +67,7 @@ Policy message types live in `policy.proto` (`NegotiationPolicy`, `PolicyProfile
 `get_negotiation_policy() -> GetNegotiationPolicyResponse`
 
 **JavaScript/TypeScript**
-`getWagglePolicy(): Promise<{ policy?: any }>`
+`getNegotiationPolicy(): Promise<{ policy?: any }>`
 
 **Rust**
 `get_negotiation_policy() -> Result<Option<NegotiationPolicy>>`
@@ -154,9 +154,10 @@ Policy message types live in `policy.proto` (`NegotiationPolicy`, `PolicyProfile
 - `ok` (bool): Whether the action was accepted.
 - `reason` (string): Optional rejection reason.
 
-Note: The JavaScript/TypeScript client currently uses `setWagglePolicy` and
-`getWagglePolicy` naming for the negotiation policy RPCs. These map to the
-`SetNegotiationPolicy` and `GetNegotiationPolicy` RPCs on the service.
+Note: The JavaScript/TypeScript client previously used `setWagglePolicy` and
+`getWagglePolicy` naming (deprecated in v0.3.0). Use `setNegotiationPolicy` and
+`getNegotiationPolicy` instead. These map to the `SetNegotiationPolicy` and
+`GetNegotiationPolicy` RPCs on the service.
 
 ## 6.9.4. Usage Examples
 
@@ -209,7 +210,7 @@ Note: The JavaScript/TypeScript client currently uses `setWagglePolicy` and
       deadlineMs: 20000,
     });
 
-    await client.setWagglePolicy({
+    await client.setNegotiationPolicy({
       max_rounds: 5,
       score_threshold: 0.8,
       diff_tolerance: 0.1,

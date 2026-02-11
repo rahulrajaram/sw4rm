@@ -463,3 +463,10 @@ for name, strategy in strategies:
     let decision = producer.wait_for_decision("code-123", Duration::from_secs(10))?;
     println!("{:?}", decision.outcome);
     ```
+
+## Working Examples
+
+For complete runnable examples demonstrating Negotiation Room usage:
+
+- [:simple-rust: Rust negotiation room](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/rust_sdk/examples/negotiation_room.rs)
+- [:simple-typescript: TypeScript negotiation room](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/js_sdk/examples/negotiationRoomExample.ts)

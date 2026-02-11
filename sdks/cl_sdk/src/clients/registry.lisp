@@ -4,7 +4,7 @@
 ;;;; The registry maintains the catalog of active agents and their capabilities
 ;;;; for routing and scheduling decisions.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 

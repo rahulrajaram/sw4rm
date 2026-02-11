@@ -168,7 +168,7 @@ When a timeout occurs, implementations MUST return:
 
 ### 5.2. Retry Guidance
 
-Timeout errors are generally retryable, but implementations SHOULD:
+Timeout errors are retryable, but implementations SHOULD:
 
 1. Apply exponential backoff before retry
 2. Consider reducing timeout on retry (fast-fail pattern)

@@ -14,6 +14,7 @@ The SW4RM agent runtime implements a 12-state machine for lifecycle management. 
 stateDiagram-v2
     [*] --> INITIALIZING
     INITIALIZING --> RUNNABLE: start()
+    INITIALIZING --> FAILED: init_timeout
 
     RUNNABLE --> SCHEDULED: schedule(task_id)
 
@@ -28,17 +29,20 @@ stateDiagram-v2
 
     WAITING --> RUNNING: (event received)
     WAITING_RESOURCES --> RUNNING: (resources available)
+    WAITING_RESOURCES --> FAILED: resource_timeout
 
     SUSPENDED --> RESUMED: resume()
+    SUSPENDED --> FAILED: suspend_timeout
     RESUMED --> RUNNING: (automatic)
 
-    COMPLETED --> [*]
+    COMPLETED --> RUNNABLE: (ready for next task)
 
     FAILED --> RECOVERING: recover()
     SHUTTING_DOWN --> FAILED: (timeout)
 
     RECOVERING --> RUNNABLE: complete_recovery()
     RECOVERING --> FAILED: fail_recovery(reason)
+    RECOVERING --> SHUTTING_DOWN: recovery_abort
 ```
 
 ## State Reference Table
@@ -53,10 +57,10 @@ stateDiagram-v2
 | WAITING_RESOURCES | 5 | Awaiting resources | RUNNING | - |
 | SUSPENDED | 6 | Preempted | RESUMED | `on_suspend()` |
 | RESUMED | 7 | Resuming | RUNNING | `on_resume()` |
-| COMPLETED | 8 | Task finished | (terminal) | - |
+| COMPLETED | 8 | Task finished | RUNNABLE | - |
 | FAILED | 9 | Error occurred | RECOVERING | - |
 | SHUTTING_DOWN | 10 | Graceful stop | FAILED | `on_shutdown()` |
-| RECOVERING | 11 | Recovery in progress | RUNNABLE, FAILED | `on_recovery_start()`, `on_recovery_complete()` |
+| RECOVERING | 11 | Recovery in progress | RUNNABLE, FAILED, SHUTTING_DOWN | `on_recovery_start()`, `on_recovery_complete()` |
 
 ## State Descriptions
 

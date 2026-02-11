@@ -2,7 +2,7 @@
 
 ([Link to full RFC](https://github.com/rahulrajaram/sw4rm/blob/master/documentation/protocol/spec.md))
 
-**SW4RM Protocol v0.5.0** | **Status: Production Ready** | **Last Updated: 2026-01-04**
+**SW4RM Protocol v0.6.0** | **Status: Production Ready** | **Last Updated: 2026-02-11**
 
 Related documents:
 
@@ -12,6 +12,15 @@ Related documents:
 - [Spec Enhancements (Draft)](spec_enhancements.md)
 
 ??? note "Changelog"
+    **0.6.0 (2026-02-11)**
+
+    - Spec compliance and cross-SDK parity release.
+    - Added Advanced Patterns to navigation (Negotiation Room, Handoff, Workflow Orchestration).
+    - Added Spec Extensions to navigation.
+    - Updated all protocol docs to match spec v0.6.0.
+    - Refreshed stale protocol pages (messages, ACKs).
+    - De-duplicated index/overview content.
+
     **0.5.0 (2026-01-04)**
 
     - Documentation alignment release. Updated protocol docs and examples to
@@ -91,9 +100,14 @@ graph TB
         WORKTREE[Worktree Service<br/>:50062<br/>Git Integration & Repository Management]
         TOOLS[Tool Service<br/>:50063<br/>External System Integration]
         NEGOTIATE[Negotiation Service<br/>:50064<br/>Multi-Agent Consensus & Coordination]
+        NEGROOM[Negotiation Room Service<br/>:50068<br/>Multi-Agent Artifact Approval]
         REASON[Reasoning Service<br/>:50065<br/>Decision Support & Analytics]
         AUDIT[Audit Service<br/>:50066<br/>Compliance & Security Logging]
         CONNECT[Connector Service<br/>:50067<br/>External API Integration]
+        ACTIVITY[Activity Service<br/>:50069<br/>Activity Buffer Management]
+        SCHPOLICY[Scheduler Policy Service<br/>:50070<br/>Negotiation Policy & Profiles]
+        HANDOFF[Handoff Service<br/>:50071<br/>Agent Delegation & Transfer]
+        WORKFLOW[Workflow Service<br/>:50072<br/>DAG-Based Orchestration]
     end
     
     subgraph "Data & Storage Layer"
@@ -307,8 +321,10 @@ message Envelope {
 
 | Type | Value | Description | Use Case |
 |------|-------|-------------|----------|
-| `DATA` | 2 | Application payload | Business logic, responses, content |
 | `CONTROL` | 1 | System commands | Status requests, configuration |
+| `DATA` | 2 | Application payload | Business logic, responses, content |
+| `HEARTBEAT` | 3 | Liveness signals | Health checks, keep-alive |
+| `NOTIFICATION` | 4 | One-way informational messages | Alerts, status updates (no ACK expected) |
 | `ACKNOWLEDGEMENT` | 5 | Message confirmations | Delivery receipts, error reports |
 | `HITL_INVOCATION` | 6 | Human-in-the-loop requests | Approval workflows, escalations |
 | `WORKTREE_CONTROL` | 7 | Repository operations | Bind, unbind, switch contexts |
@@ -550,6 +566,10 @@ Google's A2A focuses on secure, interoperable agent messaging across enterprise 
 
 
 - [Message Types](messages.md) - Detailed message specifications
+- [Content Types](content-types.md) - MIME types and payload format conventions
 - [Services](services.md) - Complete service API reference
 - [ACK Lifecycle](acks.md) - Acknowledgment handling patterns
-- [Advanced Patterns (v0.5.0)](advanced-patterns.md) - Negotiation Room, Agent Handoff, Workflow Orchestration, Three-ID Model
+- [Advanced Patterns (v0.6.0)](advanced-patterns.md) - Negotiation Room, Agent Handoff, Workflow Orchestration, Three-ID Model
+- [Handoff Serialization](handoff-serialization.md) - Agent delegation and state transfer wire format
+- [Spec Extensions](spec_extensions.md) - Protocol extension specifications
+- [Deprecations](../migration/deprecations.md) - Deprecated APIs and migration guides

@@ -3,7 +3,7 @@
 ;;;; Handles escalation of decisions to human operators when agent confidence
 ;;;; is low, risks are high, or policy requires human approval.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 

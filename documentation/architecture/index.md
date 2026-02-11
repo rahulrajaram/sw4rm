@@ -87,16 +87,21 @@ stateDiagram-v2
 
     WAITING --> RUNNING: event
     WAITING_RESOURCES --> RUNNING: resources
+    WAITING_RESOURCES --> FAILED: resource_timeout
     SUSPENDED --> RESUMED: resume()
+    SUSPENDED --> FAILED: suspend_timeout
     RESUMED --> RUNNING: auto
+
+    INITIALIZING --> FAILED: init_timeout
 
     FAILED --> RECOVERING: recover()
     RECOVERING --> RUNNABLE: success
     RECOVERING --> FAILED: failure
+    RECOVERING --> SHUTTING_DOWN: recovery_abort
 
     SHUTTING_DOWN --> FAILED: timeout
 
-    COMPLETED --> [*]
+    COMPLETED --> RUNNABLE: ready
 ```
 
 See [State Machines](state-machines.md) for detailed transition documentation, lifecycle hooks, and recovery protocols.

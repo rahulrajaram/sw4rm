@@ -2,7 +2,7 @@
 ;;;;
 ;;;; Manages agent-to-agent handoff requests, responses, and status tracking.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 

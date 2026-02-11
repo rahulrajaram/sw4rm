@@ -2,7 +2,7 @@
 ;;;;
 ;;;; Provides DAG-based workflow orchestration for multi-agent systems.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 

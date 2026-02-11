@@ -1,6 +1,6 @@
 ;;;; errors.lisp - Error condition hierarchy with restart support
 
-(in-package #:sw4rm)
+(in-package #:sw4rm-sdk)
 
 ;;;; Base Condition
 ;;;

@@ -3,7 +3,7 @@
 ;;;; Provides in-memory and file-based storage for negotiation room proposals,
 ;;;; votes, and decisions.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Storage Protocol
 

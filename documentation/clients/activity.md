@@ -207,6 +207,12 @@ activity.append_artifact(
 )
 ```
 
+## Working Examples
+
+For complete runnable examples demonstrating Activity usage:
+
+- [:simple-rust: Rust activity demo](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/rust_sdk/examples/activity_demo.rs)
+
 ## 6.6.6. Error Handling
 
 - Python raises `RuntimeError` if protobuf stubs are missing. Run `make protos` to generate them.

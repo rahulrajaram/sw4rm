@@ -3,7 +3,7 @@
 ;;;; Provides methods for executing tool calls with support for both unary
 ;;;; and streaming responses.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 

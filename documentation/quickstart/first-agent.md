@@ -6,7 +6,7 @@ Build a complete agent that handles messages, manages state, and demonstrates co
 
 ## Overview
 
-We'll create an agent that:
+This guide creates an agent that:
 
 
 - Connects to SW4RM services (Router and Registry)
@@ -396,7 +396,7 @@ chmod 755 ./agent_data
 
 Your agent now handles basic message processing with persistent state! 
 
-In the next section, we'll add more advanced features:
+The next section adds more advanced features:
 
 - Worktree management
 - Custom control commands  

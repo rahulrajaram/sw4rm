@@ -3,7 +3,7 @@
 ;;;; Manages task submission, cancellation, status queries, and preemption
 ;;;; for distributed agent scheduling.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 

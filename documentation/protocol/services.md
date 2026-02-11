@@ -658,6 +658,252 @@ message ListProvidersResponse {
 }
 ```
 
+### Scheduler Policy Service
+
+**Purpose**: Negotiation policy configuration, profile management, and evaluation reporting.
+
+**Port**: 50070
+
+**Package**: `sw4rm.scheduler`
+
+#### Set Negotiation Policy
+
+```protobuf
+rpc SetNegotiationPolicy(SetNegotiationPolicyRequest) returns (SetNegotiationPolicyResponse);
+
+message SetNegotiationPolicyRequest {
+  NegotiationPolicy policy = 1;
+}
+
+message SetNegotiationPolicyResponse {
+  bool ok = 1;
+  string reason = 2;
+}
+```
+
+#### Get Negotiation Policy
+
+```protobuf
+rpc GetNegotiationPolicy(GetNegotiationPolicyRequest) returns (GetNegotiationPolicyResponse);
+
+message GetNegotiationPolicyResponse {
+  NegotiationPolicy policy = 1;
+}
+```
+
+#### Set/List Policy Profiles
+
+```protobuf
+rpc SetPolicyProfiles(SetPolicyProfilesRequest) returns (SetPolicyProfilesResponse);
+rpc ListPolicyProfiles(ListPolicyProfilesRequest) returns (ListPolicyProfilesResponse);
+```
+
+#### Get Effective Policy
+
+```protobuf
+rpc GetEffectivePolicy(GetEffectivePolicyRequest) returns (GetEffectivePolicyResponse);
+
+message GetEffectivePolicyRequest {
+  string negotiation_id = 1;
+}
+
+message GetEffectivePolicyResponse {
+  EffectivePolicy effective = 1;
+}
+```
+
+#### Submit Evaluation / HITL Action
+
+```protobuf
+rpc SubmitEvaluation(SubmitEvaluationRequest) returns (SubmitEvaluationResponse);
+rpc HitlAction(HitlActionRequest) returns (HitlActionResponse);
+```
+
+For client usage details, see [Scheduler Policy Client](../clients/scheduler-policy.md).
+
+### Negotiation Room Service
+
+**Purpose**: Multi-agent artifact approval workflows with producer-critic-coordinator pattern.
+
+**Port**: 50068
+
+**Package**: `sw4rm.negotiation_room`
+
+#### Submit Proposal
+
+```protobuf
+rpc SubmitProposal(SubmitProposalRequest) returns (SubmitProposalResponse);
+
+message SubmitProposalRequest {
+  NegotiationProposal proposal = 1;
+}
+
+message SubmitProposalResponse {
+  string artifact_id = 1;
+  string negotiation_room_id = 2;
+}
+```
+
+#### Submit Vote
+
+```protobuf
+rpc SubmitVote(SubmitVoteRequest) returns (SubmitVoteResponse);
+
+message SubmitVoteRequest {
+  NegotiationVote vote = 1;
+}
+
+message SubmitVoteResponse {
+  string artifact_id = 1;
+  string critic_id = 2;
+}
+```
+
+#### Get Votes / Get Decision / Wait For Decision
+
+```protobuf
+rpc GetVotes(GetVotesRequest) returns (GetVotesResponse);
+rpc GetDecision(GetDecisionRequest) returns (GetDecisionResponse);
+rpc WaitForDecision(WaitForDecisionRequest) returns (WaitForDecisionResponse);
+```
+
+`WaitForDecision` blocks until a decision is rendered or `timeout_seconds` expires.
+
+For client usage details, see [Negotiation Room Client](../clients/negotiation-room.md).
+
+### Handoff Service
+
+**Purpose**: Safe delegation of work between agents when capability requirements change or workload balancing is needed.
+
+**Port**: 50071
+
+**Package**: `sw4rm.handoff`
+
+#### Request Handoff
+
+```protobuf
+rpc RequestHandoff(HandoffRequest) returns (Empty);
+
+message HandoffRequest {
+  string request_id = 1;
+  string from_agent = 2;
+  string to_agent = 3;
+  string reason = 4;
+  bytes context_snapshot = 5;
+  repeated string capabilities_required = 6;
+  int32 priority = 7;
+  google.protobuf.Duration timeout = 8;
+}
+```
+
+#### Accept / Reject Handoff
+
+```protobuf
+rpc AcceptHandoff(HandoffResponse) returns (Empty);
+rpc RejectHandoff(HandoffResponse) returns (Empty);
+
+message HandoffResponse {
+  string request_id = 1;
+  bool accepted = 2;
+  string accepting_agent = 3;
+  string rejection_reason = 4;
+}
+```
+
+#### Get Pending Handoffs / Complete Handoff
+
+```protobuf
+rpc GetPendingHandoffs(GetPendingHandoffsRequest) returns (GetPendingHandoffsResponse);
+rpc CompleteHandoff(CompleteHandoffRequest) returns (CompleteHandoffResponse);
+```
+
+Handoff states: `PENDING` → `ACCEPTED`/`REJECTED` → `COMPLETED`/`EXPIRED`.
+
+For client usage details, see [Handoff Client](../clients/handoff.md).
+
+### Workflow Service
+
+**Purpose**: DAG-based multi-agent task coordination where nodes represent agent-executed steps with explicit dependencies.
+
+**Port**: 50072
+
+**Package**: `sw4rm.workflow`
+
+#### Create Workflow
+
+```protobuf
+rpc CreateWorkflow(CreateWorkflowRequest) returns (CreateWorkflowResponse);
+
+message CreateWorkflowRequest {
+  WorkflowDefinition definition = 1;
+}
+
+message CreateWorkflowResponse {
+  string workflow_id = 1;
+  bool success = 2;
+  string error = 3;
+}
+```
+
+Implementations MUST validate the workflow definition forms a valid DAG (no cycles) before persisting. On cycle detection, CreateWorkflow MUST fail with `error_code=workflow_cycle_detected`.
+
+#### Start / Get State / Resume Workflow
+
+```protobuf
+rpc StartWorkflow(StartWorkflowRequest) returns (StartWorkflowResponse);
+rpc GetWorkflowState(GetWorkflowStateRequest) returns (GetWorkflowStateResponse);
+rpc ResumeWorkflow(ResumeWorkflowRequest) returns (ResumeWorkflowResponse);
+```
+
+Node statuses: `PENDING` → `READY` → `RUNNING` → `COMPLETED`/`FAILED`/`SKIPPED`.
+
+For client usage details, see [Workflow Client](../clients/workflow.md).
+
+### Activity Service
+
+**Purpose**: Artifact storage and retrieval for negotiation rounds (contracts, diffs, decisions, scores).
+
+**Port**: 50069
+
+**Package**: `sw4rm.activity`
+
+#### Append Artifact
+
+```protobuf
+rpc AppendArtifact(AppendArtifactRequest) returns (AppendArtifactResponse);
+
+message Artifact {
+  string negotiation_id = 1;
+  string kind = 2;           // contract|diff|decision|score|note
+  string version = 3;        // e.g., v3
+  string content_type = 4;
+  bytes content = 5;
+  string created_at = 6;     // ISO-8601
+}
+
+message AppendArtifactResponse {
+  bool ok = 1;
+  string reason = 2;
+}
+```
+
+#### List Artifacts
+
+```protobuf
+rpc ListArtifacts(ListArtifactsRequest) returns (ListArtifactsResponse);
+
+message ListArtifactsRequest {
+  string negotiation_id = 1;
+  string kind = 2;           // Optional filter by artifact kind
+}
+
+message ListArtifactsResponse {
+  repeated Artifact items = 1;
+}
+```
+
+For client usage details, see [Activity Client](../clients/activity.md).
+
 ## Service Discovery and Health
 
 ### Service Registry Pattern

@@ -1,6 +1,6 @@
 ;;;; config.lisp - Configuration structures and loaders
 
-(in-package #:sw4rm)
+(in-package #:sw4rm-sdk)
 
 ;;;; Service Endpoints
 ;;;
@@ -62,7 +62,7 @@ such as timeouts and retry policies."
    nil
    :type (or null string))
   (version
-   "0.6.0"
+   "0.5.0"
    :type string)
   (capabilities
    nil
@@ -134,7 +134,7 @@ Environment variables:
   AGENT_ID               - Agent identifier (default: 'agent-1')
   AGENT_NAME             - Agent display name (default: 'Agent')
   AGENT_DESCRIPTION      - Agent description
-  AGENT_VERSION          - Agent version (default: '0.6.0')
+  AGENT_VERSION          - Agent version (default: '0.5.0')
   SW4RM_TIMEOUT_MS       - Default timeout in milliseconds
   SW4RM_RETRY_MAX_ATTEMPTS - Maximum retry attempts
   SW4RM_HEARTBEAT_INTERVAL_MS - Heartbeat interval in milliseconds
@@ -147,7 +147,7 @@ Returns:
    :agent-id (or (uiop:getenv "AGENT_ID") "agent-1")
    :name (or (uiop:getenv "AGENT_NAME") "Agent")
    :description (uiop:getenv "AGENT_DESCRIPTION")
-   :version (or (uiop:getenv "AGENT_VERSION") "0.6.0")
+   :version (or (uiop:getenv "AGENT_VERSION") "0.5.0")
    :endpoints (make-default-endpoints)
    :timeout-ms (if-let ((val (uiop:getenv "SW4RM_TIMEOUT_MS")))
                  (parse-integer val :junk-allowed t)

@@ -6,7 +6,7 @@
 ;;;; Ported from Python SDK's ACKLifecycleManager (sw4rm/ack_integration.py).
 ;;;; Implements ACK tracking per spec section 11 requirements.
 
-(in-package #:sw4rm)
+(in-package #:sw4rm-sdk)
 
 ;;;; ACK Record Structure
 ;;;;

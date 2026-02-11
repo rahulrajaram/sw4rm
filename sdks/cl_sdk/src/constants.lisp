@@ -1,13 +1,13 @@
 ;;;; constants.lisp - Protocol constants and enums
 
-(in-package #:sw4rm)
+(in-package #:sw4rm-sdk)
 
 ;;;; Protocol Enums
 ;;;
 ;;; These constants mirror the enum values from protos/common.proto.
 ;;; All values MUST match the canonical protocol buffer definitions.
 ;;;
-;;; SW4RM Protocol Version: 0.6.0
+;;; SW4RM Protocol Version: 0.5.0
 
 ;;; MessageType (spec §11)
 ;;; Defines the type of message being sent through the routing infrastructure.

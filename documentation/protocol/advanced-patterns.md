@@ -1,6 +1,74 @@
-# 3.11 Advanced Patterns (v0.5.0)
+# 3.11 Advanced Patterns (v0.6.0)
 
-This section documents the advanced multi-agent coordination patterns introduced in SW4RM Protocol v0.5.0. These patterns enable sophisticated workflows for artifact approval, agent delegation, and DAG-based orchestration.
+This section documents the advanced multi-agent coordination patterns introduced in SW4RM Protocol v0.5.0 and extended in v0.6.0. These patterns enable sophisticated workflows for artifact approval, agent delegation, and DAG-based orchestration.
+
+## 3.11.0 Negotiation Foundations
+
+The following subsections document the core negotiation mechanics that underpin the Negotiation Room, Handoff, and Workflow patterns.
+
+### 3.11.0.1 Negotiation Event Fanout (§17.1)
+
+Negotiation events are carried as `NEGOTIATION` envelopes whose payload is a JSON object. Implementations MUST preserve raw payload bytes and `correlation_id`. Unknown fields MUST be ignored by receivers. The following event kinds are defined:
+
+| Kind | Payload Schema | Description |
+|------|---------------|-------------|
+| `open` | `{ kind, ts, topic: string, corr: string }` | Opens a new negotiation session |
+| `policy` | `{ kind, ts, negotiation_id: string, profile?: string, policy: NegotiationPolicy }` | Broadcasts the effective policy |
+| `propose` | `{ kind, ts, from: string, ct: string, payload_b64: string }` | Submits a proposal |
+| `counter` | `{ kind, ts, from: string, ct: string, payload_b64: string }` | Submits a counter-proposal |
+| `evaluate` | `{ kind, ts, from: string, score: number, notes: string }` | Evaluates a proposal |
+| `decide` | `{ kind, ts, by: string, ct: string, result_b64: string }` | Issues a final decision |
+| `abort` | `{ kind, ts, reason: string }` | Aborts the negotiation |
+
+`payload_b64` and `result_b64` hold opaque bytes for proposals/results; `ct` is the content type. SDKs SHOULD provide convenience helpers to decode on demand. Services MUST NOT reorder events; ordering follows the service stream.
+
+### 3.11.0.2 Negotiation Policy and Effective Policy (§17.2)
+
+The Scheduler is the source of truth for negotiation policy. On `Open`, the Scheduler MUST derive an `EffectivePolicy` from a base `NegotiationPolicy` and any clamped `AgentPreferences`, then broadcast a `policy` event. Policy MAY be selected by a profile hint provided at `Open`.
+
+The base `NegotiationPolicy` includes:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `max_rounds` | u32 | Maximum negotiation rounds |
+| `score_threshold` | f32 (0..1) | Score required for acceptance |
+| `diff_tolerance` | f32 (0..1) | Maximum acceptable structural diff magnitude |
+| `round_timeout_ms` | u64 | Timeout per round in milliseconds |
+| `token_budget_per_round` | u64 | Token budget per round |
+| `total_token_budget` | u64 | Optional total token budget across all rounds |
+| `oscillation_limit` | u32 | Maximum allowed score oscillations before abort |
+| `hitl` | enum | HITL gate: `None`, `PauseBetweenRounds`, `PauseOnFinalAccept` |
+| `scoring.require_schema_valid` | bool | Require JSON Schema validation |
+| `scoring.require_examples_pass` | bool | Require executable examples to pass |
+| `scoring.llm_weight` | f32 | Weight for LLM confidence in blended scoring |
+
+The `EffectivePolicy` is the scheduler-owned, per-negotiation policy after clamping agent preferences to scheduler guardrails. Implementations MUST persist the effective policy per room and include it in the broadcast.
+
+### 3.11.0.3 Validation, Diff, and Scoring (§17.3)
+
+Implementations SHOULD support early validation of proposals using JSON Schema and executable examples. Invalid drafts MUST be rejected without consuming a round.
+
+Per round, implementations SHOULD compute and record a structural JSON `DeltaSummary` with:
+
+- `magnitude`: Bounded numerical measure of change size.
+- `changed_paths`: Set of JSON paths that changed between rounds.
+
+**Scoring pipeline**: Deterministic scoring MUST run first. Optional Inference Engine/LLM confidence in [0,1] MAY be blended per policy `llm_weight`. Acceptance and stop decisions MUST follow `EffectivePolicy` thresholds (score, oscillation, token, and time budgets). Optional HITL pause is enforced per policy.
+
+### 3.11.0.4 Reports and Artifacts (§17.4)
+
+Implementations SHOULD emit and persist structured records per round:
+
+| Record | Contents |
+|--------|----------|
+| `EvaluationReport` | Deterministic checks, scores, notes |
+| `DecisionReport` | Scores, rationale, stop reason |
+| `contract_vN.json` | Versioned artifact snapshot |
+| `diff_v{N-1}_to_vN.json` | Structural diff between rounds |
+
+Use the [Activity Service](../protocol/services.md#activity-service) `AppendArtifact` RPC to persist these records.
+
+---
 
 ## 3.11.1 Negotiation Room Pattern
 
@@ -108,6 +176,35 @@ decision = client.wait_for_decision(
     timeout_s=300
 )
 ```
+
+### Policy-Based Auto-Approval (v0.6.0)
+
+Implementations SHOULD support configurable policy thresholds for automatic decision outcomes:
+
+**Approval Thresholds:**
+
+| Threshold | Default | Description |
+|-----------|---------|-------------|
+| `min_score_threshold` | 7.0 | Minimum aggregated score for auto-approval |
+| `min_confidence_threshold` | 0.7 | Minimum average confidence required |
+| `min_pass_ratio` | 0.8 | Minimum proportion of critics that passed |
+| `max_std_dev` | 2.0 | Maximum score standard deviation for auto-approval |
+
+The Coordinator SHOULD apply auto-approval when ALL conditions are met:
+
+1. `aggregated_score.weighted_mean >= min_score_threshold`
+2. Average confidence across votes >= `min_confidence_threshold`
+3. Proportion of votes with `passed=true` >= `min_pass_ratio`
+4. `aggregated_score.std_dev <= max_std_dev`
+
+The Coordinator MUST escalate to HITL when ANY of these conditions are met:
+
+1. Any critic vote has `confidence < 0.3` (high uncertainty)
+2. `aggregated_score.std_dev > 3.0` (extreme disagreement)
+3. Any critic explicitly requests escalation via recommendations
+4. Policy timeout expires before sufficient votes are received
+
+Decisions MUST include the `policy_version` field identifying which policy configuration was applied.
 
 ---
 
@@ -303,6 +400,25 @@ nodes:
     output_mapping:
       transformed: "results"
 ```
+
+### DAG Validation and Cycle Detection (v0.6.0)
+
+Implementations MUST validate workflow definitions to ensure they form valid Directed Acyclic Graphs (DAGs). Validation MUST occur during `CreateWorkflow` before the workflow is persisted.
+
+**Cycle Detection:**
+
+1. Implementations MUST detect cycles in the dependency graph before accepting a workflow definition.
+2. When a cycle is detected, `CreateWorkflow` MUST fail with `error_code=workflow_cycle_detected`.
+3. The error response SHOULD include the nodes involved in the cycle to aid debugging.
+
+**Validation Algorithm:** Implementations SHOULD use topological sort (Kahn's algorithm or DFS-based) to detect cycles. The algorithm MUST complete in O(V + E) time where V is the number of nodes and E is the number of dependency edges.
+
+**Additional Validation Rules:**
+
+- All `node_id` values referenced in `dependencies` MUST exist in the workflow's `nodes` map.
+- Self-referential dependencies (a node depending on itself) MUST be rejected.
+- Implementations SHOULD warn (but MAY accept) workflows with unreachable nodes.
+- A valid workflow MUST have at least one root node (node with empty `dependencies`).
 
 ---
 

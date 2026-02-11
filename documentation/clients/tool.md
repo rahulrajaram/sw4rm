@@ -225,6 +225,12 @@ The service exposes three RPCs:
     }
     ```
 
+## Working Examples
+
+For complete runnable examples demonstrating Tool usage:
+
+- [:simple-python: Python tool streaming](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/py_sdk/examples/tool_streaming_example.py)
+
 ## 6.15.5. Error Handling
 
 - Python raises `RuntimeError` if protobuf stubs are missing. Run `make protos`.

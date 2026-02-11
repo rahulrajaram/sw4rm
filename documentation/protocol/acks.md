@@ -1,5 +1,7 @@
 # ACK Lifecycle
 
+> **Protocol version**: v0.6.0 | **Last updated**: 2026-02-11 | **Spec reference**: §11, §11.1, §11.2
+
 Complete specification of the acknowledgment lifecycle in SW4RM protocol, including delivery guarantees, failure handling, and state management patterns.
 
 ## Overview
@@ -137,15 +139,21 @@ Messages are guaranteed to be delivered **at least once** to the target agent:
 3. **Dead Letter Queue**: Messages exceeding retry limits moved to DLQ for manual inspection
 4. **Idempotency**: Duplicate detection via `idempotency_token` prevents processing duplicates
 
-### Exactly-Once Processing
+### Exactly-Once Processing (§11.2)
 
 While delivery is at-least-once, processing is **exactly once** via:
 
 
-1. **Idempotency Tokens**: Stable identifiers across retry attempts
-2. **Deduplication Windows**: Track processed tokens within time window
+1. **Idempotency Tokens**: Stable identifiers across retry attempts (see [Three-ID Model](messages.md#three-id-model-envelope-identification))
+2. **Deduplication Windows**: Track processed tokens within configurable `deduplication_window` (default: 3600 seconds)
 3. **State Checkpointing**: Persist processing state before side effects
 4. **Transaction Boundaries**: Atomic commit of processing results and ACK
+
+On message arrival with idempotency token, implementations MUST:
+
+- **Token maps to terminal state**: return cached outcome without re-execution.
+- **Token maps to non-terminal state**: return `ALREADY_IN_PROGRESS` without starting new execution.
+- **New token**: record RECEIVED state and proceed with normal processing.
 
 ### Ordering Guarantees
 
@@ -219,9 +227,31 @@ message TimeoutConfig {
 }
 ```
 
-### Late ACKs and Reconciliation
+### Late ACK Reconciliation (§11.1)
 
-Implementations MUST reconcile late ACKs. If an ACK arrives after local timeout handling, the system SHOULD update the final outcome to reflect the terminal stage observed (e.g., FULFILLED) and clear retries or DLQ markers accordingly. Per the base spec, the default time to reach RECEIVED is 10 seconds; upon timeout, set `TIMED_OUT` and NACK with `ack_timeout`, but accept a subsequent late ACK and reconcile state.
+Late acknowledgments (ACKs received after timeout processing has begun) MUST be
+reconciled against current message state per spec §11.1:
+
+1. **Message in TIMED_OUT state**: The late ACK MUST be recorded but MUST NOT
+   change the terminal state. Implementations MUST log the late ACK for
+   observability with the original timeout timestamp and late ACK timestamp.
+
+2. **Message in RETRYING state**: The late ACK for the original attempt MUST be
+   recorded. If the retry has not yet been delivered, implementations MAY cancel
+   the retry and transition to the ACK'd state (RECEIVED, READ, or FULFILLED).
+   If the retry has already been delivered, both attempts MUST be tracked and
+   deduplicated by idempotency token.
+
+3. **Message in terminal state (FULFILLED, REJECTED, FAILED)**: Late ACKs MUST
+   be ignored for state purposes but MUST be logged for audit trails.
+
+4. **Idempotency token reconciliation**: When late ACKs arrive for messages with
+   idempotency tokens, implementations MUST update the idempotency cache to
+   reflect the earliest successful completion, ensuring correct deduplication of
+   subsequent retries.
+
+The default time to reach RECEIVED is **10 seconds** (spec §11). Upon timeout,
+set `TIMED_OUT` and NACK with error code `ack_timeout`.
 
 ### Timeout Enforcement
 
@@ -263,17 +293,17 @@ The Activity Buffer maintains ACK state across agent restarts:
   "ack_history": [
     {
       "stage": "RECEIVED",
-      "timestamp": "2024-08-08T15:30:00Z",
+      "timestamp": "2026-02-11T15:30:00Z",
       "processing_time_ms": 2
     },
     {
       "stage": "READ", 
-      "timestamp": "2024-08-08T15:30:01Z",
+      "timestamp": "2026-02-11T15:30:01Z",
       "processing_time_ms": 45
     }
   ],
   "current_stage": "READ",
-  "next_timeout": "2024-08-08T15:32:00Z",
+  "next_timeout": "2026-02-11T15:32:00Z",
   "retry_count": 0
 }
 ```
@@ -315,7 +345,7 @@ For large messages processed in chunks:
     "progress_percent": "45",
     "records_completed": "2300",
     "records_total": "5000",
-    "estimated_completion": "2024-08-08T15:45:00Z"
+    "estimated_completion": "2026-02-11T15:45:00Z"
   }
 }
 ```
@@ -331,7 +361,7 @@ ACKs can include conditions for further processing:
   "note": "Awaiting human approval before processing",
   "metadata": {
     "approval_request_id": "approval-789",
-    "expected_decision_by": "2024-08-09T09:00:00Z",
+    "expected_decision_by": "2026-02-12T09:00:00Z",
     "approver_roles": "security_admin,data_steward"
   }
 }
@@ -434,3 +464,9 @@ Critical ACK patterns trigger alerts:
 3. **Configure Appropriate Timeouts**: Balance user experience with system load
 4. **Implement Dead Letter Handling**: Process permanently failed messages
 5. **Capacity Plan for ACK Volume**: ACKs generate additional message load
+
+## See Also
+
+- [Messages — Three-ID Model](messages.md#three-id-model-envelope-identification) for `message_id`, `correlation_id`, and `idempotency_token` semantics
+- [Error Handling — Dead Letter Queue](../clients/error-handling.md#dead-letter-queue-dlq) for messages exceeding retry limits
+- [Protocol Index — Message Types](index.md) for full message type enumeration

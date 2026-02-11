@@ -12,7 +12,7 @@
 ;;;; All structures support round-trip JSON serialisation via TO-JSON / FROM-JSON
 ;;;; generic functions.
 
-(in-package #:sw4rm)
+(in-package #:sw4rm-sdk)
 
 ;;;; -----------------------------------------------------------------------
 ;;;; Content type constants

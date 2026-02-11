@@ -156,6 +156,14 @@ The service exposes two RPCs:
     }
     ```
 
+## Working Examples
+
+For complete runnable examples demonstrating Router usage:
+
+- [:simple-python: Python echo agent](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/py_sdk/examples/echo_agent.py)
+- [:simple-rust: Rust echo agent](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/rust_sdk/examples/echo_agent.rs)
+- [:simple-typescript: TypeScript echo agent](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/js_sdk/examples/echoAgent.ts)
+
 > **Tip:** If you see `RuntimeError: Protobuf stubs not generated`, run:
 
 ```bash

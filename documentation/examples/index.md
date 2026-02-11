@@ -1,6 +1,6 @@
 # 4. Examples
 
-Comprehensive examples demonstrating SW4RM SDK usage across Python, JavaScript/TypeScript, and Rust implementations.
+Comprehensive examples demonstrating SW4RM SDK usage across Python, JavaScript/TypeScript, and Rust implementations. For domain-specific application patterns, see [Use Cases](use-cases.md).
 
 ## 4.1. LLM-Integrated Multi-Agent Systems {#41-llm-integrated-multi-agent-systems}
 

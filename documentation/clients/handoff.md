@@ -95,6 +95,9 @@ Current SDKs provide an in-memory implementation for development and testing.
 **Rust**
 `request_handoff(&self, request: HandoffRequest) -> Result<HandoffResponse>`
 
+Note: The underlying gRPC proto returns `Empty`; SDK clients wrap this into a
+`HandoffResponse` with `accepted=True` and `status=PENDING` for convenience.
+
 ### `accept_handoff` / `acceptHandoff`
 
 **Python**
@@ -225,6 +228,14 @@ Current SDKs provide an in-memory implementation for development and testing.
         client.complete_handoff(&response.handoff_id)?;
     }
     ```
+
+## Working Examples
+
+For complete runnable examples demonstrating Handoff usage:
+
+- [:simple-python: Python handoff example](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/py_sdk/examples/handoff_example.py)
+- [:simple-rust: Rust handoff example](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/rust_sdk/examples/handoff.rs)
+- [:simple-typescript: TypeScript handoff example](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/js_sdk/examples/handoffExample.ts)
 
 ## 6.11.5. Error Handling
 

@@ -165,7 +165,55 @@ The HITL service provides the decision side of that workflow.
     }
     ```
 
-## 6.12.5. Error Handling
+## 6.12.5. HITL Absence Policy
+
+Deployments without a HITL component MUST define a policy for how to proceed when
+human decisions are required. Per spec §15.3:
+
+- **Deny-by-default** (RECOMMENDED for security-sensitive deployments): Reject the
+  operation that triggered the escalation.
+
+- **Threshold-based auto-decision**: Apply automatic decisions based on configurable
+  score thresholds when confidence is sufficient.
+
+The Scheduler MUST document and log which fallback was applied. Components MUST NOT
+block indefinitely waiting for human input when no HITL component is available.
+
+## 6.12.6. HITL Unavailability During Negotiation Timeout
+
+When a negotiation timeout fires and requires HITL escalation (e.g., `DEBATE_DEADLOCK`),
+but the HITL component is unavailable, the Scheduler MUST handle the situation per
+spec §15.4:
+
+1. **Detect HITL unavailability**: The Scheduler MUST detect unavailability within a
+   bounded time (RECOMMENDED: 5 seconds) through health checks, connection failures,
+   or response timeouts.
+
+2. **Apply fallback policy**: The Scheduler MUST apply the configured
+   `hitl_unavailable_policy`. Valid policy values:
+
+   | Policy | Behavior |
+   |--------|----------|
+   | `DENY_BY_DEFAULT` | Abort the negotiation with `error_code=hitl_unavailable`. RECOMMENDED default for security-sensitive deployments. |
+   | `AUTO_DECIDE_THRESHOLD` | If the highest-scoring proposal exceeds a configured auto-approve threshold, accept it automatically; otherwise abort. |
+   | `EXTEND_TIMEOUT` | Extend the negotiation timeout by a configured duration (RECOMMENDED: 1x original) and retry HITL escalation. Maximum retry count RECOMMENDED: 3. |
+
+3. **Log and notify**: The Scheduler MUST log the HITL unavailability event with
+   negotiation context and the fallback action taken. Implementations SHOULD emit an
+   alert to operators.
+
+4. **Preserve audit trail**: The decision record MUST indicate that the decision was
+   made via fallback policy due to HITL unavailability, including the policy applied
+   and timestamp.
+
+## Working Examples
+
+For complete runnable examples demonstrating HITL usage:
+
+- [:simple-python: Python HITL escalation](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/py_sdk/examples/hitl_escalation_example.py)
+- [:simple-typescript: TypeScript HITL escalation](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/js_sdk/examples/hitlEscalation.ts)
+
+## 6.12.7. Error Handling
 
 - Python raises `RuntimeError` if protobuf stubs are missing. Run `make protos`.
 - JavaScript/TypeScript methods reject with gRPC errors (wrapped as `Sw4rmError`).

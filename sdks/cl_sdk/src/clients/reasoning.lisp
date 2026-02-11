@@ -3,7 +3,7 @@
 ;;;; Provides AI-powered reasoning capabilities for parallelism checking,
 ;;;; debate evaluation, and text summarization.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 

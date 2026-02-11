@@ -3,7 +3,7 @@
 ;;;; Manages negotiation policies, policy profiles, and evaluation reports
 ;;;; for multi-agent negotiations coordinated by the scheduler.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 

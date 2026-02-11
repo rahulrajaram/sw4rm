@@ -293,6 +293,12 @@ The service exposes six RPCs:
     }
     ```
 
+## Working Examples
+
+For complete runnable examples demonstrating Negotiation usage:
+
+- [:simple-python: Python negotiation debate](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/py_sdk/examples/negotiation_debate_example.py)
+
 ## 6.13.5. Error Handling
 
 - Python raises `RuntimeError` if protobuf stubs are missing. Run `make protos`.

@@ -333,6 +333,14 @@ All mapping/metadata setters raise `WorkflowBuilderError` if the node is missing
     }
     ```
 
+## Working Examples
+
+For complete runnable examples demonstrating Workflow usage:
+
+- [:simple-python: Python workflow orchestration](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/py_sdk/examples/workflow_orchestration_example.py)
+- [:simple-rust: Rust workflow](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/rust_sdk/examples/workflow.rs)
+- [:simple-typescript: TypeScript workflow](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/js_sdk/examples/workflowExample.ts)
+
 ## 6.16.5. Error Handling
 
 - JavaScript/TypeScript throws `WorkflowValidationError` for invalid definitions and `WorkflowCycleError` for cycles; missing workflows or instances raise `WorkflowValidationError`.

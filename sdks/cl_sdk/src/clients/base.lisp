@@ -3,7 +3,7 @@
 ;;;; Provides base client class, connection management, retry logic,
 ;;;; and deadline handling for all SW4RM gRPC service clients.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Conditions
 

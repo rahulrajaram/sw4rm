@@ -387,6 +387,53 @@ X-Data-Schema: log-entries-v2
 X-Compression: gzip
 ```
 
+## Three-ID Model (Envelope Identification)
+
+The SW4RM protocol uses three distinct identifiers to track messages across their lifecycle. Understanding these identifiers is essential for implementing correct deduplication, correlation, and retry semantics.
+
+| Identifier | Scope | Mutability | Purpose |
+|------------|-------|------------|---------|
+| `message_id` | Per attempt | New on each retry | Uniquely identifies a specific transmission attempt |
+| `correlation_id` | Per workflow/session | Stable across entire flow | Groups related messages for tracing and debugging |
+| `idempotency_token` | Per logical operation | Stable across retries | Enables exactly-once semantics via deduplication |
+
+### `message_id` (Required)
+
+- MUST be a UUIDv4 generated for each message transmission.
+- MUST be unique across all messages in the system.
+- Retry attempts MUST generate new `message_id` values.
+- Used for acknowledgment targeting (`ack_for_message_id`).
+
+### `correlation_id` (Required)
+
+- MUST be a UUIDv4 that groups related operations.
+- For workflows: Set to `workflow_id` to correlate all workflow messages.
+- For negotiations: Set to `negotiation_id` for room-based correlation.
+- For request-response pairs: Response MUST echo the request's `correlation_id`.
+- Enables end-to-end distributed tracing and log aggregation.
+
+### `idempotency_token` (Optional)
+
+- MUST remain constant across all retries of the same logical operation.
+- Used by the Router/Scheduler for deduplication.
+- Format: `{producer_id}:{operation_type}:{deterministic_hash}`
+- When present, duplicate tokens return cached results instead of re-execution.
+- Absence of token falls back to `(producer_id, sequence_number)` deduplication.
+
+### Relationship Example
+
+```
+Logical operation: Create user "alice"
+  Attempt 1: message_id=m1, correlation_id=wf123, idempotency_token=agent1:create:abc
+    → Times out, retry scheduled
+  Attempt 2: message_id=m2, correlation_id=wf123, idempotency_token=agent1:create:abc
+    → Router detects duplicate token, returns cached result from attempt 1
+```
+
+- `message_id` changes per attempt (m1 vs m2) for ACK tracking.
+- `correlation_id` stays the same (wf123) for end-to-end tracing.
+- `idempotency_token` stays the same (agent1:create:abc) for deduplication.
+
 ## Validation Rules
 
 

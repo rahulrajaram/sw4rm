@@ -4,7 +4,7 @@
 ;;;; delivery of envelopes to their intended recipients and supports streaming
 ;;;; for continuous message reception.
 
-(in-package :sw4rm)
+(in-package :sw4rm-sdk)
 
 ;;;; Client Class
 
