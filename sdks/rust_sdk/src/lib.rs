@@ -84,6 +84,10 @@ pub mod worktree_state;
 pub mod policy_store;
 pub mod voting;
 
+// Phase 4: Parity modules
+pub mod state_transitions;
+pub mod idempotency;
+
 // Re-export commonly used types
 pub use clients::*;
 pub use config::*;
@@ -107,6 +111,13 @@ pub use policy_store::{
 pub use voting::{
     AggregationStrategy, BordaCountAggregator, ConfidenceWeightedAggregator,
     MajorityVoteAggregator, SimpleAverageAggregator, VotingAggregator,
+};
+pub use state_transitions::{
+    is_valid_transition, valid_transitions, validate_transition,
+    StateTransitionError as AgentStateTransitionError, state_name,
+};
+pub use idempotency::{
+    compute_deterministic_hash, make_idempotency_token, create_idempotency_token,
 };
 
 // Generated protobuf code

@@ -138,6 +138,7 @@ impl RouterClient {
                 if let Some(envelope) = stream_item.msg {
                     debug!("Received message {} for agent", envelope.message_id);
 
+                    let ts = envelope.timestamp.as_ref();
                     Ok(EnvelopeData {
                         message_id: envelope.message_id,
                         idempotency_token: envelope.idempotency_token,
@@ -151,8 +152,14 @@ impl RouterClient {
                         repo_id: envelope.repo_id,
                         worktree_id: envelope.worktree_id,
                         hlc_timestamp: envelope.hlc_timestamp,
+                        timestamp_seconds: ts.map(|t| t.seconds).unwrap_or(0),
+                        timestamp_nanos: ts.map(|t| t.nanos).unwrap_or(0),
                         ttl_ms: envelope.ttl_ms,
                         payload: envelope.payload,
+                        state: crate::constants::envelope_state::RECEIVED,
+                        effective_policy_id: String::new(),
+                        audit_proof: Vec::new(),
+                        audit_policy_id: String::new(),
                     })
                 } else {
                     error!("Received stream item without envelope");

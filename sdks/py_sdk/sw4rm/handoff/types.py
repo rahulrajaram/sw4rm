@@ -37,6 +37,7 @@ class HandoffRequest:
         preserve_history: Whether to preserve conversation history in the handoff
         capabilities_required: List of capabilities the target agent must have
         metadata: Additional metadata for the handoff
+        timeout: Optional timeout in seconds for the handoff to be accepted (spec §17.6)
     """
     from_agent: str
     to_agent: str
@@ -45,6 +46,7 @@ class HandoffRequest:
     preserve_history: bool = True
     capabilities_required: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    timeout: Optional[float] = None  # Timeout in seconds (spec §17.6 MUST)
 
 
 @dataclass

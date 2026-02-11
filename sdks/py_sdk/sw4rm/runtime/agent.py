@@ -15,34 +15,38 @@ class AgentState:
     The agent state machine defines 12 states that an agent can be in during
     its lifecycle. These states control what operations are valid and help
     coordinate scheduling, preemption, and recovery.
+
+    Values are 1-based to match proto / constants.py (UNSPECIFIED = 0).
     """
-    INITIALIZING = 0       # Agent is being initialized
-    RUNNABLE = 1           # Agent is ready to be scheduled
-    SCHEDULED = 2          # Agent has been assigned a task
-    RUNNING = 3            # Agent is actively executing
-    WAITING = 4            # Agent is waiting for external input/response
-    WAITING_RESOURCES = 5  # Agent is waiting for resources to become available
-    SUSPENDED = 6          # Agent execution has been suspended (preempted)
-    RESUMED = 7            # Agent is resuming from suspension
-    COMPLETED = 8          # Agent has completed its task successfully
-    FAILED = 9             # Agent has failed
-    SHUTTING_DOWN = 10     # Agent is in the process of shutting down
-    RECOVERING = 11        # Agent is recovering from a failure
+    AGENT_STATE_UNSPECIFIED = 0  # Proto default / unset
+    INITIALIZING = 1       # Agent is being initialized
+    RUNNABLE = 2           # Agent is ready to be scheduled
+    SCHEDULED = 3          # Agent has been assigned a task
+    RUNNING = 4            # Agent is actively executing
+    WAITING = 5            # Agent is waiting for external input/response
+    WAITING_RESOURCES = 6  # Agent is waiting for resources to become available
+    SUSPENDED = 7          # Agent execution has been suspended (preempted)
+    RESUMED = 8            # Agent is resuming from suspension
+    COMPLETED = 9          # Agent has completed its task successfully
+    FAILED = 10            # Agent has failed
+    SHUTTING_DOWN = 11     # Agent is in the process of shutting down
+    RECOVERING = 12        # Agent is recovering from a failure
 
     # Human-readable names for logging/debugging
     _NAMES: dict[int, str] = {
-        0: "INITIALIZING",
-        1: "RUNNABLE",
-        2: "SCHEDULED",
-        3: "RUNNING",
-        4: "WAITING",
-        5: "WAITING_RESOURCES",
-        6: "SUSPENDED",
-        7: "RESUMED",
-        8: "COMPLETED",
-        9: "FAILED",
-        10: "SHUTTING_DOWN",
-        11: "RECOVERING",
+        0: "AGENT_STATE_UNSPECIFIED",
+        1: "INITIALIZING",
+        2: "RUNNABLE",
+        3: "SCHEDULED",
+        4: "RUNNING",
+        5: "WAITING",
+        6: "WAITING_RESOURCES",
+        7: "SUSPENDED",
+        8: "RESUMED",
+        9: "COMPLETED",
+        10: "FAILED",
+        11: "SHUTTING_DOWN",
+        12: "RECOVERING",
     }
 
     @classmethod

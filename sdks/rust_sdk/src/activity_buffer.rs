@@ -66,14 +66,19 @@ impl ActivityBuffer {
         self.by_id.is_empty()
     }
 
-    fn prune_if_needed(&mut self) {
-        while self.order.len() > self.max_items {
-            let oldest = self.order.remove(0);
-            self.by_id.remove(&oldest);
+    fn check_capacity(&self) -> Result<()> {
+        if self.order.len() >= self.max_items {
+            return Err(Error::BufferFull {
+                current: self.order.len(),
+                max: self.max_items,
+            });
         }
+        Ok(())
     }
 
     pub fn record_incoming(&mut self, envelope: serde_json::Value) -> Result<ActivityRecord> {
+        self.check_capacity()?;
+
         let message_id = envelope
             .get("message_id")
             .and_then(|v| v.as_str())
@@ -83,12 +88,13 @@ impl ActivityBuffer {
         let record = ActivityRecord::new(message_id.clone(), "in".to_string(), envelope);
         self.by_id.insert(message_id.clone(), record.clone());
         self.order.push(message_id);
-        self.prune_if_needed();
 
         Ok(record)
     }
 
     pub fn record_outgoing(&mut self, envelope: serde_json::Value) -> Result<ActivityRecord> {
+        self.check_capacity()?;
+
         let message_id = envelope
             .get("message_id")
             .and_then(|v| v.as_str())
@@ -98,7 +104,6 @@ impl ActivityBuffer {
         let record = ActivityRecord::new(message_id.clone(), "out".to_string(), envelope);
         self.by_id.insert(message_id.clone(), record.clone());
         self.order.push(message_id);
-        self.prune_if_needed();
 
         Ok(record)
     }
@@ -208,6 +213,13 @@ impl PersistentActivityBuffer {
             .write()
             .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
 
+        if inner.order.len() >= inner.max_items {
+            return Err(Error::BufferFull {
+                current: inner.order.len(),
+                max: inner.max_items,
+            });
+        }
+
         let message_id = envelope
             .get("message_id")
             .and_then(|v| v.as_str())
@@ -217,7 +229,6 @@ impl PersistentActivityBuffer {
         let record = PersistentActivityRecord::new(message_id.clone(), "in".to_string(), envelope);
         inner.by_id.insert(message_id.clone(), record.clone());
         inner.order.push(message_id);
-        inner.prune_if_needed();
         inner.dirty = true;
 
         Ok(record)
@@ -229,6 +240,13 @@ impl PersistentActivityBuffer {
             .write()
             .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
 
+        if inner.order.len() >= inner.max_items {
+            return Err(Error::BufferFull {
+                current: inner.order.len(),
+                max: inner.max_items,
+            });
+        }
+
         let message_id = envelope
             .get("message_id")
             .and_then(|v| v.as_str())
@@ -238,7 +256,6 @@ impl PersistentActivityBuffer {
         let record = PersistentActivityRecord::new(message_id.clone(), "out".to_string(), envelope);
         inner.by_id.insert(message_id.clone(), record.clone());
         inner.order.push(message_id);
-        inner.prune_if_needed();
         inner.dirty = true;
 
         Ok(record)
@@ -382,7 +399,11 @@ impl PersistentActivityBufferInner {
             Ok((records_data, order)) => {
                 self.by_id = records_data;
                 self.order = order;
-                self.prune_if_needed();
+                // Truncate to max_items if persisted data exceeds capacity
+                while self.order.len() > self.max_items {
+                    let oldest = self.order.remove(0);
+                    self.by_id.remove(&oldest);
+                }
                 tracing::info!("Loaded {} records from persistence", self.by_id.len());
                 Ok(())
             }
@@ -404,14 +425,6 @@ impl PersistentActivityBufferInner {
             .save_records(self.by_id.clone(), self.order.clone())?;
         self.dirty = false;
         Ok(())
-    }
-
-    fn prune_if_needed(&mut self) {
-        while self.order.len() > self.max_items {
-            let oldest = self.order.remove(0);
-            self.by_id.remove(&oldest);
-            self.dirty = true;
-        }
     }
 }
 
@@ -509,11 +522,11 @@ mod tests {
     }
 
     #[test]
-    fn test_activity_buffer_capacity_management() {
+    fn test_activity_buffer_rejects_when_full() {
         let mut buffer = ActivityBuffer::new(3);
 
-        // Add more messages than capacity
-        for i in 1..=5 {
+        // Fill buffer to capacity
+        for i in 1..=3 {
             let message = json!({
                 "message_id": format!("capacity-{}", i),
                 "producer_id": "test-agent",
@@ -523,13 +536,24 @@ mod tests {
             buffer.record_incoming(message).unwrap();
         }
 
-        // Should only keep the most recent 3 messages
         assert_eq!(buffer.len(), 3);
 
-        let all_records = buffer.recent(10).unwrap();
-        assert_eq!(all_records.len(), 3);
-        assert_eq!(all_records[0].message_id, "capacity-5");
-        assert_eq!(all_records[2].message_id, "capacity-3");
+        // Next insert should fail with BufferFull
+        let message = json!({
+            "message_id": "capacity-4",
+            "producer_id": "test-agent",
+            "message_type": constants::message_type::DATA,
+            "payload": "data-4"
+        });
+        let result = buffer.record_incoming(message);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            Error::BufferFull { current, max } => {
+                assert_eq!(current, 3);
+                assert_eq!(max, 3);
+            }
+            other => panic!("Expected BufferFull, got: {:?}", other),
+        }
     }
 
     #[test]

@@ -108,9 +108,18 @@ pub fn new_uuid() -> String {
     Uuid::new_v4().to_string()
 }
 
+/// Generate a stub HLC timestamp in the canonical format `HLC:<wall>:<logical>:<node>`.
+///
+/// Per spec section 4, the HLC format combines wall-clock time (Unix microseconds),
+/// a logical counter (always 0 in this stub), and a node identifier (hostname).
+/// Full HLC implementations should increment the logical counter on concurrent
+/// events within the same microsecond.
 pub fn now_hlc_stub() -> String {
-    // Placeholder for HLC; using unix timestamp in milliseconds
-    chrono::Utc::now().timestamp_millis().to_string()
+    let wall_us = chrono::Utc::now().timestamp_micros();
+    let node = std::env::var("HOSTNAME")
+        .or_else(|_| std::env::var("COMPUTERNAME"))
+        .unwrap_or_else(|_| "unknown".to_string());
+    format!("HLC:{}:0:{}", wall_us, node)
 }
 
 pub fn make_idempotency_token(
@@ -280,8 +289,8 @@ mod tests {
         assert_eq!(config.name, "Config Test Agent");
         assert!(config.capabilities.is_empty());
         // Default endpoints present
-        assert_eq!(config.endpoints.registry, "http://localhost:50051");
-        assert_eq!(config.endpoints.router, "http://localhost:50052");
+        assert_eq!(config.endpoints.registry, "http://localhost:50052");
+        assert_eq!(config.endpoints.router, "http://localhost:50051");
     }
 
     #[test]
@@ -332,14 +341,21 @@ mod tests {
         assert_eq!(uuid1.len(), 36); // Standard UUID length
         assert!(uuid1.contains('-'));
 
-        // Test HLC timestamp
+        // Test HLC timestamp (format: HLC:<wall_us>:0:<node>)
         let timestamp1 = now_hlc_stub();
-        std::thread::sleep(std::time::Duration::from_millis(1));
+        std::thread::sleep(std::time::Duration::from_millis(2));
         let timestamp2 = now_hlc_stub();
 
         assert_ne!(timestamp1, timestamp2);
-        assert!(timestamp1.parse::<i64>().is_ok());
-        assert!(timestamp2.parse::<i64>().unwrap() > timestamp1.parse::<i64>().unwrap());
+        assert!(timestamp1.starts_with("HLC:"));
+        let parts1: Vec<&str> = timestamp1.split(':').collect();
+        assert_eq!(parts1.len(), 4, "HLC format should have 4 colon-separated parts");
+        assert_eq!(parts1[0], "HLC");
+        assert!(parts1[1].parse::<i64>().is_ok(), "wall clock should be numeric");
+        assert_eq!(parts1[2], "0", "logical counter should be 0 in stub");
+        // wall clock of ts2 should be >= ts1
+        let parts2: Vec<&str> = timestamp2.split(':').collect();
+        assert!(parts2[1].parse::<i64>().unwrap() >= parts1[1].parse::<i64>().unwrap());
 
         // Test idempotency token generation
         let token1 = make_idempotency_token("agent1", "send", "hash123");

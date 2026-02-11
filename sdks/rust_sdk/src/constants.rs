@@ -47,6 +47,8 @@ pub mod error_code {
     pub const PARTIAL_DELIVERY: i32 = 11;
     pub const FORCED_PREEMPTION: i32 = 12;
     pub const TTL_EXPIRED: i32 = 13;
+    pub const DUPLICATE_DETECTED: i32 = 14;
+    pub const ALREADY_IN_PROGRESS: i32 = 15;
     pub const INTERNAL_ERROR: i32 = 99;
 }
 
@@ -62,7 +64,7 @@ pub mod agent_state {
     pub const SUSPENDED: i32 = 7;
     pub const RESUMED: i32 = 8;
     pub const COMPLETED: i32 = 9;
-    pub const FAILED_STATE: i32 = 10;
+    pub const FAILED: i32 = 10;
     pub const SHUTTING_DOWN: i32 = 11;
     pub const RECOVERING: i32 = 12;
 }
@@ -98,11 +100,53 @@ pub mod hitl_reason_type {
     pub const CONNECTOR_APPROVAL: i32 = 8;
 }
 
+/// EnvelopeState lifecycle constants (spec §11)
+/// Lifecycle: SENT -> RECEIVED -> READ -> FULFILLED
+/// Error states: REJECTED, FAILED, TIMED_OUT
+pub mod envelope_state {
+    pub const ENVELOPE_STATE_UNSPECIFIED: i32 = 0;
+    pub const SENT: i32 = 1;
+    pub const RECEIVED: i32 = 2;
+    pub const READ: i32 = 3;
+    pub const FULFILLED: i32 = 4;
+    pub const REJECTED: i32 = 5;
+    pub const FAILED: i32 = 6;
+    pub const TIMED_OUT: i32 = 7;
+
+    // Backwards compatibility aliases
+    pub const CREATED: i32 = SENT;
+    pub const PENDING: i32 = RECEIVED;
+    pub const RUNNING: i32 = READ;
+
+    /// Check if an envelope state is terminal (no further transitions expected).
+    pub fn is_terminal(state: i32) -> bool {
+        matches!(state, FULFILLED | REJECTED | FAILED | TIMED_OUT)
+    }
+}
+
+/// WorktreeState constants (spec section 16)
+pub mod worktree_state_const {
+    pub const WORKTREE_STATE_UNSPECIFIED: i32 = 0;
+    pub const UNBOUND: i32 = 1;
+    pub const BOUND_HOME: i32 = 2;
+    pub const SWITCH_PENDING: i32 = 3;
+    pub const BOUND_NON_HOME: i32 = 4;
+    pub const BIND_FAILED: i32 = 5;
+}
+
+/// Default timeout for acknowledgement in milliseconds.
+pub const DEFAULT_ACK_TIMEOUT_MS: u64 = 10000;
+
+/// Deduplication window in seconds.
+pub const DEDUP_WINDOW_S: u64 = 3600;
+
 // Re-export for convenience
 pub use ack_stage::*;
-pub use agent_state::*;
 pub use communication_class::*;
 pub use debate_intensity::*;
 pub use error_code::*;
 pub use hitl_reason_type::*;
 pub use message_type::*;
+// Note: agent_state, envelope_state, and worktree_state_const are not re-exported
+// at top level to avoid name collisions (e.g. ack_stage::FAILED vs agent_state::FAILED).
+// Use e.g. constants::agent_state::FAILED or constants::envelope_state::CREATED

@@ -89,8 +89,8 @@ export class StateTransitionError extends Error {
  * Based on the state diagram in spec Appendix C.
  */
 const VALID_TRANSITIONS = new Map<AgentState, Set<AgentState>>([
-  // INITIALIZING -> RUNNABLE
-  [AgentState.INITIALIZING, new Set<AgentState>([AgentState.RUNNABLE])],
+  // INITIALIZING -> RUNNABLE, FAILED (init timeout per spec s8.2)
+  [AgentState.INITIALIZING, new Set<AgentState>([AgentState.RUNNABLE, AgentState.FAILED])],
 
   // RUNNABLE -> SCHEDULED
   [AgentState.RUNNABLE, new Set<AgentState>([AgentState.SCHEDULED])],
@@ -120,8 +120,8 @@ const VALID_TRANSITIONS = new Map<AgentState, Set<AgentState>>([
     new Set<AgentState>([AgentState.RUNNING, AgentState.FAILED]),
   ],
 
-  // SUSPENDED -> RESUMED
-  [AgentState.SUSPENDED, new Set<AgentState>([AgentState.RESUMED])],
+  // SUSPENDED -> RESUMED, FAILED (suspension timeout per spec s8.3)
+  [AgentState.SUSPENDED, new Set<AgentState>([AgentState.RESUMED, AgentState.FAILED])],
 
   // RESUMED -> RUNNING
   [AgentState.RESUMED, new Set<AgentState>([AgentState.RUNNING])],
@@ -135,10 +135,10 @@ const VALID_TRANSITIONS = new Map<AgentState, Set<AgentState>>([
   // SHUTTING_DOWN -> FAILED (agent_shutdown_timeout)
   [AgentState.SHUTTING_DOWN, new Set<AgentState>([AgentState.FAILED])],
 
-  // RECOVERING -> RUNNABLE, SHUTTING_DOWN (recovery abort)
+  // RECOVERING -> RUNNABLE, SHUTTING_DOWN (recovery abort), FAILED (recovery timeout per spec s8.3)
   [
     AgentState.RECOVERING,
-    new Set<AgentState>([AgentState.RUNNABLE, AgentState.SHUTTING_DOWN]),
+    new Set<AgentState>([AgentState.RUNNABLE, AgentState.SHUTTING_DOWN, AgentState.FAILED]),
   ],
 ]);
 

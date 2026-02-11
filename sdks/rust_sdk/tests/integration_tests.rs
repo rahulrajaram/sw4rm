@@ -117,11 +117,11 @@ mod activity_buffer_tests {
     }
 
     #[test]
-    fn test_buffer_pruning() {
+    fn test_buffer_rejects_when_full() {
         let mut buffer = ActivityBuffer::new(3); // Small buffer for testing
 
-        // Add more messages than the buffer can hold
-        for i in 1..=5 {
+        // Fill to capacity
+        for i in 1..=3 {
             let envelope = json!({
                 "message_id": format!("msg-{}", i),
                 "producer_id": "test-agent",
@@ -130,12 +130,19 @@ mod activity_buffer_tests {
             buffer.record_incoming(envelope).unwrap();
         }
 
-        // Should only have the last 3 messages
-        assert!(buffer.get("msg-1").is_none());
-        assert!(buffer.get("msg-2").is_none());
+        // Next insert should be rejected with BufferFull
+        let envelope = json!({
+            "message_id": "msg-4",
+            "producer_id": "test-agent",
+            "message_type": constants::message_type::DATA
+        });
+        let result = buffer.record_incoming(envelope);
+        assert!(result.is_err());
+
+        // Original messages should still be present
+        assert!(buffer.get("msg-1").is_some());
+        assert!(buffer.get("msg-2").is_some());
         assert!(buffer.get("msg-3").is_some());
-        assert!(buffer.get("msg-4").is_some());
-        assert!(buffer.get("msg-5").is_some());
     }
 }
 
@@ -375,8 +382,8 @@ mod config_tests {
     fn test_endpoints_default() {
         let endpoints = Endpoints::default();
 
-        assert_eq!(endpoints.registry, "http://localhost:50051");
-        assert_eq!(endpoints.router, "http://localhost:50052");
+        assert_eq!(endpoints.registry, "http://localhost:50052");
+        assert_eq!(endpoints.router, "http://localhost:50051");
         assert_eq!(endpoints.scheduler, "http://localhost:50053");
         assert_eq!(endpoints.hitl, "http://localhost:50054");
         assert_eq!(endpoints.worktree, "http://localhost:50055");
@@ -439,15 +446,18 @@ mod types_tests {
     #[test]
     fn test_hlc_timestamp() {
         let ts1 = now_hlc_stub();
-        std::thread::sleep(std::time::Duration::from_millis(1));
+        std::thread::sleep(std::time::Duration::from_millis(2));
         let ts2 = now_hlc_stub();
 
         // Should be different timestamps
         assert_ne!(ts1, ts2);
 
-        // Should be numeric strings
-        assert!(ts1.parse::<i64>().is_ok());
-        assert!(ts2.parse::<i64>().is_ok());
+        // Should follow HLC:<wall>:<logical>:<node> format
+        assert!(ts1.starts_with("HLC:"));
+        let parts: Vec<&str> = ts1.split(':').collect();
+        assert_eq!(parts.len(), 4);
+        assert!(parts[1].parse::<i64>().is_ok());
+        assert_eq!(parts[2], "0");
     }
 
     #[test]

@@ -75,6 +75,8 @@ pub struct HandoffRequest {
     pub metadata: HashMap<String, String>,
     /// Timestamp when the request was created
     pub created_at: DateTime<Utc>,
+    /// Timeout for the handoff to be accepted (spec §17.6 MUST)
+    pub timeout: Option<std::time::Duration>,
 }
 
 impl HandoffRequest {
@@ -97,7 +99,14 @@ impl HandoffRequest {
             priority: 0,
             metadata: HashMap::new(),
             created_at: Utc::now(),
+            timeout: None,
         }
+    }
+
+    /// Set the timeout for the handoff to be accepted (spec §17.6).
+    pub fn with_timeout(mut self, timeout: std::time::Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
     }
 
     /// Set the context snapshot for this handoff.

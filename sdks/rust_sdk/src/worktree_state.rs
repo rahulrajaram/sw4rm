@@ -213,11 +213,35 @@ impl WorktreePersistence for JsonWorktreePersistence {
     }
 }
 
-/// Worktree state with persistent storage and policy hooks
+/// Worktree state machine with persistent storage, policy hooks, and TTL enforcement.
+///
+/// Supports the full spec section 16 worktree state machine including:
+/// - UNBOUND -> BOUND_HOME (via bind)
+/// - BOUND_HOME -> SWITCH_PENDING (via request_switch)
+/// - SWITCH_PENDING -> BOUND_NON_HOME (via approve_switch, with TTL)
+/// - SWITCH_PENDING -> BOUND_HOME (via reject_switch)
+/// - BOUND_NON_HOME -> BOUND_HOME (via revert_to_home or TTL expiry check)
+/// - Any -> UNBOUND (via unbind)
+///
+/// Unlike the JS SDK which uses setTimeout, and the Python SDK which uses
+/// threading.Timer, the Rust implementation uses a polling model: call
+/// `check_ttl_expiry()` to test whether the TTL has elapsed and auto-revert.
 pub struct PersistentWorktreeState {
     binding: Option<WorktreeBinding>,
     persistence: Box<dyn WorktreePersistence>,
     policy: Box<dyn WorktreePolicyHook>,
+    /// Current state machine state
+    state: String,
+    /// Home worktree binding (saved on first bind, restored on revert)
+    home_binding: Option<WorktreeBinding>,
+    /// Pending switch target repo_id
+    pending_repo_id: Option<String>,
+    /// Pending switch target worktree_id
+    pending_worktree_id: Option<String>,
+    /// TTL in milliseconds for BOUND_NON_HOME state
+    switch_ttl_ms: Option<u64>,
+    /// Timestamp (unix ms) when BOUND_NON_HOME was entered
+    switch_started_at: Option<i64>,
 }
 
 impl PersistentWorktreeState {
@@ -235,6 +259,12 @@ impl PersistentWorktreeState {
             None
         });
 
+        let state = if binding.is_some() {
+            "BOUND_HOME".to_string()
+        } else {
+            "UNBOUND".to_string()
+        };
+
         if let Some(ref binding) = binding {
             tracing::info!(
                 "Restored worktree binding to {}/{}",
@@ -244,9 +274,15 @@ impl PersistentWorktreeState {
         }
 
         Ok(Self {
+            home_binding: binding.clone(),
             binding,
             persistence,
             policy,
+            state,
+            pending_repo_id: None,
+            pending_worktree_id: None,
+            switch_ttl_ms: None,
+            switch_started_at: None,
         })
     }
 
@@ -259,7 +295,7 @@ impl PersistentWorktreeState {
             })
     }
 
-    /// Bind to a worktree with policy validation
+    /// Bind to a worktree with policy validation (UNBOUND -> BOUND_HOME).
     pub fn bind(
         &mut self,
         repo_id: String,
@@ -280,6 +316,8 @@ impl PersistentWorktreeState {
 
         // Update state
         self.binding = Some(new_binding.clone());
+        self.home_binding = Some(new_binding.clone());
+        self.state = "BOUND_HOME".to_string();
 
         match self.save_to_persistence() {
             Ok(()) => {
@@ -288,13 +326,14 @@ impl PersistentWorktreeState {
                 Ok(true)
             }
             Err(e) => {
+                self.state = "BIND_FAILED".to_string();
                 self.policy.on_bind_error(&repo_id, &worktree_id, &e);
                 Err(e)
             }
         }
     }
 
-    /// Unbind from current worktree with policy validation
+    /// Unbind from current worktree with policy validation (Any -> UNBOUND).
     pub fn unbind(&mut self) -> Result<bool> {
         let binding = match &self.binding {
             Some(binding) => binding.clone(),
@@ -308,6 +347,12 @@ impl PersistentWorktreeState {
 
         // Update state
         self.binding = None;
+        self.home_binding = None;
+        self.state = "UNBOUND".to_string();
+        self.switch_ttl_ms = None;
+        self.switch_started_at = None;
+        self.pending_repo_id = None;
+        self.pending_worktree_id = None;
         self.save_to_persistence()?;
 
         // Call after_unbind hook
@@ -316,7 +361,7 @@ impl PersistentWorktreeState {
         Ok(true)
     }
 
-    /// Switch to a different worktree (unbind then bind)
+    /// Switch to a different worktree (unbind then bind).
     pub fn switch(
         &mut self,
         repo_id: String,
@@ -332,35 +377,165 @@ impl PersistentWorktreeState {
         self.bind(repo_id, worktree_id, metadata)
     }
 
-    /// Get current binding
+    /// Request switch to a non-home worktree (BOUND_HOME -> SWITCH_PENDING).
+    ///
+    /// Requires approval via `approve_switch()` or rejection via `reject_switch()`
+    /// before taking effect.
+    pub fn request_switch(
+        &mut self,
+        target_repo_id: String,
+        target_worktree_id: String,
+    ) -> bool {
+        if self.state != "BOUND_HOME" {
+            return false;
+        }
+        self.pending_repo_id = Some(target_repo_id);
+        self.pending_worktree_id = Some(target_worktree_id);
+        self.state = "SWITCH_PENDING".to_string();
+        true
+    }
+
+    /// Approve a pending switch (SWITCH_PENDING -> BOUND_NON_HOME).
+    ///
+    /// Records the TTL and the start time. Call `check_ttl_expiry()` periodically
+    /// to auto-revert when the TTL elapses.
+    ///
+    /// # Arguments
+    ///
+    /// * `ttl_ms` - Time-to-live in milliseconds before auto-reverting to BOUND_HOME.
+    ///              Defaults to 300000 (5 minutes) if 0 is passed.
+    pub fn approve_switch(&mut self, ttl_ms: u64) -> bool {
+        if self.state != "SWITCH_PENDING" {
+            return false;
+        }
+
+        let repo_id = match self.pending_repo_id.take() {
+            Some(r) => r,
+            None => return false,
+        };
+        let worktree_id = match self.pending_worktree_id.take() {
+            Some(w) => w,
+            None => return false,
+        };
+
+        let new_binding = WorktreeBinding::new(repo_id, worktree_id);
+        self.binding = Some(new_binding);
+        self.state = "BOUND_NON_HOME".to_string();
+        self.switch_ttl_ms = Some(if ttl_ms == 0 { 300_000 } else { ttl_ms });
+        self.switch_started_at = Some(Utc::now().timestamp_millis());
+
+        let _ = self.save_to_persistence();
+        true
+    }
+
+    /// Reject a pending switch (SWITCH_PENDING -> BOUND_HOME).
+    pub fn reject_switch(&mut self) -> bool {
+        if self.state != "SWITCH_PENDING" {
+            return false;
+        }
+
+        self.pending_repo_id = None;
+        self.pending_worktree_id = None;
+
+        // Restore home binding
+        if let Some(ref home) = self.home_binding {
+            self.binding = Some(home.clone());
+        }
+        self.state = "BOUND_HOME".to_string();
+        let _ = self.save_to_persistence();
+        true
+    }
+
+    /// Check if the BOUND_NON_HOME TTL has expired and auto-revert if so.
+    ///
+    /// This is the polling-based equivalent of the JS/Python timer approach.
+    /// Callers should invoke this periodically (e.g., on each status check).
+    ///
+    /// Returns `true` if the state was reverted due to TTL expiry.
+    pub fn check_ttl_expiry(&mut self) -> bool {
+        if self.state != "BOUND_NON_HOME" {
+            return false;
+        }
+
+        if let (Some(ttl_ms), Some(started_at)) = (self.switch_ttl_ms, self.switch_started_at) {
+            let now_ms = Utc::now().timestamp_millis();
+            if now_ms - started_at >= ttl_ms as i64 {
+                self.revert_to_home();
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Revert from non-home to home worktree (BOUND_NON_HOME -> BOUND_HOME).
+    ///
+    /// Called on TTL expiry or explicit revoke.
+    pub fn revert_to_home(&mut self) {
+        if self.state != "BOUND_NON_HOME" {
+            return;
+        }
+
+        if let Some(ref home) = self.home_binding {
+            self.binding = Some(home.clone());
+        }
+        self.state = "BOUND_HOME".to_string();
+        self.switch_ttl_ms = None;
+        self.switch_started_at = None;
+        let _ = self.save_to_persistence();
+    }
+
+    /// Get the current state machine state.
+    pub fn worktree_state(&self) -> &str {
+        &self.state
+    }
+
+    /// Get current binding.
     pub fn current(&self) -> Option<&WorktreeBinding> {
         self.binding.as_ref()
     }
 
-    /// Check if currently bound to a worktree
+    /// Check if currently bound to a worktree.
     pub fn is_bound(&self) -> bool {
         self.binding.is_some()
     }
 
-    /// Get detailed status information
+    /// Get detailed status information.
     pub fn status(&self) -> serde_json::Value {
         match &self.binding {
-            Some(binding) => serde_json::json!({
-                "bound": true,
-                "repo_id": binding.repo_id,
-                "worktree_id": binding.worktree_id,
-                "bound_at": binding.bound_at,
-                "metadata": binding.metadata
-            }),
+            Some(binding) => {
+                let mut val = serde_json::json!({
+                    "bound": true,
+                    "state": self.state,
+                    "repo_id": binding.repo_id,
+                    "worktree_id": binding.worktree_id,
+                    "bound_at": binding.bound_at,
+                    "metadata": binding.metadata
+                });
+                if let Some(ref home) = self.home_binding {
+                    val["home_repo_id"] = serde_json::json!(home.repo_id);
+                    val["home_worktree_id"] = serde_json::json!(home.worktree_id);
+                }
+                if let Some(ttl) = self.switch_ttl_ms {
+                    val["switch_ttl_ms"] = serde_json::json!(ttl);
+                }
+                val
+            }
             None => serde_json::json!({
-                "bound": false
+                "bound": false,
+                "state": self.state
             }),
         }
     }
 
-    /// Clear binding and persistent storage
+    /// Clear binding and persistent storage.
     pub fn clear(&mut self) -> Result<()> {
         self.binding = None;
+        self.home_binding = None;
+        self.state = "UNBOUND".to_string();
+        self.switch_ttl_ms = None;
+        self.switch_started_at = None;
+        self.pending_repo_id = None;
+        self.pending_worktree_id = None;
         self.persistence.clear()
     }
 }

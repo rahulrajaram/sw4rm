@@ -619,6 +619,43 @@ export class WorkflowClient {
   }
 
   /**
+   * Resume a workflow by marking a node as completed and advancing dependents.
+   *
+   * Implements the ResumeWorkflow RPC (spec §17.7 MUST). Marks the specified
+   * node as COMPLETED, updates workflow data if provided, then transitions
+   * dependent nodes from PENDING to READY when all their dependencies are met.
+   *
+   * @param instanceId - The ID of the workflow instance
+   * @param nodeId - The ID of the node to mark as completed
+   * @param workflowData - Optional updated workflow data (JSON string)
+   * @param metadata - Optional metadata for the resume operation
+   * @returns The updated workflow instance
+   * @throws WorkflowValidationError if the instance or node does not exist
+   */
+  async resumeWorkflow(
+    instanceId: string,
+    nodeId: string,
+    workflowData?: string,
+    metadata?: Record<string, string>
+  ): Promise<WorkflowInstance> {
+    // Mark node as completed
+    await this.updateNodeState(instanceId, nodeId, NodeStatus.COMPLETED);
+
+    // Update workflow data if provided
+    if (workflowData !== undefined) {
+      await this.updateWorkflowData(instanceId, workflowData);
+    }
+
+    // Merge metadata if provided
+    if (metadata) {
+      const instance = this.instances.get(instanceId)!;
+      Object.assign(instance.metadata, metadata);
+    }
+
+    return this.getWorkflowStatus(instanceId);
+  }
+
+  /**
    * Update the shared workflow data.
    *
    * @param instanceId - The ID of the workflow instance

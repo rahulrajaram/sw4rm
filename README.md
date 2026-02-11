@@ -11,7 +11,7 @@ SDKs
 - Python: `sdks/py_sdk` — see `sdks/py_sdk/README.md`
 - Rust: `sdks/rust_sdk` — see `sdks/rust_sdk/README.md`
 - JavaScript: `sdks/js_sdk` — see `sdks/js_sdk/README.md`
-- Common Lisp: `sdks/cl_sdk` — see `sdks/cl_sdk/README.md` (Orchestrator SDK for hierarchical multi-swarm deployments)
+- Common Lisp: `sdks/cl_sdk` — see `sdks/cl_sdk/README.md` (Full peer SDK with idiomatic CL condition/restart patterns)
 
 ## CI Workflows
 

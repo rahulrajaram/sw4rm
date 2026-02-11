@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // SW4RM JavaScript SDK
-export const version = '0.5.0';
+export const version = '0.6.0';
 
 // Clients
 export * from './clients/router.js';
@@ -73,6 +73,18 @@ export * from './runtime/persistenceAdapter.js';
 export * from './internal/errorMapper.js';
 export * from './internal/ack.js';
 export * from './internal/control.js';
+
+// Constants (all protocol enums)
+export * from './constants/index.js';
+
+// Audit module
+export * from './audit.js';
+
+// Centralized agent configuration
+export * from './agentConfig.js';
+
+// Persistent Activity Buffer (Three-ID model)
+export * from './persistentActivityBuffer.js';
 
 // Secrets (experimental)
 export * from './secrets/types.js'

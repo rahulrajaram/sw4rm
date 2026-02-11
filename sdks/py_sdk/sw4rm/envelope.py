@@ -41,8 +41,20 @@ def new_uuid() -> str:
 
 
 def now_hlc_stub() -> str:
-    # Placeholder for HLC; using unix ms as string here.
-    return str(int(time.time() * 1000))
+    """Generate a stub HLC timestamp in the canonical format HLC:<wall>:<logical>:<node>.
+
+    Per spec section 4, the HLC format combines wall-clock time (Unix microseconds),
+    a logical counter (always 0 in this stub), and a node identifier (hostname).
+    Full HLC implementations should increment the logical counter on concurrent
+    events within the same microsecond.
+
+    Returns:
+        String in format ``HLC:<unix_microseconds>:0:<hostname>``.
+    """
+    import platform
+    wall_us = int(time.time() * 1_000_000)
+    node = platform.node() or "unknown"
+    return f"HLC:{wall_us}:0:{node}"
 
 
 def compute_deterministic_hash(params: dict[str, Any]) -> str:
@@ -108,7 +120,7 @@ def build_envelope(
     repo_id: Optional[str] = None,
     worktree_id: Optional[str] = None,
     ttl_ms: Optional[int] = None,
-    state: int = C.CREATED,
+    state: int = C.SENT,
     effective_policy_id: Optional[str] = None,
     audit_proof: Optional[bytes] = None,
     audit_policy_id: Optional[str] = None,
@@ -147,6 +159,10 @@ def build_envelope(
     """
     # Returns a plain dict compatible with sw4rm.common.Envelope fields.
     # Callers can adapt this to the generated protobuf class if available.
+    now = time.time()
+    ts_seconds = int(now)
+    ts_nanos = int((now - ts_seconds) * 1_000_000_000)
+
     env = {
         "message_id": new_uuid(),
         "idempotency_token": idempotency_token or "",
@@ -160,10 +176,10 @@ def build_envelope(
         "repo_id": repo_id or "",
         "worktree_id": worktree_id or "",
         "hlc_timestamp": now_hlc_stub(),
+        "timestamp": {"seconds": ts_seconds, "nanos": ts_nanos},
         "ttl_ms": ttl_ms or 0,
         "state": state,
         "effective_policy_id": effective_policy_id or "",
-        # timestamp and payload are set by the sender or router in real impl
         "payload": payload,
         "audit_proof": audit_proof or b"",
         "audit_policy_id": audit_policy_id or "",

@@ -442,6 +442,39 @@ class WorktreeError(SW4RMError):
         return base
 
 
+class BufferFullError(SW4RMError):
+    """Exception raised when the activity buffer is at capacity.
+
+    Per spec §10.1, implementations MUST NOT silently drop entries when limits
+    are reached; instead, MUST reject new registrations with error_code=BUFFER_FULL.
+
+    Attributes:
+        message: Human-readable error description
+        error_code: Protocol error code (BUFFER_FULL)
+        current_size: Current number of entries in the buffer
+        max_size: Maximum allowed entries
+    """
+
+    def __init__(
+        self,
+        message: str,
+        current_size: int,
+        max_size: int,
+        error_code: Optional[int] = None
+    ) -> None:
+        super().__init__(message, error_code or C.BUFFER_FULL)
+        self.current_size = current_size
+        self.max_size = max_size
+
+    def to_dict(self) -> dict[str, Any]:
+        base = super().to_dict()
+        base.update({
+            "current_size": self.current_size,
+            "max_size": self.max_size,
+        })
+        return base
+
+
 class NegotiationError(SW4RMError):
     """Exception for negotiation protocol failures.
 

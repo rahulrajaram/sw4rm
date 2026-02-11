@@ -13,6 +13,7 @@ export function computeIdempotencyToken(input: IdempotencyInput): string {
   h.update(input.operation);
   h.update('\n');
   h.update(Buffer.from(input.canonical_bytes));
-  return `v1:${h.digest('hex')}`;
+  const hash16 = h.digest('hex').slice(0, 16);
+  return `${input.producer_id}:${input.operation}:${hash16}`;
 }
 

@@ -6,6 +6,7 @@ from typing import Dict, Optional, Any, List
 from collections import deque
 
 from . import constants as C
+from .exceptions import BufferFullError
 from .persistence import PersistenceBackend, JSONFilePersistence, PersistentActivityRecord
 from .buffer_strategy import BufferStrategy, DEFAULT_BUFFER_STRATEGY
 
@@ -73,7 +74,7 @@ class ActivityBuffer:
     def __init__(
         self,
         *,
-        max_items: int = 1000,
+        max_items: int = 10000,
         strategy: Optional[BufferStrategy] = None,
         dedup_window_s: int = 3600
     ) -> None:
@@ -84,24 +85,18 @@ class ActivityBuffer:
         self.strategy = strategy or DEFAULT_BUFFER_STRATEGY
         self.dedup_window_s = dedup_window_s  # Default: 1 hour per spec §11.1
 
-    def _prune_if_needed(self) -> None:
-        excess = max(0, len(self._order) - self._max_items)
-        if excess > 0:
-            victims = self.strategy.victims(list(self._order), excess)
-            for victim_id in victims:
-                if victim_id in self._by_id:
-                    # Clean up idempotency token mapping
-                    rec = self._by_id[victim_id]
-                    token = rec.idempotency_token
-                    if token and token in self._by_idempotency_token:
-                        if self._by_idempotency_token[token] == victim_id:
-                            del self._by_idempotency_token[token]
-                    del self._by_id[victim_id]
-                # Remove from order deque
-                try:
-                    self._order.remove(victim_id)
-                except ValueError:
-                    pass  # Item may have been removed already
+    def _check_capacity(self) -> None:
+        """Reject new entries when buffer is full per spec §10.1.
+
+        Raises:
+            BufferFullError: When buffer is at capacity
+        """
+        if len(self._by_id) >= self._max_items:
+            raise BufferFullError(
+                f"Activity buffer is full (max {self._max_items} items)",
+                current_size=len(self._by_id),
+                max_size=self._max_items,
+            )
 
     def _cleanup_expired_dedup_entries(self) -> None:
         """Remove idempotency tokens for records outside dedup window."""
@@ -120,6 +115,7 @@ class ActivityBuffer:
             del self._by_idempotency_token[token]
 
     def record_incoming(self, envelope: Dict[str, Any]) -> ActivityRecord:
+        self._check_capacity()
         mid = str(envelope.get("message_id"))
         rec = ActivityRecord(message_id=mid, direction="in", envelope=envelope)
         self._by_id[mid] = rec
@@ -130,11 +126,11 @@ class ActivityBuffer:
         if token:
             self._by_idempotency_token[token] = mid
 
-        self._prune_if_needed()
         self._cleanup_expired_dedup_entries()
         return rec
 
     def record_outgoing(self, envelope: Dict[str, Any]) -> ActivityRecord:
+        self._check_capacity()
         mid = str(envelope.get("message_id"))
         rec = ActivityRecord(message_id=mid, direction="out", envelope=envelope)
         self._by_id[mid] = rec
@@ -145,7 +141,6 @@ class ActivityBuffer:
         if token:
             self._by_idempotency_token[token] = mid
 
-        self._prune_if_needed()
         self._cleanup_expired_dedup_entries()
         return rec
 
@@ -222,7 +217,7 @@ class PersistentActivityBuffer:
     def __init__(
         self,
         *,
-        max_items: int = 1000,
+        max_items: int = 10000,
         persistence: Optional[PersistenceBackend] = None,
         strategy: Optional[BufferStrategy] = None,
         dedup_window_s: int = 3600
@@ -256,7 +251,7 @@ class PersistentActivityBuffer:
                     self._by_idempotency_token[token] = message_id
 
             self._order = deque(order)
-            self._prune_if_needed()
+            self._check_capacity()
 
             print(f"[ActivityBuffer] Loaded {len(self._by_id)} records from persistence")
         except Exception as e:
@@ -277,26 +272,18 @@ class PersistentActivityBuffer:
         except Exception as e:
             print(f"[ActivityBuffer] Failed to save to persistence: {e}")
 
-    def _prune_if_needed(self) -> None:
-        """Remove records using configured strategy when we exceed max_items."""
-        excess = max(0, len(self._order) - self._max_items)
-        if excess > 0:
-            victims = self.strategy.victims(list(self._order), excess)
-            for victim_id in victims:
-                if victim_id in self._by_id:
-                    # Clean up idempotency token mapping
-                    rec = self._by_id[victim_id]
-                    token = rec.envelope.get("idempotency_token", "")
-                    if token and token in self._by_idempotency_token:
-                        if self._by_idempotency_token[token] == victim_id:
-                            del self._by_idempotency_token[token]
-                    del self._by_id[victim_id]
-                # Remove from order deque
-                try:
-                    self._order.remove(victim_id)
-                except ValueError:
-                    pass  # Item may have been removed already
-            self._dirty = True
+    def _check_capacity(self) -> None:
+        """Reject new entries when buffer is full per spec §10.1.
+
+        Raises:
+            BufferFullError: When buffer is at capacity
+        """
+        if len(self._by_id) >= self._max_items:
+            raise BufferFullError(
+                f"Activity buffer is full (max {self._max_items} items)",
+                current_size=len(self._by_id),
+                max_size=self._max_items,
+            )
 
     def _cleanup_expired_dedup_entries(self) -> None:
         """Remove idempotency tokens for records outside dedup window."""
@@ -319,6 +306,7 @@ class PersistentActivityBuffer:
 
     def record_incoming(self, envelope: Dict[str, Any]) -> PersistentActivityRecord:
         """Record an incoming message envelope."""
+        self._check_capacity()
         mid = str(envelope.get("message_id"))
         rec = PersistentActivityRecord(message_id=mid, direction="in", envelope=envelope)
 
@@ -330,7 +318,6 @@ class PersistentActivityBuffer:
         if token:
             self._by_idempotency_token[token] = mid
 
-        self._prune_if_needed()
         self._cleanup_expired_dedup_entries()
         self._dirty = True
 
@@ -338,6 +325,7 @@ class PersistentActivityBuffer:
 
     def record_outgoing(self, envelope: Dict[str, Any]) -> PersistentActivityRecord:
         """Record an outgoing message envelope."""
+        self._check_capacity()
         mid = str(envelope.get("message_id"))
         rec = PersistentActivityRecord(message_id=mid, direction="out", envelope=envelope)
 
@@ -349,7 +337,6 @@ class PersistentActivityBuffer:
         if token:
             self._by_idempotency_token[token] = mid
 
-        self._prune_if_needed()
         self._cleanup_expired_dedup_entries()
         self._dirty = True
 

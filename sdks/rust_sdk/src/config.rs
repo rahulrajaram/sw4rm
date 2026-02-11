@@ -29,8 +29,8 @@ pub struct Endpoints {
 impl Default for Endpoints {
     fn default() -> Self {
         Self {
-            registry: "http://localhost:50051".to_string(),
-            router: "http://localhost:50052".to_string(),
+            registry: "http://localhost:50052".to_string(),
+            router: "http://localhost:50051".to_string(),
             scheduler: "http://localhost:50053".to_string(),
             hitl: "http://localhost:50054".to_string(),
             worktree: "http://localhost:50055".to_string(),

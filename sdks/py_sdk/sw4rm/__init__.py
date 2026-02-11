@@ -33,6 +33,7 @@ __all__ = [
     "metrics",
     "content_types",
     "shared_context",
+    "state_transitions",
     # Cross-cutting concerns (Phase 3.6)
     "logging",
     "tracing",

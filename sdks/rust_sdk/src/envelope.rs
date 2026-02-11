@@ -16,13 +16,22 @@ pub struct EnvelopeBuilder {
     pub repo_id: String,
     pub worktree_id: String,
     pub hlc_timestamp: String,
+    pub timestamp_seconds: i64,
+    pub timestamp_nanos: i32,
     pub ttl_ms: u64,
     pub payload: Vec<u8>,
+    pub state: i32,
+    pub effective_policy_id: String,
+    pub audit_proof: Vec<u8>,
+    pub audit_policy_id: String,
 }
 
 impl EnvelopeBuilder {
     /// Create a new envelope builder with required fields
     pub fn new(producer_id: String, message_type: i32) -> Self {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default();
         Self {
             message_id: new_uuid(),
             idempotency_token: String::new(),
@@ -36,8 +45,14 @@ impl EnvelopeBuilder {
             repo_id: String::new(),
             worktree_id: String::new(),
             hlc_timestamp: now_hlc_stub(),
+            timestamp_seconds: now.as_secs() as i64,
+            timestamp_nanos: now.subsec_nanos() as i32,
             ttl_ms: 0,
             payload: Vec::new(),
+            state: crate::constants::envelope_state::CREATED,
+            effective_policy_id: String::new(),
+            audit_proof: Vec::new(),
+            audit_policy_id: String::new(),
         }
     }
 
@@ -107,6 +122,30 @@ impl EnvelopeBuilder {
         self
     }
 
+    /// Set the envelope state
+    pub fn with_state(mut self, state: i32) -> Self {
+        self.state = state;
+        self
+    }
+
+    /// Set the effective policy ID
+    pub fn with_effective_policy_id(mut self, policy_id: String) -> Self {
+        self.effective_policy_id = policy_id;
+        self
+    }
+
+    /// Set the audit proof bytes
+    pub fn with_audit_proof(mut self, proof: Vec<u8>) -> Self {
+        self.audit_proof = proof;
+        self
+    }
+
+    /// Set the audit policy ID
+    pub fn with_audit_policy_id(mut self, policy_id: String) -> Self {
+        self.audit_policy_id = policy_id;
+        self
+    }
+
     /// Build the envelope
     pub fn build(self) -> EnvelopeData {
         EnvelopeData {
@@ -122,8 +161,14 @@ impl EnvelopeBuilder {
             repo_id: self.repo_id,
             worktree_id: self.worktree_id,
             hlc_timestamp: self.hlc_timestamp,
+            timestamp_seconds: self.timestamp_seconds,
+            timestamp_nanos: self.timestamp_nanos,
             ttl_ms: self.ttl_ms,
             payload: self.payload,
+            state: self.state,
+            effective_policy_id: self.effective_policy_id,
+            audit_proof: self.audit_proof,
+            audit_policy_id: self.audit_policy_id,
         }
     }
 }
@@ -143,8 +188,14 @@ pub struct EnvelopeData {
     pub repo_id: String,
     pub worktree_id: String,
     pub hlc_timestamp: String,
+    pub timestamp_seconds: i64,
+    pub timestamp_nanos: i32,
     pub ttl_ms: u64,
     pub payload: Vec<u8>,
+    pub state: i32,
+    pub effective_policy_id: String,
+    pub audit_proof: Vec<u8>,
+    pub audit_policy_id: String,
 }
 
 impl EnvelopeData {

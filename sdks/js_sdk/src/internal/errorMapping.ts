@@ -16,6 +16,8 @@ export enum ErrorCode {
   PARTIAL_DELIVERY = 11,
   FORCED_PREEMPTION = 12,
   TTL_EXPIRED = 13,
+  DUPLICATE_DETECTED = 14,
+  ALREADY_IN_PROGRESS = 15,
   INTERNAL_ERROR = 99,
 }
 
@@ -29,6 +31,94 @@ export class Sw4rmError extends Error {
     this.code = code;
     this.grpcStatus = opts?.grpcStatus;
     this.details = opts?.details;
+  }
+}
+
+/**
+ * Thrown when input validation fails.
+ * Default error code: VALIDATION_ERROR
+ */
+export class ValidationError extends Sw4rmError {
+  constructor(message: string, code: ErrorCode = ErrorCode.VALIDATION_ERROR, opts?: { grpcStatus?: number; details?: string }) {
+    super(message, code, opts);
+    this.name = 'ValidationError';
+  }
+}
+
+/**
+ * Thrown when an operation times out.
+ * Default error code: ACK_TIMEOUT
+ */
+export class TimeoutError extends Sw4rmError {
+  constructor(message: string, code: ErrorCode = ErrorCode.ACK_TIMEOUT, opts?: { grpcStatus?: number; details?: string }) {
+    super(message, code, opts);
+    this.name = 'TimeoutError';
+  }
+}
+
+/**
+ * Thrown when an invalid state transition is attempted.
+ * Default error code: INTERNAL_ERROR
+ */
+export class StateTransitionError extends Sw4rmError {
+  constructor(message: string, code: ErrorCode = ErrorCode.INTERNAL_ERROR, opts?: { grpcStatus?: number; details?: string }) {
+    super(message, code, opts);
+    this.name = 'StateTransitionError';
+  }
+}
+
+/**
+ * Thrown when negotiation fails.
+ * Default error code: INTERNAL_ERROR
+ */
+export class NegotiationError extends Sw4rmError {
+  constructor(message: string, code: ErrorCode = ErrorCode.INTERNAL_ERROR, opts?: { grpcStatus?: number; details?: string }) {
+    super(message, code, opts);
+    this.name = 'NegotiationError';
+  }
+}
+
+/**
+ * Thrown when the activity buffer is full.
+ * Default error code: BUFFER_FULL
+ */
+export class BufferFullError extends Sw4rmError {
+  constructor(message: string, code: ErrorCode = ErrorCode.BUFFER_FULL, opts?: { grpcStatus?: number; details?: string }) {
+    super(message, code, opts);
+    this.name = 'BufferFullError';
+  }
+}
+
+/**
+ * Thrown when no route to destination exists.
+ * Default error code: NO_ROUTE
+ */
+export class RouteError extends Sw4rmError {
+  constructor(message: string, code: ErrorCode = ErrorCode.NO_ROUTE, opts?: { grpcStatus?: number; details?: string }) {
+    super(message, code, opts);
+    this.name = 'RouteError';
+  }
+}
+
+/**
+ * Thrown when permission is denied.
+ * Default error code: PERMISSION_DENIED
+ */
+export class PermissionError extends Sw4rmError {
+  constructor(message: string, code: ErrorCode = ErrorCode.PERMISSION_DENIED, opts?: { grpcStatus?: number; details?: string }) {
+    super(message, code, opts);
+    this.name = 'PermissionError';
+  }
+}
+
+/**
+ * Thrown when a duplicate request is detected.
+ * Default error code: DUPLICATE_DETECTED
+ */
+export class DuplicateDetectedError extends Sw4rmError {
+  constructor(message: string, code: ErrorCode = ErrorCode.DUPLICATE_DETECTED, opts?: { grpcStatus?: number; details?: string }) {
+    super(message, code, opts);
+    this.name = 'DuplicateDetectedError';
   }
 }
 
@@ -52,6 +142,43 @@ const GrpcStatus = {
   DATA_LOSS: 15,
   UNAUTHENTICATED: 16,
 } as const;
+
+/**
+ * Thrown when an agent is forcibly preempted by the scheduler.
+ * Default error code: FORCED_PREEMPTION
+ */
+export class PreemptionError extends Sw4rmError {
+  readonly agentId: string;
+  readonly reason: string;
+  constructor(agentId: string, reason: string, code: ErrorCode = ErrorCode.FORCED_PREEMPTION, opts?: { grpcStatus?: number; details?: string }) {
+    super(`Agent ${agentId} preempted: ${reason}`, code, opts);
+    this.name = 'PreemptionError';
+    this.agentId = agentId;
+    this.reason = reason;
+  }
+}
+
+/**
+ * Thrown when a worktree operation fails (bind, switch, etc.).
+ * Default error code: INTERNAL_ERROR
+ */
+export class WorktreeError extends Sw4rmError {
+  constructor(message: string, code: ErrorCode = ErrorCode.INTERNAL_ERROR, opts?: { grpcStatus?: number; details?: string }) {
+    super(message, code, opts);
+    this.name = 'WorktreeError';
+  }
+}
+
+/**
+ * Thrown when an action violates a configured policy.
+ * Default error code: PERMISSION_DENIED
+ */
+export class PolicyViolationError extends Sw4rmError {
+  constructor(message: string, code: ErrorCode = ErrorCode.PERMISSION_DENIED, opts?: { grpcStatus?: number; details?: string }) {
+    super(message, code, opts);
+    this.name = 'PolicyViolationError';
+  }
+}
 
 export function mapGrpcStatusToErrorCode(status: number): ErrorCode {
   switch (status) {

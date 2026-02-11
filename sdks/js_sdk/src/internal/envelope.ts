@@ -32,6 +32,10 @@ export interface EnvelopeInput {
   hlc_timestamp?: string;
   ttl_ms?: number;
   timestamp?: Date; // default now (UTC)
+  state?: number; // EnvelopeState (default: CREATED = 1)
+  effective_policy_id?: string; // ID of effective policy governing this operation
+  audit_proof?: Uint8Array; // cryptographic proof for audit trail
+  audit_policy_id?: string; // ID of audit policy governing this envelope
 }
 
 export interface EnvelopeBuilt {
@@ -50,6 +54,10 @@ export interface EnvelopeBuilt {
   ttl_ms?: number;
   timestamp: Timestamp;
   payload?: Uint8Array;
+  state: number; // EnvelopeState lifecycle
+  effective_policy_id: string; // effective policy ID (empty if not set)
+  audit_proof: Uint8Array; // audit proof bytes (empty if not set)
+  audit_policy_id: string; // audit policy ID (empty if not set)
 }
 
 export function nowTimestamp(date = new Date()): Timestamp {
@@ -59,9 +67,25 @@ export function nowTimestamp(date = new Date()): Timestamp {
   return { seconds, nanos };
 }
 
-// HLC timestamp stub to align with Python/Rust (returns unix milliseconds as string)
+/**
+ * Generate a stub HLC timestamp in the canonical format `HLC:<wall>:<logical>:<node>`.
+ *
+ * Per spec section 4, the HLC format combines wall-clock time (Unix microseconds),
+ * a logical counter (always 0 in this stub), and a node identifier (hostname).
+ * Full HLC implementations should increment the logical counter on concurrent
+ * events within the same microsecond.
+ */
 export function nowHlcStub(date = new Date()): string {
-  return String(date.getTime());
+  const wallUs = date.getTime() * 1000; // milliseconds -> microseconds
+  let node = 'unknown';
+  try {
+    // Node.js environment
+    const os = require('node:os');
+    node = os.hostname() || 'unknown';
+  } catch {
+    node = 'browser';
+  }
+  return `HLC:${wallUs}:0:${node}`;
 }
 
 function uuidv4(): string {
@@ -108,6 +132,10 @@ export function buildEnvelope(input: EnvelopeInput): EnvelopeBuilt {
     hlc_timestamp, // Always set hlc_timestamp (aligns with Python/Rust)
     ttl_ms: input.ttl_ms,
     timestamp: ts,
+    state: input.state ?? 1, // EnvelopeState.CREATED
+    effective_policy_id: input.effective_policy_id ?? '',
+    audit_proof: input.audit_proof ?? new Uint8Array(0),
+    audit_policy_id: input.audit_policy_id ?? '',
   };
 
   if (hasPayload) {

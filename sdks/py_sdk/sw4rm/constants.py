@@ -50,6 +50,7 @@ PARTIAL_DELIVERY = 11  # reserved
 FORCED_PREEMPTION = 12
 TTL_EXPIRED = 13
 DUPLICATE_DETECTED = 14  # idempotency: duplicate request detected
+ALREADY_IN_PROGRESS = 15  # idempotency: token maps to non-terminal state (spec §11.2)
 INTERNAL_ERROR = 99
 
 # CommunicationClass (spec section 7.3)
@@ -100,15 +101,22 @@ SWITCH_PENDING = 3
 BOUND_NON_HOME = 4
 BIND_FAILED = 5
 
-# EnvelopeState (Three-ID model)
+# EnvelopeState - message lifecycle per spec §11
+# Lifecycle: SENT -> RECEIVED -> READ -> FULFILLED
+# Error states: REJECTED, FAILED, TIMED_OUT
 ENVELOPE_STATE_UNSPECIFIED = 0
-CREATED = 1
-PENDING = 2
-RUNNING_ENVELOPE = 3  # avoid collision with AgentState.RUNNING
+SENT = 1
+RECEIVED_ENVELOPE = 2  # avoid collision with AckStage.RECEIVED
+READ_ENVELOPE = 3  # avoid collision with AckStage.READ
 FULFILLED_ENVELOPE = 4  # avoid collision with AckStage.FULFILLED
 REJECTED_ENVELOPE = 5  # avoid collision with AckStage.REJECTED
 FAILED_ENVELOPE = 6  # avoid collision with AckStage.FAILED
 TIMED_OUT_ENVELOPE = 7  # avoid collision with AckStage.TIMED_OUT
+
+# Backwards compatibility aliases for old names (CREATED/PENDING/RUNNING)
+CREATED = SENT
+PENDING = RECEIVED_ENVELOPE
+RUNNING_ENVELOPE = READ_ENVELOPE
 
 # ---------------------------------------------------------------------------
 # Default endpoints and environment variables
@@ -120,8 +128,12 @@ ENV_REGISTRY_ADDR = "SW4RM_REGISTRY_ADDR"
 
 # Default host:port for local development
 # Router: 50051, Registry: 50052 (matches actual service implementations)
-DEFAULT_ROUTER_ADDR = "localhost:50051"
-DEFAULT_REGISTRY_ADDR = "localhost:50052"
+DEFAULT_ROUTER_ADDR = "http://localhost:50051"
+DEFAULT_REGISTRY_ADDR = "http://localhost:50052"
+
+# Ack and dedup defaults
+DEFAULT_ACK_TIMEOUT_MS = 10000
+DEDUP_WINDOW_S = 3600
 
 
 def get_default_router_addr() -> str:

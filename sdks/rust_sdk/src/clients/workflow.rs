@@ -83,7 +83,7 @@ pub enum TriggerType {
 
 impl Default for TriggerType {
     fn default() -> Self {
-        Self::Event
+        Self::Dependency
     }
 }
 
@@ -641,6 +641,77 @@ impl WorkflowClient {
         Ok(())
     }
 
+    /// Resume a workflow by marking a node as completed and advancing dependents.
+    ///
+    /// This implements the ResumeWorkflow RPC (spec §17.7 MUST). It marks the
+    /// specified node as COMPLETED with optional output, then transitions any
+    /// dependent nodes from Pending to Ready if all their dependencies are met.
+    ///
+    /// # Arguments
+    ///
+    /// * `instance_id` - ID of the workflow instance
+    /// * `node_id` - ID of the node to mark as completed
+    /// * `output` - Optional output data from the node
+    /// * `workflow_data` - Optional updated workflow data (JSON string)
+    pub fn resume_workflow(
+        &self,
+        instance_id: &str,
+        node_id: &str,
+        output: Option<String>,
+        workflow_data: Option<String>,
+    ) -> Result<WorkflowInstance> {
+        // Mark the node as completed
+        self.update_node_state(instance_id, node_id, NodeStatus::Completed, output, None)?;
+
+        // Update workflow data if provided
+        if let Some(data) = workflow_data {
+            let mut storage = self
+                .storage
+                .write()
+                .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
+            let instance = storage
+                .instances
+                .get_mut(instance_id)
+                .ok_or_else(|| Error::Config(format!("Instance '{}' not found", instance_id)))?;
+            instance.workflow_data = data;
+        }
+
+        // Advance dependent nodes: look up definition, check deps
+        {
+            let mut storage = self
+                .storage
+                .write()
+                .map_err(|_| Error::Internal("Lock poisoned".to_string()))?;
+
+            let instance = storage
+                .instances
+                .get(instance_id)
+                .ok_or_else(|| Error::Config(format!("Instance '{}' not found", instance_id)))?;
+            let workflow_id = instance.workflow_id.clone();
+
+            let definition = storage
+                .definitions
+                .get(&workflow_id)
+                .ok_or_else(|| Error::Config(format!("Workflow '{}' not found", workflow_id)))?
+                .clone();
+
+            let instance = storage.instances.get_mut(instance_id).unwrap();
+            let completed: HashSet<String> = instance.get_completed_nodes();
+
+            for (nid, node) in &definition.nodes {
+                if let Some(state) = instance.node_states.get_mut(nid) {
+                    if state.status == NodeStatus::Pending
+                        && node.dependencies.iter().all(|d| completed.contains(d))
+                    {
+                        state.status = NodeStatus::Ready;
+                    }
+                }
+            }
+        }
+
+        self.get_workflow_status(instance_id)
+    }
+
     /// Get workflow definition by ID.
     pub fn get_workflow_definition(&self, workflow_id: &str) -> Result<Option<WorkflowDefinition>> {
         let storage = self
@@ -869,6 +940,35 @@ mod tests {
         assert!(instance.has_failures());
         assert_eq!(instance.get_completed_nodes().len(), 1);
         assert_eq!(instance.get_failed_nodes().len(), 1);
+    }
+
+    #[test]
+    fn test_resume_workflow() {
+        let client = WorkflowClient::new();
+        let definition = create_test_workflow(); // fetch -> process -> store
+
+        client.create_workflow(definition).unwrap();
+        let instance = client.start_workflow("test-workflow").unwrap();
+        let instance_id = instance.instance_id.clone();
+
+        // Resume by completing "fetch" — should advance "process" to Ready
+        let updated = client
+            .resume_workflow(&instance_id, "fetch", Some("fetched data".into()), None)
+            .unwrap();
+
+        assert_eq!(
+            updated.get_node_state("fetch").unwrap().status,
+            NodeStatus::Completed
+        );
+        assert_eq!(
+            updated.get_node_state("process").unwrap().status,
+            NodeStatus::Ready
+        );
+        // "store" still pending (depends on "process")
+        assert_eq!(
+            updated.get_node_state("store").unwrap().status,
+            NodeStatus::Pending
+        );
     }
 
     #[test]

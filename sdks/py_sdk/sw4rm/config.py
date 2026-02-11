@@ -25,14 +25,22 @@ from . import constants as C
 
 @dataclass
 class Endpoints:
-    """Addresses for SW4RM services.
+    """Addresses for all SW4RM services.
 
-    Only router and registry are required for the reference examples. Additional
-    services can be added here as the SDK grows.
+    Router and registry are required for basic operation. Additional services
+    are set to default ports matching the Rust SDK.
     """
 
     router_addr: str = field(default_factory=C.get_default_router_addr)
     registry_addr: str = field(default_factory=C.get_default_registry_addr)
+    scheduler_addr: str = "http://localhost:50053"
+    hitl_addr: str = "http://localhost:50054"
+    worktree_addr: str = "http://localhost:50055"
+    tool_addr: str = "http://localhost:50056"
+    connector_addr: str = "http://localhost:50057"
+    negotiation_addr: str = "http://localhost:50058"
+    reasoning_addr: str = "http://localhost:50059"
+    logging_addr: str = "http://localhost:50060"
 
 
 @dataclass
@@ -51,17 +59,32 @@ class AgentConfig:
 
     - ``agent_id`` and ``name`` identify the agent.
     - ``endpoints`` provides service addresses.
-    - ``request_timeout_s`` applies to unary calls unless overridden.
+    - ``timeout_ms`` applies to unary calls unless overridden.
     - ``retry`` controls basic retry for transient failures.
     """
 
     agent_id: str = "agent-1"
     name: str = "Agent"
     endpoints: Endpoints = field(default_factory=Endpoints)
-    request_timeout_s: float = 10.0
+    timeout_ms: int = 30000
     stream_keepalive_s: float = 60.0
     retry: RetryPolicy = field(default_factory=RetryPolicy)
     description: Optional[str] = None
+    version: str = "0.1.0"
+    capabilities: list[str] = field(default_factory=list)
+    heartbeat_interval_ms: int = 30000
+    communication_class: int = 2
+    modalities_supported: list[str] = field(
+        default_factory=lambda: ["application/json"]
+    )
+    reasoning_connectors: list[str] = field(default_factory=list)
+    public_key: Optional[bytes] = None
+    metadata: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def request_timeout_s(self) -> float:
+        """Backward-compatible timeout in seconds."""
+        return self.timeout_ms / 1000
 
 
 def from_env() -> AgentConfig:
@@ -108,7 +131,7 @@ class SW4RMConfig:
 
     router_addr: str = field(default_factory=C.get_default_router_addr)
     registry_addr: str = field(default_factory=C.get_default_registry_addr)
-    default_timeout_ms: int = 10000
+    default_timeout_ms: int = 30000
     max_retries: int = 3
     enable_metrics: bool = True
     enable_tracing: bool = True

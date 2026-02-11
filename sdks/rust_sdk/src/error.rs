@@ -47,4 +47,22 @@ pub enum Error {
 
     #[error("Internal error: {0}")]
     Internal(String),
+
+    #[error("Buffer full: {current}/{max} items")]
+    BufferFull { current: usize, max: usize },
+
+    #[error("Negotiation failed: {0}")]
+    NegotiationFailed(String),
+
+    #[error("Worktree error: {0}")]
+    WorktreeError(String),
+
+    #[error("Policy violation: {0}")]
+    PolicyViolation(String),
+
+    #[error("Duplicate detected: {0}")]
+    DuplicateDetected(String),
+
+    #[error("Agent {agent_id} preempted: {reason}")]
+    Preemption { agent_id: String, reason: String },
 }
