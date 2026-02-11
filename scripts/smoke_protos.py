@@ -51,6 +51,16 @@ def compile_protos() -> None:
         print(f"[smoke] protoc failed with code {rc}", file=sys.stderr)
         sys.exit(rc)
 
+    # Fix relative imports in generated files (same as gen_protos.py / Makefile)
+    for p in PY_OUT.glob("*_pb2.py"):
+        txt = p.read_text()
+        txt = txt.replace("import ", "from . import ")
+        p.write_text(txt)
+    for p in PY_OUT.glob("*_pb2_grpc.py"):
+        txt = p.read_text()
+        txt = txt.replace("import ", "from . import ")
+        p.write_text(txt)
+
 
 def import_generated_and_clients() -> None:
     # Ensure editable-style import from SDK root works

@@ -52,7 +52,7 @@
   :description "Test suite for SW4RM SDK"
   :depends-on (#:sw4rm-sdk
                #:fiveam)
-  :components ((:module "tests"
+  :components ((:module "test"
                 :serial t
                 :components ((:file "package")
                              (:file "constants-test")

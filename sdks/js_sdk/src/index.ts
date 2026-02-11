@@ -49,14 +49,26 @@ export {
   // Skip MessageType as it's already exported from constants
 } from './internal/envelope.js';
 export * from './internal/errorMapping.js';
-export * from './internal/baseClient.js';
+export {
+  ClientOptions,
+  BaseClient,
+  // Skip RetryPolicy — canonical version exported from agentConfig.js
+} from './internal/baseClient.js';
 export * from './internal/time.js';
 export * from './internal/interceptors.js';
 export * from './internal/worktreeState.js';
 export * from './internal/worktreePolicy.js';
 export * from './internal/runtime/activityBuffer.js';
-export * from './internal/runtime/ackLifecycle.js';
-export * from './internal/runtime/messageProcessor.js';
+export {
+  AckState,
+  ACKLifecycleManager,
+  // Skip AckStage — canonical version exported from constants/index.js
+} from './internal/runtime/ackLifecycle.js';
+export {
+  EnvelopeLike,
+  MessageProcessor,
+  // Skip MessageType — canonical version exported from constants/index.js
+} from './internal/runtime/messageProcessor.js';
 export * from './runtime/ackHelpers.js';
 export * from './runtime/activitySync.js';
 export * from './runtime/streams.js';
@@ -66,7 +78,14 @@ export * from './persistence/persistence.js';
 // Phase 2 Runtime (Voting, Policy Store, Agent State)
 export * from './runtime/voting.js';
 export * from './runtime/policyStore.js';
-export * from './runtime/agentState.js';
+export {
+  AgentState,
+  isValidTransition,
+  getValidTransitions,
+  type AgentLifecycleHooks,
+  AgentStateMachine,
+  // Skip StateTransitionError — canonical version exported from internal/errorMapping.js
+} from './runtime/agentState.js';
 export * from './internal/ids.js';
 export * from './internal/idempotency.js';
 export * from './runtime/persistenceAdapter.js';
@@ -75,7 +94,19 @@ export * from './internal/ack.js';
 export * from './internal/control.js';
 
 // Constants (all protocol enums)
-export * from './constants/index.js';
+export {
+  CommunicationClass,
+  DebateIntensity,
+  HitlReasonType,
+  AckStage,
+  EnvelopeState,
+  WorktreeStateEnum,
+  DEFAULT_ACK_TIMEOUT_MS,
+  DEDUP_WINDOW_S,
+  isTerminalEnvelopeState,
+  updateEnvelopeState,
+  // Skip ErrorCode, MessageType, AgentState — already exported from their source modules
+} from './constants/index.js';
 
 // Audit module
 export * from './audit.js';
@@ -84,7 +115,11 @@ export * from './audit.js';
 export * from './agentConfig.js';
 
 // Persistent Activity Buffer (Three-ID model)
-export * from './persistentActivityBuffer.js';
+export {
+  type EnvelopeRecord,
+  PersistentActivityBuffer,
+  // Skip PersistenceBackend, JSONFilePersistence — canonical versions exported from persistence/persistence.js
+} from './persistentActivityBuffer.js';
 
 // Secrets (experimental)
 export * from './secrets/types.js'
