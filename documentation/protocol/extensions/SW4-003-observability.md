@@ -175,7 +175,7 @@ Implementations MUST expose a health check endpoint:
 ```json
 {
   "status": "healthy|degraded|unhealthy",
-  "version": "0.6.0",
+  "version": "0.5.0",
   "uptime_seconds": 3600,
   "checks": {
     "registry_connection": "healthy",

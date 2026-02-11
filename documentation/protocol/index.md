@@ -2,7 +2,7 @@
 
 ([Link to full RFC](https://github.com/rahulrajaram/sw4rm/blob/master/documentation/protocol/spec.md))
 
-**SW4RM Protocol v0.6.0** | **Status: Production Ready** | **Last Updated: 2026-02-11**
+**SW4RM Protocol v0.5.0** | **Status: Production Ready** | **Last Updated: 2026-02-11**
 
 Related documents:
 
@@ -12,14 +12,6 @@ Related documents:
 - [Spec Enhancements (Draft)](spec_enhancements.md)
 
 ??? note "Changelog"
-    **0.6.0 (2026-02-11)**
-
-    - Spec compliance and cross-SDK parity release.
-    - Added Advanced Patterns to navigation (Negotiation Room, Handoff, Workflow Orchestration).
-    - Added Spec Extensions to navigation.
-    - Updated all protocol docs to match spec v0.6.0.
-    - Refreshed stale protocol pages (messages, ACKs).
-    - De-duplicated index/overview content.
 
     **0.5.0 (2026-01-04)**
 
@@ -569,7 +561,7 @@ Google's A2A focuses on secure, interoperable agent messaging across enterprise 
 - [Content Types](content-types.md) - MIME types and payload format conventions
 - [Services](services.md) - Complete service API reference
 - [ACK Lifecycle](acks.md) - Acknowledgment handling patterns
-- [Advanced Patterns (v0.6.0)](advanced-patterns.md) - Negotiation Room, Agent Handoff, Workflow Orchestration, Three-ID Model
+- [Advanced Patterns (v0.5.0)](advanced-patterns.md) - Negotiation Room, Agent Handoff, Workflow Orchestration, Three-ID Model
 - [Handoff Serialization](handoff-serialization.md) - Agent delegation and state transfer wire format
 - [Spec Extensions](spec_extensions.md) - Protocol extension specifications
 - [Deprecations](../migration/deprecations.md) - Deprecated APIs and migration guides

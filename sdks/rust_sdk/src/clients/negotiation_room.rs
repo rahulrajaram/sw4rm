@@ -24,7 +24,7 @@
 //!
 //! Based on SPEC_REQUESTS.md section 6.1.
 //!
-//! # Concurrency Fix (v0.6.0)
+//! # Concurrency Fix (v0.5.0)
 //!
 //! The client now uses a pluggable storage backend (`NegotiationRoomStore`) instead
 //! of instance-local storage. This enables multiple client instances to share

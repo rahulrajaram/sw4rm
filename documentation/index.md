@@ -42,7 +42,7 @@ SW4RM provides official SDK implementations in multiple languages:
 | **JavaScript/TypeScript** | [`sdks/js_sdk`](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/js_sdk) | Browser and Node.js support |
 | **Common Lisp** | [`sdks/cl_sdk`](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/cl_sdk) | Full peer SDK with idiomatic CL condition/restart patterns |
 
-All SDKs implement SW4RM protocol v0.6.0 and maintain behavioral consistency through shared operational contracts.
+All SDKs implement SW4RM protocol v0.5.0 and maintain behavioral consistency through shared operational contracts.
 
 For gRPC service client APIs exposed by these SDKs, see the [SDK Clients](clients/index.md) reference.
 

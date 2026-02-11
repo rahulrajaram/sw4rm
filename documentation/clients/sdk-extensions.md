@@ -1,6 +1,6 @@
 # 6.22. SDK Extensions Reference
 
-> **Version**: 0.6.0 | **Last updated**: 2026-02-11
+> **Version**: 0.5.0 | **Last updated**: 2026-02-11
 
 SDK extensions provide developer-convenience features that go beyond the normative
 protocol specification. These are NOT part of the core protocol; conformant SDKs

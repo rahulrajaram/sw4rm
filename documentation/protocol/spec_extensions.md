@@ -1,6 +1,6 @@
 # SW4RM SDK Extensions
 
-Version: 0.6.0 (2026-02-10)
+Version: 0.5.0 (2026-02-10)
 
 This document catalogs SDK-implemented features that extend beyond the normative
 requirements of `spec.md`. These extensions are NOT part of the core protocol

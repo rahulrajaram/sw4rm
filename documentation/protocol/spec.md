@@ -1,6 +1,6 @@
 # RFC: SW4RM - Interruptible, Message-Driven Agent Coordination Protocol
 
-Version: 0.6.0 (2026-01-10)
+Version: 0.5.0 (2026-01-04)
 
 ## Versioning and Changelog
 
@@ -10,7 +10,6 @@ The versioning scope encompasses this document and the canonical protocol buffer
 
 **Changelog:**
 
-- **0.6.0 (2026-01-10)**: Spec completeness release. Added policy-based auto-approval thresholds for Negotiation Room (§17.5). Added DAG validation and cycle detection requirements for Workflow Orchestration (§17.7). Expanded Appendix A with complete proto file reference table. Added explicit three-ID model documentation (§11.3) clarifying `message_id`, `correlation_id`, and `idempotency_token` semantics. Added sequence diagrams for Negotiation Room (C.10), Handoff (C.11), and Workflow (C.12) patterns.
 
 - **0.5.0 (2026-01-04)**: Documentation alignment release. Updated protocol docs
   and examples to reflect actual SDK/proto behavior and clarified planned vs

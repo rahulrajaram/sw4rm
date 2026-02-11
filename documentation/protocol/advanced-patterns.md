@@ -1,6 +1,6 @@
-# 3.11 Advanced Patterns (v0.6.0)
+# 3.11 Advanced Patterns (v0.5.0)
 
-This section documents the advanced multi-agent coordination patterns introduced in SW4RM Protocol v0.5.0 and extended in v0.6.0. These patterns enable sophisticated workflows for artifact approval, agent delegation, and DAG-based orchestration.
+This section documents the advanced multi-agent coordination patterns introduced in SW4RM Protocol v0.5.0. These patterns enable sophisticated workflows for artifact approval, agent delegation, and DAG-based orchestration.
 
 ## 3.11.0 Negotiation Foundations
 
@@ -177,7 +177,7 @@ decision = client.wait_for_decision(
 )
 ```
 
-### Policy-Based Auto-Approval (v0.6.0)
+### Policy-Based Auto-Approval (v0.5.0)
 
 Implementations SHOULD support configurable policy thresholds for automatic decision outcomes:
 
@@ -401,7 +401,7 @@ nodes:
       transformed: "results"
 ```
 
-### DAG Validation and Cycle Detection (v0.6.0)
+### DAG Validation and Cycle Detection (v0.5.0)
 
 Implementations MUST validate workflow definitions to ensure they form valid Directed Acyclic Graphs (DAGs). Validation MUST occur during `CreateWorkflow` before the workflow is persisted.
 

@@ -1,6 +1,6 @@
 # ACK Lifecycle
 
-> **Protocol version**: v0.6.0 | **Last updated**: 2026-02-11 | **Spec reference**: §11, §11.1, §11.2
+> **Protocol version**: v0.5.0 | **Last updated**: 2026-02-11 | **Spec reference**: §11, §11.1, §11.2
 
 Complete specification of the acknowledgment lifecycle in SW4RM protocol, including delivery guarantees, failure handling, and state management patterns.
 
