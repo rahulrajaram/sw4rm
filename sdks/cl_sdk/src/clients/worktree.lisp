@@ -58,7 +58,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC WorktreeService.Bind
       (error 'rpc-error
              :message "Bind not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric unbind (client agent-id)
   (:documentation "Unbind an agent from its worktree (Any -> :unbound).
@@ -86,7 +86,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC WorktreeService.Unbind
       (error 'rpc-error
              :message "Unbind not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric switch-request (client agent-id target-worktree-id &key requires-hitl)
   (:documentation "Request a worktree switch (:bound-home -> :switch-pending).
@@ -118,7 +118,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC WorktreeService.RequestSwitch
       (error 'rpc-error
              :message "SwitchRequest not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric approve-switch (client agent-id target-worktree-id ttl-ms)
   (:documentation "Approve a pending worktree switch (:switch-pending -> :bound-non-home).
@@ -148,7 +148,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC WorktreeService.ApproveSwitch
       (error 'rpc-error
              :message "ApproveSwitch not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric reject-switch (client agent-id &optional reason)
   (:documentation "Reject a pending worktree switch (:switch-pending -> :bound-home).
@@ -177,7 +177,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC WorktreeService.RejectSwitch
       (error 'rpc-error
              :message "RejectSwitch not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric status (client agent-id)
   (:documentation "Get the current worktree binding status for an agent.
@@ -211,4 +211,4 @@ Example:
       ;; Stub: In real implementation, this would call gRPC WorktreeService.Status
       (error 'rpc-error
              :message "Status not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))

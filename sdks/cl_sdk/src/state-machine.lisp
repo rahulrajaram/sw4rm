@@ -3,19 +3,6 @@
 
 (in-package :sw4rm-sdk)
 
-;;; Condition Types
-
-(define-condition state-transition-error (error)
-  ((from-state :initarg :from-state :reader from-state)
-   (to-state :initarg :to-state :reader to-state)
-   (reason :initarg :reason :reader reason :initform nil))
-  (:report (lambda (condition stream)
-             (format stream "Invalid state transition from ~A to ~A~@[: ~A~]"
-                     (from-state condition)
-                     (to-state condition)
-                     (reason condition))))
-  (:documentation "Signaled when an invalid state transition is attempted."))
-
 ;;; State Definitions
 
 (deftype agent-state ()
@@ -197,8 +184,9 @@
         (error 'state-transition-error
                :from-state from-state
                :to-state to-state
-               :reason (format nil "No valid transition from ~A to ~A"
-                              from-state to-state)))
+               :allowed-transitions (valid-transitions from-state)
+               :message (format nil "No valid transition from ~A to ~A"
+                               from-state to-state)))
 
       ;; Call before-transition hooks
       (dolist (hook (before-transition-hooks sm))

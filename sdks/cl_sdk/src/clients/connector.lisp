@@ -63,7 +63,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC ConnectorService.RegisterProvider
       (error 'rpc-error
              :message "RegisterProvider not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric list-providers (client)
   (:documentation "List all registered tool providers.
@@ -94,7 +94,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC ConnectorService.ListProviders
       (error 'rpc-error
              :message "ListProviders not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric get-provider (client provider-id)
   (:documentation "Get details for a specific tool provider.
@@ -127,4 +127,4 @@ Example:
       ;; Stub: In real implementation, this would call gRPC ConnectorService.GetProvider
       (error 'rpc-error
              :message "GetProvider not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))

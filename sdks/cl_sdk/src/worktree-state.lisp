@@ -256,7 +256,7 @@
                                                :repo-id repo-id
                                                :branch branch)))))
 
-(defmethod approve-switch ((wsm worktree-state-machine))
+(defmethod approve-switch-local ((wsm worktree-state-machine))
   "Approve a pending worktree switch.
 
    Transitions from SWITCH-PENDING to BOUND-NON-HOME.
@@ -289,7 +289,7 @@
                                                :expires-at
                                                (binding-info-expires-at binding))))))
 
-(defmethod reject-switch ((wsm worktree-state-machine))
+(defmethod reject-switch-local ((wsm worktree-state-machine))
   "Reject a pending worktree switch.
 
    Transitions from SWITCH-PENDING back to BOUND-HOME.

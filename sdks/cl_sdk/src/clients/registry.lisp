@@ -60,7 +60,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC RegistryService.RegisterAgent
       (error 'rpc-error
              :message "RegisterAgent not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric deregister-agent (client agent-id &optional reason)
   (:documentation "Deregister an agent from the registry.
@@ -89,7 +89,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC RegistryService.DeregisterAgent
       (error 'rpc-error
              :message "DeregisterAgent not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric heartbeat (client agent-id state &optional health-metrics)
   (:documentation "Send a heartbeat to maintain agent registration.
@@ -121,7 +121,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC RegistryService.Heartbeat
       (error 'rpc-error
              :message "Heartbeat not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric discover-agents (client &key capability communication-class)
   (:documentation "Discover agents in the registry by criteria.
@@ -154,7 +154,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC RegistryService.DiscoverAgents
       (error 'rpc-error
              :message "DiscoverAgents not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric get-agent (client agent-id)
   (:documentation "Retrieve agent descriptor by ID.
@@ -186,4 +186,4 @@ Example:
       ;; Stub: In real implementation, this would call gRPC RegistryService.GetAgent
       (error 'rpc-error
              :message "GetAgent not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))

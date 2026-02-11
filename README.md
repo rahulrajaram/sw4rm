@@ -4,40 +4,77 @@
 [![Rust CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-rust.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-rust.yml)
 [![JS CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-js.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-js.yml)
 [![Common Lisp CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-lisp.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-lisp.yml)
-[![Examples: ACK Demo](https://github.com/rahulrajaram/sw4rm/actions/workflows/examples-sdk-usage.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/examples-sdk-usage.yml)
 
 SW4RM is an open agentic protocol for building message-driven agents with guaranteed delivery, persistent state, and rich observability. This repository provides four SDKs that implement the protocol — Python, Rust, JavaScript, and Common Lisp — including clients, lightweight runtimes, and helpers for ACK lifecycle, worktree/state handling, and more.
 
-SDKs
-- Python: `sdks/py_sdk` — see `sdks/py_sdk/README.md`
-- Rust: `sdks/rust_sdk` — see `sdks/rust_sdk/README.md`
-- JavaScript: `sdks/js_sdk` — see `sdks/js_sdk/README.md`
-- Common Lisp: `sdks/cl_sdk` — see `sdks/cl_sdk/README.md` (Full peer SDK with idiomatic CL condition/restart patterns)
+## SDKs
+
+| SDK | Directory | README |
+|-----|-----------|--------|
+| Python | [`sdks/py_sdk`](sdks/py_sdk) | [`sdks/py_sdk/README.md`](sdks/py_sdk/README.md) |
+| Rust | [`sdks/rust_sdk`](sdks/rust_sdk) | [`sdks/rust_sdk/README.md`](sdks/rust_sdk/README.md) |
+| JavaScript/TypeScript | [`sdks/js_sdk`](sdks/js_sdk) | [`sdks/js_sdk/README.md`](sdks/js_sdk/README.md) |
+| Common Lisp | [`sdks/cl_sdk`](sdks/cl_sdk) | [`sdks/cl_sdk/README.md`](sdks/cl_sdk/README.md) |
 
 ## CI Workflows
 
-- Python CI: Python 3.12, installs `.[dev]`, runs `scripts/smoke_protos.py`, then `pytest -q sdks/py_sdk/tests`.
-- Rust CI: Installs `protoc`, runs `cargo test --all --locked` in `sdks/rust_sdk`.
-- JS CI: Node 20, runs `npm ci && npm run build && npm test` in `sdks/js_sdk`.
-- Examples ACK Demo: Runs `examples/sdk-usage/run_all.sh ack-demo` which auto-starts local JS reference services, launches an ACK agent, and exercises router send/receive with ACKs.
+| Workflow | What it does |
+|----------|-------------|
+| Python CI | Python 3.12, installs `.[dev]`, runs `scripts/smoke_protos.py`, then `pytest -q sdks/py_sdk/tests` |
+| Rust CI | Installs `protoc`, runs `cargo test --all --locked` in `sdks/rust_sdk` |
+| JS CI | Node 20, runs `npm ci && npm run build && npm test` in `sdks/js_sdk` |
+| Common Lisp CI | SBCL + Quicklisp, loads `:sw4rm-sdk`, runs FiveAM test suite in `sdks/cl_sdk` |
 
-Reproduce locally
-- Python: `python -m pip install -e ".[dev]" && pytest -q sdks/py_sdk/tests`
-- Rust: `cd sdks/rust_sdk && cargo test --all --locked`
-- JS: `cd sdks/js_sdk && npm ci && npm run build && npm test`
-- ACK demo: `bash examples/sdk-usage/run_all.sh ack-demo` (uses defaults `localhost:{50051,50052,50053}` via `SW4RM_*` envs)
+### Reproduce locally
 
-## Python SDK Installation
-- Prerequisites:
-  - Python >= 3.9
-  - Optional: create and activate a virtual environment
-    - `python3 -m venv venv && source venv/bin/activate`
-- Runtime install (local):
-  - `python -m pip install .`
-- Dev install (with codegen):
-  - `python -m pip install -e ".[dev]"`
-  - Generate stubs: `make protos` (requires `grpcio-tools`)
-    - Stubs are generated under `sdks/py_sdk/sw4rm/protos`
+- **Python**: `python -m pip install -e ".[dev]" && pytest -q sdks/py_sdk/tests`
+- **Rust**: `cd sdks/rust_sdk && cargo test --all --locked`
+- **JS**: `cd sdks/js_sdk && npm ci && npm run build && npm test`
+- **Common Lisp**: `cd sdks/cl_sdk && sbcl --load ~/quicklisp/setup.lisp --eval '(push (truename ".") asdf:*central-registry*)' --eval '(ql:quickload :sw4rm-sdk)' --eval '(load "test/suite.lisp")' --eval '(fiveam:run! (quote sw4rm-test::sw4rm-suite))'`
+
+## Installation
+
+### Python
+
+Prerequisites: Python >= 3.9. Optionally create a virtual environment first.
+
+```bash
+# Dev install (with codegen)
+python -m pip install -e ".[dev]"
+
+# Runtime-only install
+python -m pip install .
+
+# Generate protobuf stubs (requires grpcio-tools)
+make protos
+```
+
+### Rust
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+sw4rm-sdk = "0.5.0"
+tokio = { version = "1.0", features = ["full"] }
+```
+
+### JavaScript / TypeScript
+
+```bash
+npm install @sw4rm/js-sdk
+```
+
+### Common Lisp
+
+Requires [SBCL](http://www.sbcl.org/) and [Quicklisp](https://www.quicklisp.org/).
+
+```lisp
+;; Ensure sdks/cl_sdk/ is on your ASDF load path, e.g.:
+;; (push (truename "sdks/cl_sdk/") asdf:*central-registry*)
+
+(ql:quickload :sw4rm-sdk)
+```
 
 ## Core Features
 
@@ -54,7 +91,8 @@ Looking for a local all-in-one stack? See the comprehensive getting started guid
 
 - Getting Started Guide: [`documentation/quickstart/`](documentation/quickstart/index.md) with a 5-minute quick start section
 
-### Basic Agent
+### Python
+
 ```python
 import grpc
 from sw4rm.clients.registry import RegistryClient
@@ -77,7 +115,7 @@ response = registry.register({
 })
 ```
 
-### Advanced Agent with Persistence
+### Advanced Python Agent with Persistence
 ```python
 from sw4rm import constants as C
 from sw4rm.activity_buffer import PersistentActivityBuffer
@@ -99,7 +137,7 @@ processor.register_handler(C.DATA, handle_data)
 
 # Process incoming messages with automatic ACKs
 for item in router.stream_incoming("my-agent"):
-    # Extract envelope from stream item (protobuf → dict)
+    # Extract envelope from stream item (protobuf -> dict)
     envelope_msg = getattr(item, "msg", item)
     envelope = {
         "message_id": getattr(envelope_msg, "message_id", ""),
@@ -111,6 +149,104 @@ for item in router.stream_incoming("my-agent"):
         "sequence_number": getattr(envelope_msg, "sequence_number", 0),
     }
     result = processor.process_message(envelope)
+```
+
+### Rust
+
+Minimal echo agent (see [`sdks/rust_sdk/examples/echo_agent.rs`](sdks/rust_sdk/examples/echo_agent.rs) for the full example):
+
+```rust
+use sw4rm_sdk::*;
+use async_trait::async_trait;
+
+struct EchoAgent {
+    config: AgentConfig,
+    preemption: PreemptionManager,
+}
+
+#[async_trait]
+impl Agent for EchoAgent {
+    async fn on_message(&mut self, envelope: EnvelopeData) -> Result<()> {
+        if let Ok(text) = envelope.string_payload() {
+            println!("Echo: {}", text);
+        }
+        Ok(())
+    }
+
+    fn config(&self) -> &AgentConfig { &self.config }
+    fn preemption_manager(&self) -> &PreemptionManager { &self.preemption }
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let config = AgentConfig::new("echo-1".into(), "Echo Agent".into());
+    let agent = EchoAgent { config: config.clone(), preemption: PreemptionManager::new() };
+    AgentRuntime::new(config).run(agent).await
+}
+```
+
+### JavaScript / TypeScript
+
+Minimal echo agent (see [`sdks/js_sdk/examples/echoAgent.ts`](sdks/js_sdk/examples/echoAgent.ts) for the full example):
+
+```typescript
+import { RegistryClient, RouterClient, buildEnvelope, MessageType, AgentState, CommunicationClass } from '@sw4rm/js-sdk';
+
+const registry = new RegistryClient('localhost:50052');
+const router = new RouterClient({ address: 'localhost:50051' });
+
+// Register
+await registry.registerAgent({
+  agent_id: 'echo-1',
+  name: 'EchoAgent',
+  capabilities: ['echo'],
+  communication_class: CommunicationClass.STANDARD,
+});
+
+// Echo incoming messages
+const stream = router.streamIncoming('echo-1');
+for await (const item of stream) {
+  const reply = buildEnvelope({
+    producer_id: 'echo-1',
+    message_type: MessageType.DATA,
+    payload: item.msg.payload,
+    content_type: 'application/json',
+  });
+  await router.sendMessage(reply);
+}
+```
+
+### Common Lisp
+
+Minimal echo agent (see [`sdks/cl_sdk/examples/echo-agent.lisp`](sdks/cl_sdk/examples/echo-agent.lisp) for the full example):
+
+```lisp
+(ql:quickload :sw4rm-sdk)
+(use-package :sw4rm-sdk)
+
+;; Configure
+(defvar *config*
+  (make-agent-config
+   :agent-id "echo-1"
+   :name "EchoAgent"
+   :capabilities '("echo")
+   :endpoints (make-default-endpoints)))
+
+;; Build and send an envelope
+(defvar *envelope*
+  (make-envelope
+   :producer-id (agent-config-agent-id *config*)
+   :message-type +data+
+   :content-type "application/json"
+   :payload (map 'vector #'char-code "{\"echo\":\"hello\"}")
+   :sequence-number 1))
+
+;; Error handling uses CL condition/restart system
+(with-sw4rm-error-handling ()
+  (let ((client (make-instance 'router-client
+                 :address (endpoints-router
+                           (agent-config-endpoints *config*)))))
+    (send-envelope client *envelope*)))
 ```
 
 ## API Reference
@@ -208,7 +344,7 @@ def handle_data(envelope):
     return "success"
 
 def handle_control(envelope):
-    # Process CONTROL messages  
+    # Process CONTROL messages
     command = json.loads(envelope['payload'])
     return f"executed_{command['action']}"
 
@@ -333,26 +469,39 @@ C.TTL_EXPIRED            # Message TTL expired
 
 ## Examples
 
-### Complete Examples
-- **Basic echo agent**: `examples/echo_agent.py` - Simple registration and message echoing
-- **Advanced agent**: `examples/advanced_agent.py` - Full SDK feature demonstration
-- **Test client**: `examples/test_client.py` - Client for testing agent functionality
+Each SDK ships its own examples under its directory:
 
-### Running Examples
-```bash
-# Start advanced agent
-python examples/advanced_agent.py --router localhost:50051 --registry localhost:50052 --data-dir ./my_agent_data
+### Python
+- **Echo agent**: [`sdks/py_sdk/examples/echo_agent.py`](sdks/py_sdk/examples/echo_agent.py)
+- **Test client**: [`sdks/py_sdk/examples/test_client.py`](sdks/py_sdk/examples/test_client.py)
+- **Voting**: [`sdks/py_sdk/examples/voting_example.py`](sdks/py_sdk/examples/voting_example.py)
+- **Workflow orchestration**: [`sdks/py_sdk/examples/workflow_orchestration_example.py`](sdks/py_sdk/examples/workflow_orchestration_example.py)
+- **Negotiation debate**: [`sdks/py_sdk/examples/negotiation_debate_example.py`](sdks/py_sdk/examples/negotiation_debate_example.py)
+- **HITL escalation**: [`sdks/py_sdk/examples/hitl_escalation_example.py`](sdks/py_sdk/examples/hitl_escalation_example.py)
+- **Handoff**: [`sdks/py_sdk/examples/handoff_example.py`](sdks/py_sdk/examples/handoff_example.py)
+- **Tool streaming**: [`sdks/py_sdk/examples/tool_streaming_example.py`](sdks/py_sdk/examples/tool_streaming_example.py)
+- **Three-ID demo**: [`sdks/py_sdk/examples/three_id_demo.py`](sdks/py_sdk/examples/three_id_demo.py)
 
-# Test the agent (in another terminal)
-python examples/test_client.py --router localhost:50051 --registry localhost:50052 --target-agent advanced-1
+### Rust
+- **Echo agent**: [`sdks/rust_sdk/examples/echo_agent.rs`](sdks/rust_sdk/examples/echo_agent.rs)
+- **Advanced agent**: [`sdks/rust_sdk/examples/advanced_agent.rs`](sdks/rust_sdk/examples/advanced_agent.rs)
+- **Handoff**: [`sdks/rust_sdk/examples/handoff.rs`](sdks/rust_sdk/examples/handoff.rs)
+- **Workflow**: [`sdks/rust_sdk/examples/workflow.rs`](sdks/rust_sdk/examples/workflow.rs)
+- **Negotiation room**: [`sdks/rust_sdk/examples/negotiation_room.rs`](sdks/rust_sdk/examples/negotiation_room.rs)
+- **Activity demo**: [`sdks/rust_sdk/examples/activity_demo.rs`](sdks/rust_sdk/examples/activity_demo.rs)
 
-# Run specific test
-python examples/test_client.py --router localhost:50051 --registry localhost:50052 --test data --target-agent advanced-1
-```
+### JavaScript / TypeScript
+- **Echo agent**: [`sdks/js_sdk/examples/echoAgent.ts`](sdks/js_sdk/examples/echoAgent.ts)
+- **Advanced agent**: [`sdks/js_sdk/examples/advancedAgent.ts`](sdks/js_sdk/examples/advancedAgent.ts)
+- **HITL escalation**: [`sdks/js_sdk/examples/hitlEscalation.ts`](sdks/js_sdk/examples/hitlEscalation.ts)
+- **Handoff**: [`sdks/js_sdk/examples/handoffExample.ts`](sdks/js_sdk/examples/handoffExample.ts)
+- **Workflow**: [`sdks/js_sdk/examples/workflowExample.ts`](sdks/js_sdk/examples/workflowExample.ts)
+- **Negotiation room**: [`sdks/js_sdk/examples/negotiationRoomExample.ts`](sdks/js_sdk/examples/negotiationRoomExample.ts)
 
-See `examples/README.md` for detailed example documentation.
-
-For TypeScript/JS usage examples and an ACK flow demo, see `examples/sdk-usage/README.md`.
+### Common Lisp
+- **Echo agent**: [`sdks/cl_sdk/examples/echo-agent.lisp`](sdks/cl_sdk/examples/echo-agent.lisp)
+- **Negotiation voting**: [`sdks/cl_sdk/examples/negotiation-voting.lisp`](sdks/cl_sdk/examples/negotiation-voting.lisp)
+- **Secret management**: [`sdks/cl_sdk/examples/secret-management.lisp`](sdks/cl_sdk/examples/secret-management.lisp)
 
 ## Development
 
@@ -392,35 +541,38 @@ Use the provided Makefile targets for a reproducible release process.
   - `make tag && make tag-push` — create and push an annotated git tag from `pyproject.toml` version
 
 Notes
-- Twine ≥ 5.x and pkginfo ≥ 1.10 are recommended to support modern `Metadata-Version` (e.g., 2.4).
+- Twine >= 5.x and pkginfo >= 1.10 are recommended to support modern `Metadata-Version` (e.g., 2.4).
 - See `docs/PROGRESS_REPORT.md` for a detailed Release Checklist.
 
 ### Testing
-- Unified: `make test` (runs Python, Rust, JS tests + JS ACK demo)
+
+- Unified: `make test` (runs Python, Rust, JS, and Common Lisp tests)
 - Python only: `make test-python`
 - Rust only: `make test-rust` (requires `protoc`)
 - JS only: `make test-js` (Node >= 20)
-- Examples demo: `make demo-examples` (runs `examples/sdk-usage/run_all.sh ack-demo`)
+- Common Lisp only: `make test-lisp` (requires SBCL + Quicklisp)
 
 ```bash
-# Run all tests and the ACK demo
+# Run all SDK tests
 make test
 
 # Run examples against local services
 # See documentation/quickstart/index.md for setup instructions
-python examples/advanced_agent.py --router localhost:50051 --registry localhost:50052
-python examples/test_client.py --router localhost:50051 --registry localhost:50052
+python sdks/py_sdk/examples/echo_agent.py --router localhost:50051 --registry localhost:50052
+python sdks/py_sdk/examples/test_client.py --router localhost:50051 --registry localhost:50052
 ```
 
 ## Architecture
 
-The Python SDK is organized into layers:
+All four SDKs follow the same layered architecture:
 
-1. **Protocol Layer**: Generated protobuf stubs (`sw4rm.protos`)
-2. **Client Layer**: Service clients (`sw4rm.clients`) 
-3. **Runtime Layer**: Core functionality (`sw4rm.activity_buffer`, `sw4rm.worktree_state`)
-4. **Integration Layer**: High-level APIs (`sw4rm.ack_integration`)
-5. **Utility Layer**: Helpers (`sw4rm.envelope`, `sw4rm.acks`)
+1. **Protocol Layer**: Generated protobuf stubs / wire format
+2. **Client Layer**: Type-safe service clients (Registry, Router, Scheduler, HITL, Worktree, Tool, Connector, Negotiation, Reasoning, Logging)
+3. **Runtime Layer**: Core functionality (activity buffer, worktree state, state machine)
+4. **Integration Layer**: High-level APIs (ACK lifecycle, message processing, workflows)
+5. **Utility Layer**: Helpers (envelope builders, constants, error handling)
+
+Each SDK adapts this pattern to its language idioms — Python uses classes and context managers, Rust uses async/await traits, JS uses Promises and streams, and Common Lisp uses the condition/restart system.
 
 Protocol highlights
 - Cooperative preemption and urgent lane semantics defined by Scheduler and CommunicationClass (see spec).
@@ -458,8 +610,8 @@ To enforce consistent commit messages across the repo:
 
 ## Contributing
 
-- Versioning: Keep all SDKs in lockstep with the protocol spec. The single source of truth is `documentation/protocol/spec.md` line `Version: X.Y.Z (...)`. Python (`pyproject.toml`), JS (`sdks/js_sdk/package.json`), and Rust (`sdks/rust_sdk/Cargo.toml`) must equal the spec version.
-- Pre-commit hook: Local guard that blocks commits if versions aren’t SemVer or out of sync; also requires a bump when protocol/protos or an SDK changes.
+- Versioning: Keep all four SDKs in lockstep with the protocol spec. The single source of truth is `documentation/protocol/spec.md` line `Version: X.Y.Z (...)`. Python (`pyproject.toml`), JS (`sdks/js_sdk/package.json`), Rust (`sdks/rust_sdk/Cargo.toml`), and Common Lisp (`sdks/cl_sdk/sw4rm-sdk.asd`) must equal the spec version.
+- Pre-commit hook: Local guard that blocks commits if versions aren't SemVer or out of sync; also requires a bump when protocol/protos or an SDK changes.
   - Enable once per clone: `git config core.hooksPath .githooks && chmod +x .githooks/pre-commit`
 - Bump script: Updates spec + all SDKs together.
   - `python scripts/bump_version.py X.Y.Z [--stage]`
@@ -469,11 +621,12 @@ To enforce consistent commit messages across the repo:
   - PyPI: `git tag py-vX.Y.Z && git push origin py-vX.Y.Z`
   - npm: `git tag npm-vX.Y.Z && git push origin npm-vX.Y.Z`
   - crates.io: `git tag rs-vX.Y.Z && git push origin rs-vX.Y.Z`
+  - Common Lisp releases are tracked via the spec version in `sw4rm-sdk.asd`; Quicklisp distribution is manual.
 - Release scripts: Create tags locally (publishing happens in Actions).
   - One SDK: `python scripts/release.py [py|npm|rs] X.Y.Z --push`
   - All SDKs: `python scripts/release_all.py X.Y.Z --push`
 - Secrets storage: Use a GitHub Actions Environment named `production` for publish tokens.
-  - Add environment secrets: `PYPI_API_TOKEN`, `NPM_TOKEN`, `CRATES_IO_TOKEN` under Settings → Environments → production.
+  - Add environment secrets: `PYPI_API_TOKEN`, `NPM_TOKEN`, `CRATES_IO_TOKEN` under Settings > Environments > production.
   - Release workflows target this environment: `.github/workflows/release-*.yml`.
 - Tag prefixes and SemVer:
   - Tags must use `py-v`, `npm-v`, `rs-v` followed by `X.Y.Z` that matches all manifests and the spec.
@@ -481,7 +634,7 @@ To enforce consistent commit messages across the repo:
 
   - Optionally install template and hooks via script: `./scripts/install_git_hooks.sh`
 - Hooks enforce:
-  - Subject: non-empty, ≤50 chars, imperative, no trailing period
+  - Subject: non-empty, <=50 chars, imperative, no trailing period
   - Blank line after subject
   - Body lines wrapped at 72 characters (links exempt)
   - Pre-commit will block if `core.hooksPath` is misconfigured; bypass once with

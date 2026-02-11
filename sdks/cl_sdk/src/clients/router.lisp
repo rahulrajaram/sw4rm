@@ -60,7 +60,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC RouterService.SendMessage
       (error 'rpc-error
              :message "SendEnvelope not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric open-stream (client agent-id handler-fn)
   (:documentation "Open bidirectional streaming connection for message delivery.
@@ -104,7 +104,7 @@ chosen gRPC library's streaming API."))
   ;; and set up bidirectional streaming with the handler-fn callback
   (error 'rpc-error
          :message "OpenStream not implemented - requires gRPC integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric route-info (client agent-id)
   (:documentation "Get routing information and diagnostics for an agent.
@@ -140,7 +140,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC RouterService.RouteInfo
       (error 'rpc-error
              :message "RouteInfo not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 ;;;; Streaming Utilities
 
@@ -163,4 +163,4 @@ Signals:
   "Default stub implementation."
   (error 'rpc-error
          :message "CloseStream not implemented - requires gRPC integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))

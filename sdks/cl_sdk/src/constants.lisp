@@ -159,7 +159,7 @@
 (defconstant +completed+ 9
   "Agent has successfully completed assigned task.")
 
-(defconstant +failed+ 10
+(defconstant +agent-failed+ 10
   "Agent has encountered unrecoverable error.")
 
 (defconstant +shutting-down+ 11

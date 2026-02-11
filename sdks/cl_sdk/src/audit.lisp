@@ -203,7 +203,10 @@
         (subseq results 0 (min limit (length results)))
         results)))
 
-(defmethod clear-records ((auditor in-memory-auditor))
+(defgeneric clear-records (backend &key namespace)
+  (:documentation "Clear stored records, optionally filtered by namespace."))
+
+(defmethod clear-records ((auditor in-memory-auditor) &key &allow-other-keys)
   "Clear all audit records.
 
    Args:

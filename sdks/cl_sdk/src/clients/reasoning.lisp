@@ -57,7 +57,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC ReasoningProxy.CheckParallelism
       (error 'rpc-error
              :message "Evaluate not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric parallel-evaluate (client negotiation-id proposal-a proposal-b
                                        &optional intensity)
@@ -100,7 +100,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC ReasoningProxy.EvaluateDebate
       (error 'rpc-error
              :message "ParallelEvaluate not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric summarize (client session-id segments &key max-tokens mode)
   (:documentation "Summarize text segments using AI.
@@ -150,4 +150,4 @@ Example:
       ;; Stub: In real implementation, this would call gRPC ReasoningProxy.Summarize
       (error 'rpc-error
              :message "Summarize not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))

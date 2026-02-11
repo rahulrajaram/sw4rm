@@ -67,7 +67,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC LoggingService.Ingest
       (error 'rpc-error
              :message "LogEvent not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric query-logs (client &key correlation-id agent-id level start-time end-time
                                     tags limit)
@@ -115,7 +115,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC LoggingService.Query
       (error 'rpc-error
              :message "QueryLogs not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 ;;;; Convenience Logging Methods
 

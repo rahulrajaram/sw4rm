@@ -62,7 +62,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC SchedulerService.SubmitTask
       (error 'rpc-error
              :message "SubmitTask not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric cancel-task (client agent-id task-id &optional reason)
   (:documentation "Cancel a pending or running task.
@@ -93,7 +93,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC SchedulerService.CancelTask
       (error 'rpc-error
              :message "CancelTask not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric get-task-status (client agent-id task-id)
   (:documentation "Retrieve the current status of a task.
@@ -132,7 +132,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC SchedulerService.GetTaskStatus
       (error 'rpc-error
              :message "GetTaskStatus not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric preempt-agent (client agent-id task-id &optional reason)
   (:documentation "Request preemption of a running task.
@@ -162,7 +162,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC SchedulerService.RequestPreemption
       (error 'rpc-error
              :message "PreemptAgent not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric poll-activity-buffer (client agent-id)
   (:documentation "Poll the activity buffer for an agent's task queue.
@@ -196,7 +196,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC SchedulerService.PollActivityBuffer
       (error 'rpc-error
              :message "PollActivityBuffer not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric purge-activity (client agent-id task-ids)
   (:documentation "Purge completed/failed tasks from the activity buffer.
@@ -226,4 +226,4 @@ Example:
       ;; Stub: In real implementation, this would call gRPC SchedulerService.PurgeActivity
       (error 'rpc-error
              :message "PurgeActivity not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))

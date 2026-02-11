@@ -57,7 +57,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC SchedulerPolicyService.GetNegotiationPolicy
       (error 'rpc-error
              :message "GetNegotiationPolicy not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric set-negotiation-policy (client policy)
   (:documentation "Set the global negotiation policy.
@@ -95,7 +95,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC SchedulerPolicyService.SetNegotiationPolicy
       (error 'rpc-error
              :message "SetNegotiationPolicy not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric set-policy-profiles (client profiles)
   (:documentation "Set available policy profiles.
@@ -137,7 +137,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC SchedulerPolicyService.SetPolicyProfiles
       (error 'rpc-error
              :message "SetPolicyProfiles not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric list-policy-profiles (client)
   (:documentation "List all available policy profiles.
@@ -166,7 +166,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC SchedulerPolicyService.ListPolicyProfiles
       (error 'rpc-error
              :message "ListPolicyProfiles not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric get-effective-policy (client negotiation-id)
   (:documentation "Get the effective policy for a specific negotiation.
@@ -198,7 +198,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC SchedulerPolicyService.GetEffectivePolicy
       (error 'rpc-error
              :message "GetEffectivePolicy not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric submit-evaluation (client negotiation-id report)
   (:documentation "Submit an evaluation report for a negotiation round.
@@ -239,7 +239,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC SchedulerPolicyService.SubmitEvaluation
       (error 'rpc-error
              :message "SubmitEvaluation not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric hitl-action (client negotiation-id action &optional rationale)
   (:documentation "Record a human-in-the-loop action for a negotiation.
@@ -272,4 +272,4 @@ Example:
       ;; Stub: In real implementation, this would call gRPC SchedulerPolicyService.HitlAction
       (error 'rpc-error
              :message "HitlAction not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))

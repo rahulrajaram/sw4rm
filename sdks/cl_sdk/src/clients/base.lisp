@@ -6,15 +6,7 @@
 (in-package :sw4rm-sdk)
 
 ;;;; Conditions
-
-(define-condition rpc-error (error)
-  ((message :initarg :message :reader rpc-error-message)
-   (code :initarg :code :reader rpc-error-code :initform nil))
-  (:report (lambda (condition stream)
-             (format stream "RPC Error~@[ (code: ~A)~]: ~A"
-                     (rpc-error-code condition)
-                     (rpc-error-message condition))))
-  (:documentation "Condition signaled when an RPC call fails."))
+;;;; rpc-error is defined in errors.lisp (inherits from sw4rm-error)
 
 (define-condition rpc-timeout (rpc-error)
   ()
@@ -168,7 +160,7 @@ threading or async I/O to enforce hard deadlines."
            (when (> ,elapsed ,timeout-ms)
              (error 'rpc-timeout
                     :message (format nil "Operation exceeded deadline of ~Ams" ,timeout-ms)
-                    :code "DEADLINE_EXCEEDED")))))))
+                    :status-code "DEADLINE_EXCEEDED" :details "Timeout")))))))
 
 (defmacro with-retry ((max-attempts &key (backoff-ms 100) (backoff-multiplier 2.0)) &body body)
   "Execute BODY with exponential backoff retry on transient failures.

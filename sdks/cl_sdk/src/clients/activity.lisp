@@ -61,7 +61,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC ActivityService.AppendArtifact
       (error 'rpc-error
              :message "RegisterActivity not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric deregister-activity (client artifact-id)
   (:documentation "Remove an artifact from the activity log.
@@ -89,7 +89,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC ActivityService.RemoveArtifact
       (error 'rpc-error
              :message "DeregisterActivity not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric list-activities (client negotiation-id &optional kind)
   (:documentation "List artifacts for a negotiation session.
@@ -129,7 +129,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC ActivityService.ListArtifacts
       (error 'rpc-error
              :message "ListActivities not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric get-artifact (client artifact-id)
   (:documentation "Retrieve a specific artifact by ID.
@@ -162,4 +162,4 @@ Example:
       ;; Stub: In real implementation, this would call gRPC ActivityService.GetArtifact
       (error 'rpc-error
              :message "GetArtifact not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))

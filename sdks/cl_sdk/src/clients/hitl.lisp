@@ -82,7 +82,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC HitlService.Decide
       (error 'rpc-error
              :message "Escalate not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric respond (client decision-id selected-option &optional notes)
   (:documentation "Submit a human decision response.
@@ -114,7 +114,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC HitlService.Respond
       (error 'rpc-error
              :message "Respond not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric get-pending (client &optional operator-id)
   (:documentation "Get pending HITL invocations awaiting human decision.
@@ -153,7 +153,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC HitlService.GetPending
       (error 'rpc-error
              :message "GetPending not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric get-decision-status (client decision-id)
   (:documentation "Get the status of a HITL decision.
@@ -190,4 +190,4 @@ Example:
       ;; Stub: In real implementation, this would call gRPC HitlService.GetStatus
       (error 'rpc-error
              :message "GetDecisionStatus not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))

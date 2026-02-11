@@ -35,7 +35,7 @@ Signals:
 (defmethod save-proposal ((store negotiation-room-store) proposal)
   (error 'rpc-error
          :message "save-proposal not implemented for base class"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric has-proposal (store artifact-id)
   (:documentation "Check if a proposal exists in storage.
@@ -50,7 +50,7 @@ Returns:
 (defmethod has-proposal ((store negotiation-room-store) artifact-id)
   (error 'rpc-error
          :message "has-proposal not implemented for base class"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric get-proposal (store artifact-id)
   (:documentation "Retrieve a proposal from storage.
@@ -65,7 +65,7 @@ Returns:
 (defmethod get-proposal ((store negotiation-room-store) artifact-id)
   (error 'rpc-error
          :message "get-proposal not implemented for base class"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric add-vote (store vote)
   (:documentation "Add a vote to storage.
@@ -80,7 +80,7 @@ Signals:
 (defmethod add-vote ((store negotiation-room-store) vote)
   (error 'rpc-error
          :message "add-vote not implemented for base class"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric get-votes (store artifact-id)
   (:documentation "Retrieve all votes for an artifact.
@@ -95,7 +95,7 @@ Returns:
 (defmethod get-votes ((store negotiation-room-store) artifact-id)
   (error 'rpc-error
          :message "get-votes not implemented for base class"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric save-decision (store decision)
   (:documentation "Save a decision to storage.
@@ -110,7 +110,7 @@ Signals:
 (defmethod save-decision ((store negotiation-room-store) decision)
   (error 'rpc-error
          :message "save-decision not implemented for base class"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric get-decision (store artifact-id)
   (:documentation "Retrieve a decision from storage.
@@ -125,7 +125,7 @@ Returns:
 (defmethod get-decision ((store negotiation-room-store) artifact-id)
   (error 'rpc-error
          :message "get-decision not implemented for base class"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric list-proposals (store &optional negotiation-room-id)
   (:documentation "List all proposals, optionally filtered by room.
@@ -140,7 +140,7 @@ Returns:
 (defmethod list-proposals ((store negotiation-room-store) &optional negotiation-room-id)
   (error 'rpc-error
          :message "list-proposals not implemented for base class"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 ;;;; In-Memory Store Implementation
 
@@ -248,19 +248,19 @@ This is a placeholder. Actual implementation requires JSON library
   ;; Stub: Would serialize proposal to JSON and write to file
   (error 'rpc-error
          :message "JSON file store not implemented - requires JSON library integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defmethod has-proposal ((store json-file-negotiation-room-store) artifact-id)
   ;; Stub: Would check if file exists
   (error 'rpc-error
          :message "JSON file store not implemented - requires JSON library integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defmethod get-proposal ((store json-file-negotiation-room-store) artifact-id)
   ;; Stub: Would read and deserialize JSON file
   (error 'rpc-error
          :message "JSON file store not implemented - requires JSON library integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 ;;;; Default Store Singleton
 

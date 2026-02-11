@@ -63,7 +63,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC ToolService.Call
       (error 'rpc-error
              :message "CallTool not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric stream-tool-call (client tool-call handler-fn)
   (:documentation "Execute a streaming tool call.
@@ -105,7 +105,7 @@ library's streaming API."))
   ;; and iterate over the response stream, calling handler-fn for each frame
   (error 'rpc-error
          :message "StreamToolCall not implemented - requires gRPC integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric cancel-tool-call (client call-id)
   (:documentation "Cancel a running tool call (best effort).
@@ -134,7 +134,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC ToolService.Cancel
       (error 'rpc-error
              :message "CancelToolCall not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric list-tools (client &optional provider-id)
   (:documentation "List available tools, optionally filtered by provider.
@@ -174,4 +174,4 @@ Example:
       ;; Stub: In real implementation, this would call gRPC ToolService.ListTools
       (error 'rpc-error
              :message "ListTools not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))

@@ -21,7 +21,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/quicklisp
-          key: ${{ runner.os }}-quicklisp-${{ hashFiles('sdks/cl_sdk/sw4rm.asd') }}
+          key: ${{ runner.os }}-quicklisp-${{ hashFiles('sdks/cl_sdk/sw4rm-sdk.asd') }}
           restore-keys: |
             ${{ runner.os }}-quicklisp-
 

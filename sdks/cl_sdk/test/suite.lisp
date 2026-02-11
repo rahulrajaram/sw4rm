@@ -870,7 +870,7 @@
              :task-id "t1" :repo-id "r1" :worktree-id "w1")
     (funcall (%ab-sym "UPSERT-ACTIVITY") buf
              :task-id "t2" :repo-id "r1" :worktree-id "w2")
-    (let ((results (funcall (%ab-sym "LIST-ACTIVITIES") buf :task-id "t1")))
+    (let ((results (funcall (%ab-sym "LIST-BUFFER-ACTIVITIES") buf :task-id "t1")))
       (is (= 1 (length results))))))
 
 
@@ -940,7 +940,7 @@
           (sw4rm-sdk::initiate-handoff c '(:from-agent "a" :to-agent "b"))
           (fail "Expected rpc-error to be signaled"))
       (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-code e)))))))
+        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
 
 (test handoff-accept-signals-rpc-error
   "accept-handoff must signal rpc-error with UNIMPLEMENTED code."
@@ -951,7 +951,7 @@
           (sw4rm-sdk::accept-handoff c "handoff-123")
           (fail "Expected rpc-error to be signaled"))
       (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-code e)))))))
+        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
 
 (test handoff-reject-signals-rpc-error
   "reject-handoff must signal rpc-error with UNIMPLEMENTED code."
@@ -962,7 +962,7 @@
           (sw4rm-sdk::reject-handoff c "handoff-123" "no capacity")
           (fail "Expected rpc-error to be signaled"))
       (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-code e)))))))
+        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
 
 (test handoff-complete-signals-rpc-error
   "complete-handoff must signal rpc-error with UNIMPLEMENTED code."
@@ -973,7 +973,7 @@
           (sw4rm-sdk::complete-handoff c "handoff-123")
           (fail "Expected rpc-error to be signaled"))
       (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-code e)))))))
+        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
 
 (test handoff-get-pending-signals-rpc-error
   "get-pending must signal rpc-error with UNIMPLEMENTED code."
@@ -981,10 +981,10 @@
                            :address "localhost:50070")))
     (handler-case
         (progn
-          (sw4rm-sdk::get-pending c "agent-1")
+          (sw4rm-sdk::get-pending-handoffs c "agent-1")
           (fail "Expected rpc-error to be signaled"))
       (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-code e)))))))
+        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
 
 (test handoff-get-status-signals-rpc-error
   "get-handoff-status must signal rpc-error with UNIMPLEMENTED code."
@@ -995,7 +995,7 @@
           (sw4rm-sdk::get-handoff-status c "handoff-123")
           (fail "Expected rpc-error to be signaled"))
       (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-code e)))))))
+        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
 
 ;; -- workflow-client ------------------------------------------------------
 
@@ -1015,7 +1015,7 @@
           (sw4rm-sdk::submit-dag c '(:workflow-id "wf-1" :name "test"))
           (fail "Expected rpc-error to be signaled"))
       (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-code e)))))))
+        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
 
 (test workflow-get-status-signals-rpc-error
   "get-workflow-status must signal rpc-error with UNIMPLEMENTED code."
@@ -1026,7 +1026,7 @@
           (sw4rm-sdk::get-workflow-status c "wf-1")
           (fail "Expected rpc-error to be signaled"))
       (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-code e)))))))
+        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
 
 (test workflow-cancel-signals-rpc-error
   "cancel-workflow must signal rpc-error with UNIMPLEMENTED code."
@@ -1037,7 +1037,7 @@
           (sw4rm-sdk::cancel-workflow c "wf-1" "abort")
           (fail "Expected rpc-error to be signaled"))
       (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-code e)))))))
+        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
 
 (test workflow-resume-signals-rpc-error
   "resume-workflow must signal rpc-error with UNIMPLEMENTED code."
@@ -1048,7 +1048,7 @@
           (sw4rm-sdk::resume-workflow c "wf-1" "node-1")
           (fail "Expected rpc-error to be signaled"))
       (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-code e)))))))
+        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
 
 (test workflow-list-signals-rpc-error
   "list-workflows must signal rpc-error with UNIMPLEMENTED code."
@@ -1059,7 +1059,7 @@
           (sw4rm-sdk::list-workflows c :status :running)
           (fail "Expected rpc-error to be signaled"))
       (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-code e)))))))
+        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
 
 
 ;;; =======================================================================

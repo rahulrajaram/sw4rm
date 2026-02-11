@@ -105,7 +105,8 @@ export {
   DEDUP_WINDOW_S,
   isTerminalEnvelopeState,
   updateEnvelopeState,
-  // Skip ErrorCode, MessageType, AgentState — already exported from their source modules
+  MessageType,
+  // ErrorCode — already exported from internal/errorMapping.js
 } from './constants/index.js';
 
 // Audit module

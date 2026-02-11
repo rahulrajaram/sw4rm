@@ -18,13 +18,15 @@
 ;;;; Content type constants
 ;;;; -----------------------------------------------------------------------
 
-(defconstant +ct-scheduler-command-v1+
+(alexandria:define-constant +ct-scheduler-command-v1+
   "application/vnd.sw4rm.scheduler.command+json;v=1"
-  "MIME content type for scheduler command messages (v1).")
+  :test #'string=
+  :documentation "MIME content type for scheduler command messages (v1).")
 
-(defconstant +ct-agent-report-v1+
+(alexandria:define-constant +ct-agent-report-v1+
   "application/vnd.sw4rm.agent.report+json;v=1"
-  "MIME content type for agent report messages (v1).")
+  :test #'string=
+  :documentation "MIME content type for agent report messages (v1).")
 
 ;;;; -----------------------------------------------------------------------
 ;;;; Scheduler stage type

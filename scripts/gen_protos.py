@@ -53,14 +53,13 @@ def main() -> int:
         print(f"[gen_protos] protoc failed with code {rc}", file=sys.stderr)
         return rc
 
-    # Fix relative imports in generated files
-    for p in py_out.glob("*_pb2.py"):
+    # Fix relative imports in generated files (same as Makefile sed rule):
+    # Only replace bare `import foo_pb2` lines, not `from google.protobuf import ...`
+    import re
+    _bare_import_re = re.compile(r"^import (.*_pb2)", re.MULTILINE)
+    for p in list(py_out.glob("*_pb2.py")) + list(py_out.glob("*_pb2_grpc.py")):
         txt = p.read_text()
-        txt = txt.replace("import ", "from . import ")
-        p.write_text(txt)
-    for p in py_out.glob("*_pb2_grpc.py"):
-        txt = p.read_text()
-        txt = txt.replace("import ", "from . import ")
+        txt = _bare_import_re.sub(r"from . import \1", txt)
         p.write_text(txt)
 
     print(f"[gen_protos] Generated stubs in {py_out}")

@@ -66,23 +66,19 @@ such as timeouts and retry policies."
    :type string)
   (capabilities
    nil
-   :type list
-   :documentation "List of capability strings this agent provides.")
+   :type list)                    ; List of capability strings this agent provides
   (endpoints
    (make-default-endpoints)
    :type endpoints)
   (timeout-ms
    *default-timeout-ms*
-   :type integer
-   :documentation "Default timeout for operations in milliseconds.")
+   :type integer)                 ; Default timeout for operations in milliseconds
   (retry-max-attempts
    *default-retry-max-attempts*
-   :type integer
-   :documentation "Maximum number of retry attempts for failed operations.")
+   :type integer)                 ; Maximum number of retry attempts for failed operations
   (heartbeat-interval-ms
    *default-heartbeat-interval-ms*
-   :type integer
-   :documentation "Interval between heartbeat messages in milliseconds."))
+   :type integer))                ; Interval between heartbeat messages in milliseconds
 
 ;;;; Configuration Constructors
 ;;;

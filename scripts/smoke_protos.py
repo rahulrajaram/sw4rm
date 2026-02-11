@@ -51,14 +51,13 @@ def compile_protos() -> None:
         print(f"[smoke] protoc failed with code {rc}", file=sys.stderr)
         sys.exit(rc)
 
-    # Fix relative imports in generated files (same as gen_protos.py / Makefile)
-    for p in PY_OUT.glob("*_pb2.py"):
+    # Fix relative imports in generated files (same as Makefile sed rule):
+    # Only replace bare `import foo_pb2` lines, not `from google.protobuf import ...`
+    import re
+    _bare_import_re = re.compile(r"^import (.*_pb2)", re.MULTILINE)
+    for p in list(PY_OUT.glob("*_pb2.py")) + list(PY_OUT.glob("*_pb2_grpc.py")):
         txt = p.read_text()
-        txt = txt.replace("import ", "from . import ")
-        p.write_text(txt)
-    for p in PY_OUT.glob("*_pb2_grpc.py"):
-        txt = p.read_text()
-        txt = txt.replace("import ", "from . import ")
+        txt = _bare_import_re.sub(r"from . import \1", txt)
         p.write_text(txt)
 
 

@@ -65,7 +65,7 @@ Example:
   ;; or use local in-memory storage
   (error 'rpc-error
          :message "InitiateHandoff not implemented - requires gRPC or local storage integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric accept-handoff (client handoff-id)
   (:documentation "Accept a pending handoff request.
@@ -92,7 +92,7 @@ Example:
   ;; Stub: In real implementation, this would call gRPC HandoffService.AcceptHandoff
   (error 'rpc-error
          :message "AcceptHandoff not implemented - requires gRPC or local storage integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric reject-handoff (client handoff-id reason)
   (:documentation "Reject a pending handoff request.
@@ -121,7 +121,7 @@ Example:
   ;; Stub: In real implementation, this would call gRPC HandoffService.RejectHandoff
   (error 'rpc-error
          :message "RejectHandoff not implemented - requires gRPC or local storage integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric complete-handoff (client handoff-id)
   (:documentation "Mark a handoff as completed.
@@ -148,9 +148,9 @@ Example:
   ;; Stub: In real implementation, this would call gRPC HandoffService.CompleteHandoff
   (error 'rpc-error
          :message "CompleteHandoff not implemented - requires gRPC or local storage integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
-(defgeneric get-pending (client agent-id)
+(defgeneric get-pending-handoffs (client agent-id)
   (:documentation "Get all pending handoffs for a specific agent.
 
 Returns all handoff requests that are waiting for the specified agent
@@ -167,7 +167,7 @@ Signals:
   RPC-ERROR: If query fails.
 
 Example:
-  (get-pending client \"specialist-agent\")
+  (get-pending-handoffs client \"specialist-agent\")
   => ((:handoff-id \"handoff-123\"
        :from-agent \"agent-1\"
        :to-agent \"specialist-agent\"
@@ -175,12 +175,12 @@ Example:
        :status :pending)
       (:handoff-id \"handoff-124\" ...))"))
 
-(defmethod get-pending ((client handoff-client) agent-id)
+(defmethod get-pending-handoffs ((client handoff-client) agent-id)
   (ensure-connected client)
   ;; Stub: In real implementation, this would call gRPC HandoffService.GetPending
   (error 'rpc-error
          :message "GetPending not implemented - requires gRPC or local storage integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric get-handoff-status (client handoff-id)
   (:documentation "Get the current status of a handoff.
@@ -206,4 +206,4 @@ Example:
   ;; Stub: In real implementation, this would call gRPC HandoffService.GetStatus
   (error 'rpc-error
          :message "GetHandoffStatus not implemented - requires gRPC or local storage integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))

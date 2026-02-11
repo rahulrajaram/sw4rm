@@ -6,14 +6,14 @@
 ;;; Condition Types
 
 (define-condition interceptor-error (error)
-  ((interceptor :initarg :interceptor :reader interceptor)
-   (phase :initarg :phase :reader phase)
-   (reason :initarg :reason :reader reason))
+  ((interceptor-name :initarg :interceptor :reader interceptor-error-name)
+   (interceptor-phase :initarg :phase :reader interceptor-error-phase)
+   (interceptor-reason :initarg :reason :reader interceptor-error-reason))
   (:report (lambda (condition stream)
              (format stream "Interceptor error in ~A during ~A: ~A"
-                     (interceptor condition)
-                     (phase condition)
-                     (reason condition))))
+                     (interceptor-error-name condition)
+                     (interceptor-error-phase condition)
+                     (interceptor-error-reason condition))))
   (:documentation "Signaled when an interceptor encounters an error."))
 
 ;;; Interceptor Protocol
@@ -250,7 +250,7 @@
      Average duration in milliseconds, or NIL if no data"
   (let ((timings (interceptor-timings interceptor)))
     (when timings
-      (/ (reduce #'+ (mapcar (lambda (t) (getf t :duration-ms)) timings))
+      (/ (reduce #'+ (mapcar (lambda (entry) (getf entry :duration-ms)) timings))
          (length timings)))))
 
 ;;; Logging Interceptor
@@ -423,17 +423,7 @@
 
 ;;; Utility Functions
 
-(defun copy-hash-table (table)
-  "Create a shallow copy of a hash table.
-
-   Args:
-     table: Hash table to copy
-
-   Returns:
-     New hash table with same contents"
-  (let ((new-table (make-hash-table :test (hash-table-test table))))
-    (maphash (lambda (k v) (setf (gethash k new-table) v)) table)
-    new-table))
+;;; copy-hash-table is provided by alexandria (inherited via :use)
 
 (defun make-interceptor-chain ()
   "Create an empty interceptor chain.

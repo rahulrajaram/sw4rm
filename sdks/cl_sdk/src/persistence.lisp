@@ -39,15 +39,7 @@
    Returns:
      List of records"))
 
-(defgeneric clear-records (backend &key namespace)
-  (:documentation "Clear all records in persistent storage.
-
-   Args:
-     backend: Persistence backend instance
-     namespace: Optional namespace/collection name
-
-   Returns:
-     Number of records deleted"))
+;;; clear-records generic defined in audit.lisp (loaded earlier)
 
 ;;; JSON File Persistence Backend
 

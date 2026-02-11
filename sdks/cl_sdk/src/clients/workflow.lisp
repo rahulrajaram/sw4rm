@@ -84,7 +84,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC WorkflowService.SubmitDAG
       (error 'rpc-error
              :message "SubmitDAG not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric get-workflow-status (client workflow-id)
   (:documentation "Get the current status of a workflow.
@@ -130,7 +130,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC WorkflowService.GetStatus
       (error 'rpc-error
              :message "GetWorkflowStatus not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric cancel-workflow (client workflow-id &optional reason)
   (:documentation "Cancel a running workflow.
@@ -161,7 +161,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC WorkflowService.Cancel
       (error 'rpc-error
              :message "CancelWorkflow not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric resume-workflow (client workflow-id node-id &key workflow-data metadata)
   (:documentation "Resume a workflow by marking a node as completed (spec §17.7 MUST).
@@ -196,7 +196,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC WorkflowService.ResumeWorkflow
       (error 'rpc-error
              :message "ResumeWorkflow not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 ;;;; Additional Workflow Management
 
@@ -268,4 +268,4 @@ Example:
       ;; Stub: In real implementation, this would call gRPC WorkflowService.List
       (error 'rpc-error
              :message "ListWorkflows not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))

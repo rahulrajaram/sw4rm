@@ -58,7 +58,7 @@ Example:
   ;; Stub: Local implementation would use in-memory or file-based storage
   (error 'rpc-error
          :message "CreateRoom not implemented - requires storage backend integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric submit-artifact (client artifact-proposal)
   (:documentation "Submit an artifact proposal for multi-agent review.
@@ -97,7 +97,7 @@ Example:
   ;; Stub: Local implementation would save to storage backend
   (error 'rpc-error
          :message "SubmitArtifact not implemented - requires storage backend integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric add-critique (client vote)
   (:documentation "Submit a critic's vote for an artifact.
@@ -140,7 +140,7 @@ Example:
   ;; Stub: Local implementation would validate and store vote
   (error 'rpc-error
          :message "AddCritique not implemented - requires storage backend integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric score-artifact (client artifact-id)
   (:documentation "Retrieve all votes for a specific artifact.
@@ -168,7 +168,7 @@ Example:
   ;; Stub: Local implementation would retrieve votes from storage
   (error 'rpc-error
          :message "ScoreArtifact not implemented - requires storage backend integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric get-room-status (client room-id)
   (:documentation "Get the status and statistics of a negotiation room.
@@ -200,7 +200,7 @@ Example:
   ;; Stub: Local implementation would aggregate statistics from storage
   (error 'rpc-error
          :message "GetRoomStatus not implemented - requires storage backend integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 ;;;; Additional Helper Methods
 
@@ -230,7 +230,7 @@ Example:
   ;; Stub: Local implementation would retrieve decision from storage
   (error 'rpc-error
          :message "GetDecision not implemented - requires storage backend integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
 
 (defgeneric wait-for-decision (client artifact-id &key timeout-s poll-interval-s)
   (:documentation "Wait for a decision to be made on an artifact.
@@ -261,4 +261,4 @@ Example:
   ;; Stub: Local implementation would poll storage for decision
   (error 'rpc-error
          :message "WaitForDecision not implemented - requires storage backend integration"
-         :code "UNIMPLEMENTED"))
+         :status-code "UNIMPLEMENTED" :details "Stub implementation"))

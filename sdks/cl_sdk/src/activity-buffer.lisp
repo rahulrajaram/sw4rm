@@ -3,18 +3,7 @@
 
 (in-package :sw4rm-sdk)
 
-;;; Condition Types
-
-(define-condition buffer-full-error (error)
-  ((buffer :initarg :buffer :reader buffer)
-   (max-items :initarg :max-items :reader max-items)
-   (current-items :initarg :current-items :reader current-items))
-  (:report (lambda (condition stream)
-             (format stream "Activity buffer is full (~D/~D items). Cannot add new activity without removal."
-                     (current-items condition)
-                     (max-items condition))))
-  (:documentation "Signaled when attempting to add to a full activity buffer.
-                   Per spec §10.1, buffer must reject new entries when at capacity."))
+;;; buffer-full-error condition defined in errors.lisp
 
 ;;; Activity Entry Structure
 
@@ -159,9 +148,10 @@
       ;; Check capacity if new entry
       (when (and (not existing) (is-full-p buf))
         (error 'buffer-full-error
-               :buffer buf
-               :max-items (max-items buf)
-               :current-items (current-size buf)))
+               :message (format nil "Activity buffer at capacity (~D/~D)"
+                               (current-size buf) (max-items buf))
+               :current-size (current-size buf)
+               :max-size (max-items buf)))
 
       ;; Store entry
       (setf (gethash key (entries buf)) entry)
@@ -198,7 +188,7 @@
   (let ((key (make-activity-key task-id repo-id worktree-id)))
     (gethash key (entries buf))))
 
-(defmethod list-activities ((buf activity-buffer) &key task-id repo-id)
+(defmethod list-buffer-activities ((buf activity-buffer) &key task-id repo-id)
   "List all activities matching the given filters.
 
    Args:

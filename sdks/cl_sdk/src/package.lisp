@@ -75,7 +75,7 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:+suspended+
    #:+resumed+
    #:+completed+
-   #:+failed+
+   #:+agent-failed+
    #:+shutting-down+
    #:+recovering+
 

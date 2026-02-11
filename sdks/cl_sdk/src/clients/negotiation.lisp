@@ -65,7 +65,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC NegotiationService.Open
       (error 'rpc-error
              :message "CreateSession not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric submit-proposal (client negotiation-id from-agent content-type payload)
   (:documentation "Submit an initial proposal to a negotiation.
@@ -100,7 +100,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC NegotiationService.Propose
       (error 'rpc-error
              :message "SubmitProposal not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric vote (client negotiation-id from-agent confidence-score &optional notes)
   (:documentation "Submit an evaluation of the current proposal.
@@ -134,7 +134,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC NegotiationService.Evaluate
       (error 'rpc-error
              :message "Vote not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric get-session (client negotiation-id)
   (:documentation "Retrieve the current state of a negotiation session.
@@ -172,7 +172,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC NegotiationService.GetSession
       (error 'rpc-error
              :message "GetSession not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 ;;;; Helper Methods (from Python SDK)
 
@@ -209,7 +209,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC NegotiationService.Counter
       (error 'rpc-error
              :message "CounterProposal not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric decide (client negotiation-id decided-by content-type result)
   (:documentation "Make a final decision to conclude the negotiation.
@@ -243,7 +243,7 @@ Example:
       ;; Stub: In real implementation, this would call gRPC NegotiationService.Decide
       (error 'rpc-error
              :message "Decide not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
 
 (defgeneric abort-negotiation (client negotiation-id &optional reason)
   (:documentation "Abort an ongoing negotiation.
@@ -275,4 +275,4 @@ Example:
       ;; Stub: In real implementation, this would call gRPC NegotiationService.Abort
       (error 'rpc-error
              :message "AbortNegotiation not implemented - requires gRPC integration"
-             :code "UNIMPLEMENTED"))))
+             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
