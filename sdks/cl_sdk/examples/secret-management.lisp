@@ -162,8 +162,8 @@
     (format t ";;   Missing key: ~A~%" (secret-key e))))
 
 ;; Store a secret through the resolver (targets a specific backend by index).
-(format t "~&;;   Storing SECRET_X through resolver (backend-index 0 = file)...~%")
-(store-secret *resolver* "SECRET_X" "value-x" :backend-index 0)
+(format t "~&;;   Storing SECRET_X through resolver (backend-index 1 = file)...~%")
+(store-secret *resolver* "SECRET_X" "value-x" :backend-index 1)
 
 (let ((retrieved (resolve-secret *resolver* "SECRET_X")))
   (format t ";;   Retrieved SECRET_X: ~A~%" retrieved))
@@ -187,7 +187,7 @@
 
 (format t ";;   (make-default-resolver) creates a resolver with:~%")
 (format t ";;     Backend 1: env-backend (SW4RM_SECRET_* prefix)~%")
-(format t ";;     Backend 2: file-backend (~/.secrets.json)~%")
+(format t ";;     Backend 2: file-backend (~~/.secrets.json)~%")
 (format t ";;   Usage:~%")
 (format t ";;     (defvar *secrets* (make-default-resolver))~%")
 (format t ";;     (resolve-secret *secrets* \"OPENAI_API_KEY\")~%")

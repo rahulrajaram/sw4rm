@@ -217,4 +217,73 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
 
    #:sequence-tracker
    #:make-sequence-tracker
-   #:next-sequence))
+   #:next-sequence)
+
+  ;; Negotiation events
+  (:export
+   #:make-event-emitter
+   #:on
+   #:off
+   #:emit
+   #:listener-count
+   #:get-history
+   #:clear-history
+   #:clear-listeners
+   #:negotiation-event
+   #:negotiation-event-event-id
+   #:negotiation-event-event-type
+   #:negotiation-event-room-id
+   #:negotiation-event-agent-id
+   #:negotiation-event-timestamp
+   #:negotiation-event-payload
+   #:make-participant-joined-event
+   #:make-participant-left-event
+   #:make-proposal-submitted-event
+   #:make-critique-added-event
+   #:make-vote-cast-event
+   #:make-round-complete-event
+   #:make-approved-event
+   #:make-rejected-event)
+
+  ;; Voting
+  (:export
+   #:make-vote
+   #:vote-agent-id
+   #:vote-choice
+   #:vote-confidence
+   #:vote-timestamp
+   #:vote-metadata
+   #:vote-to-plist
+   #:make-vote-from-plist
+   #:aggregate
+   #:strategy-name
+   #:majority-vote-strategy
+   #:confidence-weighted-strategy
+   #:simple-average-strategy
+   #:borda-count-strategy
+   #:voting-aggregator
+   #:run-vote
+   #:set-strategy
+   #:get-round-history
+   #:voting-round
+   #:voting-round-round-id
+   #:voting-round-strategy-name
+   #:voting-round-votes)
+
+  ;; Secrets
+  (:export
+   #:make-file-backend
+   #:make-env-backend
+   #:make-default-resolver
+   #:get-secret
+   #:set-secret
+   #:delete-secret
+   #:list-secrets
+   #:add-backend
+   #:remove-backend
+   #:resolve-secret
+   #:store-secret
+   #:secret-resolver
+   #:secret-not-found
+   #:secret-key
+   #:secret-backend-error))

@@ -82,7 +82,7 @@
 
    (lock
     :accessor backend-lock
-    :initform (bt:make-lock "file-backend-lock")
+    :initform (bt:make-recursive-lock "file-backend-lock")
     :documentation "Lock for thread-safe operations."))
   (:documentation "File-based secret backend storing secrets in a JSON file.
                    Secrets are cached in memory and persisted to disk."))
@@ -96,7 +96,7 @@
 
    Args:
      backend: file-backend instance"
-  (bt:with-lock-held ((backend-lock backend))
+  (bt:with-recursive-lock-held ((backend-lock backend))
     (let ((file-path (backend-file-path backend)))
       (when (probe-file file-path)
         (handler-case
@@ -115,7 +115,7 @@
 
    Args:
      backend: file-backend instance"
-  (bt:with-lock-held ((backend-lock backend))
+  (bt:with-recursive-lock-held ((backend-lock backend))
     (let ((file-path (backend-file-path backend))
           (entries nil))
 
@@ -162,7 +162,7 @@
 
    Returns:
      T"
-  (bt:with-lock-held ((backend-lock backend))
+  (bt:with-recursive-lock-held ((backend-lock backend))
     (setf (gethash key (backend-cache backend)) value)
     (save-secrets-to-file backend)
     t))
@@ -176,7 +176,7 @@
 
    Returns:
      T if deleted, NIL if not found"
-  (bt:with-lock-held ((backend-lock backend))
+  (bt:with-recursive-lock-held ((backend-lock backend))
     (let ((existed (remhash key (backend-cache backend))))
       (when existed
         (save-secrets-to-file backend))
