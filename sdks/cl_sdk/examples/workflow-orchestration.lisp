@@ -56,7 +56,7 @@
   "Execution state of a single node."
   (node-id "" :type string)
   (status :pending :type keyword)   ; :pending :running :completed :failed
-  (result nil :type list)
+  (result nil)
   (error-msg nil :type (or null string))
   (started-at 0 :type integer)
   (completed-at 0 :type integer))
