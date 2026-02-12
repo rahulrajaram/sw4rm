@@ -15,8 +15,14 @@
 ;;;;   sbcl --load examples/negotiation-voting.lisp
 
 ;;; ---------------------------------------------------------------------------
-;;; Step 0: Load the SDK
+;;; Step 0: Ensure Quicklisp is available, then load the SDK
 ;;; ---------------------------------------------------------------------------
+
+;;; Ensure Quicklisp is available
+#-quicklisp
+(let ((quicklisp-init (merge-pathnames "quicklisp/setup.lisp" (user-homedir-pathname))))
+  (when (probe-file quicklisp-init)
+    (load quicklisp-init)))
 
 (ql:quickload :sw4rm-sdk)
 

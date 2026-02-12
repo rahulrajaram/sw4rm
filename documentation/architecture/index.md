@@ -6,7 +6,7 @@ Deep dive into the SW4RM SDK architecture, design patterns, and extensibility. T
 
 The SDK follows a layered architecture that keeps the runtime simple while enabling robust interop with core services and protocol primitives.
 
-Note: “Agent” in this documentation follows the supervised, process‑isolated definition in the main index (see “Agents and Agentic Interaction” in documentation/index.md) rather than the colloquial “LLM wrapper” usage.
+Note: "Agent" in this documentation follows the supervised, process‑isolated definition (see "Agents and Agentic Interaction" in the [Overview](../overview.md)) rather than the colloquial "LLM wrapper" usage.
 
 ```mermaid
 graph TB
@@ -58,11 +58,8 @@ graph TB
     - FULFILLED: Target completed processing successfully; origin finalizes lifecycle.
 
 
-For a system-wide view including services, data stores, and ports, see Detailed System Architecture in the main index.
-
-
-- Detailed system diagram: [Detailed System Architecture](../index.md)
-- Persistent state model: [Persistent State Management Architecture](../index.md)
+- Overview diagrams: [Overview](#51-overview)
+- Persistent state model: [State and Persistence](#56-state-and-persistence)
 - Protocol services and messages: [Services](../protocol/services.md) and [Messages](../protocol/messages.md)
 
 ## 5.2. Agent State Machine
@@ -213,7 +210,6 @@ Learn more about message types and services in the Protocol Specification: [Mess
 - **Worktree State**: Maintains repository/workspace context with deep Git integration, including branch tracking, file diffs, and isolated working directories per conversation or task. It supports background sync, conflict handling with policy-driven strategies, and controlled side effects for code-aware agents.
 - **Core services**: The Router durably persists and routes messages with FIFO ordering within a conversation and delivery retries; the Registry provides agent discovery, health, and capability advertisement; the Scheduler allocates work via priority queues and lease-based dispatch. All services expose gRPC endpoints secured with mTLS; see ../protocol/services.md for API details.
 
- Deeper system context and diagrams: [Detailed System Architecture](../index.md)
 
 ## 5.6. State and Persistence
 
@@ -224,7 +220,7 @@ The SDK provides multi-level persistence for robustness and recovery:
 - **Worktree State**: Persists workspace bindings and file metadata, isolating tenant/conversation state in sandboxed directories. Git operations (fetch/merge/commit) run under policy control with explicit conflict resolution and audit trails.
 - **Configuration State**: Stores versioned configuration with JSON Schema validation, hot-reload, and automatic rollback on failed validations. Changes are recorded with actor, timestamp, and diff to support audit and rapid recovery.
 
- Design details and recovery strategies: [Persistent State Management Architecture](../index.md)
+ Design details and recovery strategies: [State and Persistence](#56-state-and-persistence)
 
 ## 5.7. Reliability and Failure Modes
 
@@ -234,7 +230,6 @@ The SDK provides multi-level persistence for robustness and recovery:
 - **Backpressure**: Applies credit- or queue-depth-based flow control and per-handler concurrency limits to prevent receiver overload. When limits are exceeded, the SDK sheds load via timeouts and the circuit breaker, signaling upstream to slow down while preserving system stability.
 - **Degraded operation**: Circuit breakers isolate failing dependencies and switch components into a constrained feature set (e.g., read-only operations or cached responses). Recovery uses exponential probe intervals, and fallbacks are governed by explicit policies to avoid silent data loss.
 
- See system-wide guarantees and tradeoffs: [Enterprise Problem Resolution](../index.md)
 
 ## 5.8. Security
 

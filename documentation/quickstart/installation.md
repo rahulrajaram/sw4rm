@@ -20,8 +20,13 @@ This comprehensive installation guide provides detailed procedures for installin
 | Component | Minimum Version | Recommended Version |
 |-----------|----------------|-------------------|
 | **Python** | 3.11.0 | 3.12+ |
+| **Rust** | 1.70.0 | Latest stable |
+| **Node.js** | 18.0 | 20+ LTS |
+| **SBCL** (Common Lisp) | 2.3+ | Latest |
 | **pip** | 21.0 | Latest |
 | **Git** | 2.30+ | Latest |
+
+You only need the toolchain for the SDK(s) you plan to use.
 
 ### Operating System Support and Kernel Requirements
 

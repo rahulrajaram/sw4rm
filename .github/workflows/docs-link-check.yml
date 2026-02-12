@@ -36,7 +36,8 @@ jobs:
             mkdocs-gen-files \
             mkdocstrings[python] \
             mkdocs-htmlproofer-plugin \
-            mkdocs-kroki-plugin
+            mkdocs-kroki-plugin \
+            mkdocs-minify-plugin
 
       - name: Build docs (strict)
         run: |
