@@ -62,6 +62,12 @@ markdown_extensions:
 plugins:
   - search
   - kroki
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+      htmlmin_opts:
+        remove_comments: true
   # Enable after installing: pip install mkdocs-htmlproofer-plugin
   # - htmlproofer:
 # check_external: false

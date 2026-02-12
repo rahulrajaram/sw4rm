@@ -17,7 +17,7 @@ local-only concern.
 
 **Backends**:
 
-- `FileBackend` - JSON file-based secret storage (all 3 SDKs)
+- `FileBackend` - JSON file-based secret storage (all SDKs)
 - `KeyringBackend` - OS keyring integration (Python via `keyring`, Rust via `keyring`, JS via `keytar`)
 - `SecretResolver` - Resolves secrets from configured backends with fallback chain
 
