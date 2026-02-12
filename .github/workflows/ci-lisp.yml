@@ -8,40 +8,19 @@ jobs:
   lisp:
     name: SBCL Tests
     runs-on: ubuntu-latest
+    env:
+      LISP: sbcl-bin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install SBCL
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y sbcl
-
-      - name: Cache Quicklisp
-        uses: actions/cache@v4
-        with:
-          path: ~/quicklisp
-          key: ${{ runner.os }}-quicklisp-${{ hashFiles('sdks/cl_sdk/sw4rm-sdk.asd') }}
-          restore-keys: |
-            ${{ runner.os }}-quicklisp-
-
-      - name: Install Quicklisp
-        run: |
-          if [ ! -f ~/quicklisp/setup.lisp ]; then
-            curl -fSL -o quicklisp.lisp https://beta.quicklisp.org/quicklisp.lisp
-            sbcl --non-interactive \
-                 --load quicklisp.lisp \
-                 --eval '(quicklisp-quickstart:install)' \
-                 --eval '(ql:add-to-init-file)'
-          else
-            echo "Quicklisp already installed (cache hit)"
-          fi
+      - name: Setup Common Lisp
+        uses: 40ants/setup-lisp@v4
 
       - name: Install dependencies
         working-directory: sdks/cl_sdk
         run: |
-          sbcl --non-interactive \
-               --load ~/quicklisp/setup.lisp \
+          ros run --non-interactive \
                --eval '(push (truename ".") asdf:*central-registry*)' \
                --eval '(ql:quickload :sw4rm-sdk :silent t)' \
                --eval '(format t "~%Dependencies installed successfully~%")'
@@ -49,25 +28,23 @@ jobs:
       - name: Run tests
         working-directory: sdks/cl_sdk
         run: |
-          sbcl --non-interactive \
-               --load ~/quicklisp/setup.lisp \
+          ros run --non-interactive \
                --eval '(push (truename ".") asdf:*central-registry*)' \
                --eval '(ql:quickload :sw4rm-sdk :silent t)' \
                --eval '(ql:quickload :fiveam :silent t)' \
                --eval '(load "test/suite.lisp")' \
                --eval '(let ((results (fiveam:run (quote sw4rm-test::sw4rm-suite))))
                          (fiveam:explain! results)
-                         (sb-ext:exit :code (if (fiveam:results-status results) 0 1)))'
+                         (uiop:quit (if (fiveam:results-status results) 0 1)))'
 
       - name: Verify examples load
         working-directory: sdks/cl_sdk
         run: |
-          sbcl --non-interactive \
-               --load ~/quicklisp/setup.lisp \
+          ros run --non-interactive \
                --eval '(push (truename ".") asdf:*central-registry*)' \
                --eval '(ql:quickload :sw4rm-sdk :silent t)' \
                --eval '(load "examples/echo-agent.lisp")' \
                --eval '(load "examples/negotiation-voting.lisp")' \
                --eval '(load "examples/secret-management.lisp")' \
                --eval '(format t "~%All examples loaded successfully~%")' \
-               --eval '(sb-ext:exit :code 0)'
+               --eval '(uiop:quit 0)'

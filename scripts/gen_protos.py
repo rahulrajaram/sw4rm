@@ -6,6 +6,7 @@ Usage:
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 
@@ -28,15 +29,15 @@ def main() -> int:
     ]
 
     try:
+        import grpc_tools
         from grpc_tools import protoc  # type: ignore
-        import pkg_resources  # type: ignore
     except Exception as e:
         print("[gen_protos] Missing grpc_tools; install dev deps (.[dev])", file=sys.stderr)
         print(f"[gen_protos] Details: {e}", file=sys.stderr)
         return 2
 
     py_out.mkdir(parents=True, exist_ok=True)
-    inc = pkg_resources.resource_filename("grpc_tools", "_proto")
+    inc = os.path.join(os.path.dirname(grpc_tools.__file__), "_proto")
 
     args = [
         "protoc",
