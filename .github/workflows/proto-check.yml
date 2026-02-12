@@ -43,7 +43,7 @@ jobs:
           rm -f sw4rm/protos/*_pb2.py sw4rm/protos/*_pb2_grpc.py sw4rm/protos/*_pb2.pyi
 
           # Get the grpc_tools include path
-          GRPC_INCLUDE=$(python -c "import pkg_resources; print(pkg_resources.resource_filename('grpc_tools','_proto'))")
+          GRPC_INCLUDE=$(python -c "import os, grpc_tools; print(os.path.join(os.path.dirname(grpc_tools.__file__), '_proto'))")
 
           # Generate proto files
           python -m grpc_tools.protoc \

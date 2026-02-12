@@ -23,8 +23,8 @@ PROTO_DIR = REPO_ROOT / "protos"
 
 def compile_protos() -> None:
     try:
+        import grpc_tools
         from grpc_tools import protoc  # type: ignore
-        import pkg_resources  # type: ignore
     except Exception:
         print(
             "[smoke] Missing grpc_tools. Install dev extras: `python -m pip install -e \".[dev]\"`",
@@ -34,7 +34,7 @@ def compile_protos() -> None:
 
     PY_OUT.mkdir(parents=True, exist_ok=True)
 
-    inc = pkg_resources.resource_filename("grpc_tools", "_proto")
+    inc = os.path.join(os.path.dirname(grpc_tools.__file__), "_proto")
 
     # Compile all .proto files in repo's protos/ directory
     protos = sorted(str(p) for p in PROTO_DIR.glob("*.proto"))
