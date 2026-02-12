@@ -214,6 +214,7 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:terminal-state-p
    #:compute-deterministic-hash
    #:make-idempotency-token
+   #:generate-uuid
 
    #:sequence-tracker
    #:make-sequence-tracker
