@@ -1,6 +1,8 @@
 # 4. Examples
 
-Comprehensive examples demonstrating SW4RM SDK usage across Python, JavaScript/TypeScript, and Rust implementations. For domain-specific application patterns, see [Use Cases](use-cases.md).
+Comprehensive examples demonstrating SW4RM SDK usage across Python, JavaScript/TypeScript, Rust, and Common Lisp implementations. For domain-specific application patterns, see [Use Cases](use-cases.md).
+
+<a id="41-available-examples"></a>
 
 ## 4.1. LLM-Integrated Multi-Agent Systems {#41-llm-integrated-multi-agent-systems}
 
@@ -53,6 +55,7 @@ See the Reference Services section for detailed setup instructions.
     - [:simple-python: Python](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/py_sdk/examples/echo_agent.py)
     - [:simple-typescript: TypeScript](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/js_sdk/examples/echoAgent.ts)
     - [:simple-rust: Rust](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/rust_sdk/examples/echo_agent.rs)
+    - [:simple-commonlisp: Common Lisp](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/cl_sdk/examples/echo-agent.lisp)
 
 -   :material-robot:{ .lg .middle } **Advanced Agent**
 
@@ -65,6 +68,7 @@ See the Reference Services section for detailed setup instructions.
     - [:simple-python: Python](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/py_sdk/examples/three_id_demo.py) (Three-ID & ActivityBuffer)
     - [:simple-typescript: TypeScript](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/js_sdk/examples/advancedAgent.ts)
     - [:simple-rust: Rust](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/rust_sdk/examples/advanced_agent.rs)
+    - [:simple-commonlisp: Common Lisp](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/cl_sdk/examples/advanced-agent.lisp)
 
 -   :material-test-tube:{ .lg .middle } **Test Client**
 
@@ -93,6 +97,7 @@ See the Reference Services section for detailed setup instructions.
     - [:simple-python: Python](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/py_sdk/examples/negotiation_debate_example.py)
     - [:simple-typescript: TypeScript](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/js_sdk/examples/negotiationRoomExample.ts)
     - [:simple-rust: Rust](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/rust_sdk/examples/negotiation_room.rs)
+    - [:simple-commonlisp: Common Lisp](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/cl_sdk/examples/negotiation-voting.lisp)
 
 -   :material-transit-transfer:{ .lg .middle } **Agent Handoff**
 
@@ -154,6 +159,17 @@ See the Reference Services section for detailed setup instructions.
     **Available in:**
 
     - [:simple-python: Python](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/py_sdk/examples/tool_streaming_example.py)
+    - [:simple-commonlisp: Common Lisp](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/cl_sdk/examples/tool-streaming.lisp)
+
+-   :material-key:{ .lg .middle } **Secret Management**
+
+    ---
+
+    Multi-backend secret resolver with environment variable and file-based storage
+
+    **Available in:**
+
+    - [:simple-commonlisp: Common Lisp](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/cl_sdk/examples/secret-management.lisp)
 
 -   :material-identifier:{ .lg .middle } **Three-ID Envelope Model**
 
@@ -236,6 +252,28 @@ cargo run --example handoff
 
 # Feature-specific
 cargo run --example activity_demo
+```
+
+### Common Lisp Examples
+
+```bash
+# Navigate to Common Lisp SDK
+cd sdks/cl_sdk
+
+# Echo agent
+sbcl --load examples/echo-agent.lisp
+
+# Advanced agent (ACK lifecycle, persistence, worktree)
+sbcl --load examples/advanced-agent.lisp
+
+# Negotiation voting
+sbcl --load examples/negotiation-voting.lisp
+
+# Tool streaming (tool client, connector)
+sbcl --load examples/tool-streaming.lisp
+
+# Secret management
+sbcl --load examples/secret-management.lisp
 ```
 
 ## 4.4. Example Categories
