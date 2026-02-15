@@ -47,6 +47,10 @@ enum ErrorCode {
   TTL_EXPIRED = 13;
   DUPLICATE_DETECTED = 14;
   ALREADY_IN_PROGRESS = 15;
+  // SW4-004 Inter-Swarm Composition (values 16-19)
+  OVERLOADED = 16;
+  // SW4-005 Spillover Routing (values 20-23)
+  REDIRECT = 20;
   INTERNAL_ERROR = 99;
 }
 
@@ -122,6 +126,9 @@ message Envelope {
   google.protobuf.Timestamp timestamp = 14;
   bytes payload = 15;                    // serialized content per content_type
   EnvelopeState state = 16;              // lifecycle state of the envelope
+
+  // SW4-004 Inter-Swarm Composition (fields 100-109)
+  string parent_correlation_id = 100;    // set on first envelope crossing a swarm boundary
 }
 
 message Ack {

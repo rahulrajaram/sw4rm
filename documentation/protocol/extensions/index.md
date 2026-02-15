@@ -15,6 +15,15 @@ Related documents:
 | [SW4-001](./SW4-001-failure-semantics.md) | Failure Semantics | Draft | Core §17.5 |
 | [SW4-002](./SW4-002-timeout-profiles.md) | Timeout Profiles | Draft | Core §5, OPERATIONAL_CONTRACTS |
 | [SW4-003](./SW4-003-observability.md) | Observability | Draft | Core §4 |
+| [SW4-004](./SW4-004-inter-swarm-composition.md) | Inter-Swarm Composition | Draft | Core §4, §7.2, §11, §17.6, §18.6, SW4-002, SW4-003 |
+| [SW4-005](./SW4-005-spillover-routing.md) | Spillover Routing | Draft | SW4-004 §2.2, §9.3, §9.4 |
+
+## Implementation Profile Cross-Links
+
+- [SW4-004 Implementation Profile](./SW4-004-inter-swarm-composition.md#94-sw4-004sw4-005-implementation-profile-cross-sdk-required-behavior): §9.4 SW4-004/SW4-005 implementation profile (cross-SDK required behavior).
+- [SW4-005 Implementation Profile](./SW4-005-spillover-routing.md#15-sw4-004sw4-005-implementation-profile): §15 SW4-004/SW4-005 implementation profile alignment.
+- [SW4-004 Conformance Outline](./SW4-004-inter-swarm-composition.md#10-conformance-test-outline): cancellation cascade/grace clamp, spillover-disabled `OVERLOADED` fallback, and canonical redirect target normalization.
+- [SW4-005 Conformance Outline](./SW4-005-spillover-routing.md#11-conformance-test-outline): redirect emission shape, spillover-disable fallback behavior, and canonical redirect target handling.
 
 ## Extension Philosophy
 
@@ -33,6 +42,17 @@ Implementations may claim conformance to specific extensions:
 - **Core Only**: Implements core spec, no extensions
 - **Core + SW4-001**: Adds failure semantics
 - **Core + SW4-001 + SW4-002 + SW4-003**: Production-ready profile
+- **Core + SW4-001..SW4-004**: Production-ready with inter-swarm composition
+- **Core + SW4-001..SW4-005**: Inter-swarm composition + spillover routing (wire compatibility + helper behavior where implemented)
+
+## Implementation Status (2026-02-15)
+
+- Python: SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, full SW4-004/SW4-005 conformance suites, and shared vector adapters.
+- JS/TS: SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, full SW4-004/SW4-005 conformance coverage, and shared vector adapters.
+- Rust: SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, full SW4-004/SW4-005 conformance coverage, and shared vector adapters.
+- Common Lisp: SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, full SW4-004/SW4-005 conformance coverage, and shared vector adapters.
+
+See `sdks/SDK_IMPLEMENTATION_PROGRESS.md` for the authoritative cross-SDK capability matrix.
 
 ## Extension Lifecycle
 
@@ -81,4 +101,4 @@ To propose a new extension:
 
 ---
 
-*Last updated: 2026-01-10*
+*Last updated: 2026-02-15*

@@ -44,6 +44,12 @@ __all__ = [
     "workflow",
     # Handoff
     "handoff",
+    # SW4-004 gateway helpers
+    "gateway",
+    # SW4-004 cancellation helpers
+    "cancellation",
+    # SW4-004 delegation helpers
+    "delegation",
 ]
 
 __version__ = "0.5.0"

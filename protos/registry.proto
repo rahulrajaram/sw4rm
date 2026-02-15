@@ -5,6 +5,13 @@ package sw4rm.registry;
 import "google/protobuf/timestamp.proto";
 import "common.proto";
 
+// SW4-004 Inter-Swarm Composition
+enum RegistrationType {
+  REGISTRATION_TYPE_UNSPECIFIED = 0;
+  STANDARD_AGENT = 1;
+  SWARM_GATEWAY = 2;
+}
+
 message AgentDescriptor {
   string agent_id = 1;
   string name = 2;
@@ -14,6 +21,10 @@ message AgentDescriptor {
   repeated string modalities_supported = 6; // MIME types
   repeated string reasoning_connectors = 7; // URIs
   bytes public_key = 8; // optional
+
+  // SW4-004 Inter-Swarm Composition (fields 100-109)
+  RegistrationType registration_type = 100;       // default STANDARD_AGENT
+  uint32 max_concurrent_delegations = 101;        // normative for SWARM_GATEWAY, advisory for STANDARD_AGENT
 }
 
 message RegisterAgentRequest { AgentDescriptor agent = 1; }

@@ -1,0 +1,106 @@
+{
+  "suite": "sw4_004_cancellation",
+  "version": 1,
+  "vectors": [
+    {
+      "id": "minimum_grace_period_enforced",
+      "children": [],
+      "request": {
+        "correlation_id": "corr-1",
+        "reason": "stop",
+        "grace_period_ms": 0
+      },
+      "expected": {
+        "acknowledged": true,
+        "effective_grace_period_ms": 5000,
+        "cancelled": ["corr-1"],
+        "grace_expiry_checks": [
+          {
+            "correlation_id": "corr-1",
+            "offset_ms": -1,
+            "expired": false
+          },
+          {
+            "correlation_id": "corr-1",
+            "offset_ms": 0,
+            "expired": true
+          }
+        ],
+        "forced_preemption_checks": [
+          {
+            "correlation_id": "corr-1",
+            "offset_ms": -1,
+            "error_code": "ERROR_CODE_UNSPECIFIED"
+          },
+          {
+            "correlation_id": "corr-1",
+            "offset_ms": 0,
+            "error_code": "FORCED_PREEMPTION"
+          }
+        ],
+        "collect_forced": {
+          "active_correlations": ["corr-1", "not-cancelled"],
+          "offset_ms": 0,
+          "expected": ["corr-1"]
+        }
+      }
+    },
+    {
+      "id": "cascades_to_registered_children",
+      "children": [
+        {
+          "parent": "parent-corr",
+          "child": "child-a"
+        },
+        {
+          "parent": "parent-corr",
+          "child": "child-b"
+        }
+      ],
+      "request": {
+        "correlation_id": "parent-corr",
+        "reason": "abort",
+        "grace_period_ms": 10000
+      },
+      "expected": {
+        "acknowledged": true,
+        "effective_grace_period_ms": 10000,
+        "cancelled": ["parent-corr", "child-a", "child-b"],
+        "grace_expiry_checks": [
+          {
+            "correlation_id": "parent-corr",
+            "offset_ms": -1,
+            "expired": false
+          },
+          {
+            "correlation_id": "parent-corr",
+            "offset_ms": 0,
+            "expired": true
+          }
+        ],
+        "forced_preemption_checks": [
+          {
+            "correlation_id": "parent-corr",
+            "offset_ms": -1,
+            "error_code": "ERROR_CODE_UNSPECIFIED"
+          },
+          {
+            "correlation_id": "parent-corr",
+            "offset_ms": 0,
+            "error_code": "FORCED_PREEMPTION"
+          }
+        ],
+        "collect_forced": {
+          "active_correlations": [
+            "parent-corr",
+            "child-a",
+            "child-b",
+            "not-cancelled"
+          ],
+          "offset_ms": 0,
+          "expected": ["parent-corr", "child-a", "child-b"]
+        }
+      }
+    }
+  ]
+}

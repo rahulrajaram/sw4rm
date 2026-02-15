@@ -1,0 +1,105 @@
+{
+  "suite": "sw4_005_gateway_delegate_to_swarm",
+  "version": 2,
+  "vectors": [
+    {
+      "id": "redirect_loop_rejected",
+      "request_id": "vec-loop",
+      "from_agent": "parent",
+      "to_agent": "gateway-a",
+      "reason": "delegate",
+      "budget": {
+        "deadline_epoch_ms": 1000000,
+        "wall_time_remaining_ms": 10000
+      },
+      "policy": {
+        "allow_spillover_routing": true,
+        "max_redirects": 4
+      },
+      "redirect_map": {
+        "gateway-a": "gateway-b",
+        "gateway-b": "gateway-a"
+      },
+      "expected": {
+        "accepted": false,
+        "rejection_code": "VALIDATION_ERROR",
+        "reason_contains": "loop",
+        "attempts": ["gateway-a", "gateway-b"]
+      }
+    },
+    {
+      "id": "default_redirect_bound_applied",
+      "request_id": "vec-default-bound",
+      "from_agent": "parent",
+      "to_agent": "gateway-a",
+      "reason": "delegate",
+      "budget": {
+        "deadline_epoch_ms": 2000000,
+        "wall_time_remaining_ms": 10000
+      },
+      "policy": {
+        "allow_spillover_routing": true,
+        "max_redirects": 0
+      },
+      "redirect_map": {
+        "gateway-a": "gateway-b",
+        "gateway-b": "gateway-c",
+        "gateway-c": "gateway-d"
+      },
+      "expected": {
+        "accepted": false,
+        "rejection_code": "REDIRECT",
+        "attempts": ["gateway-a", "gateway-b", "gateway-c"]
+      }
+    },
+    {
+      "id": "spillover_disabled_returns_original_redirect",
+      "request_id": "vec-no-spillover",
+      "from_agent": "parent",
+      "to_agent": "gateway-a",
+      "reason": "delegate",
+      "budget": {
+        "deadline_epoch_ms": 2000000,
+        "wall_time_remaining_ms": 10000
+      },
+      "policy": {
+        "allow_spillover_routing": false,
+        "max_redirects": 5
+      },
+      "redirect_map": {
+        "gateway-a": "gateway-b"
+      },
+      "expected": {
+        "accepted": false,
+        "rejection_code": "REDIRECT",
+        "redirect_to_agent_id": "gateway-b",
+        "attempts": ["gateway-a"]
+      }
+    },
+    {
+      "id": "redirect_target_validation_precedes_bound",
+      "request_id": "vec-target-validation",
+      "from_agent": "parent",
+      "to_agent": "gateway-a",
+      "reason": "delegate",
+      "budget": {
+        "deadline_epoch_ms": 2000000,
+        "wall_time_remaining_ms": 10000
+      },
+      "policy": {
+        "allow_spillover_routing": true,
+        "max_redirects": 1
+      },
+      "redirect_map": {
+        "gateway-a": "gateway-b",
+        "gateway-b": "   "
+      },
+      "expected": {
+        "accepted": false,
+        "rejection_code": "VALIDATION_ERROR",
+        "reason_contains": "non-empty",
+        "attempts": ["gateway-a", "gateway-b"]
+      }
+    }
+  ]
+}
