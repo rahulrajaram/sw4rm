@@ -46,6 +46,8 @@ export class Envelope extends jspb.Message {
     setPayload(value: Uint8Array | string): Envelope;
     getState(): EnvelopeState;
     setState(value: EnvelopeState): Envelope;
+    getParentCorrelationId(): string;
+    setParentCorrelationId(value: string): Envelope;
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): Envelope.AsObject;
@@ -75,6 +77,7 @@ export namespace Envelope {
         timestamp?: google_protobuf_timestamp_pb.Timestamp.AsObject,
         payload: Uint8Array | string,
         state: EnvelopeState,
+        parentCorrelationId: string,
     }
 }
 
@@ -166,6 +169,8 @@ export enum ErrorCode {
     TTL_EXPIRED = 13,
     DUPLICATE_DETECTED = 14,
     ALREADY_IN_PROGRESS = 15,
+    OVERLOADED = 16,
+    REDIRECT = 20,
     INTERNAL_ERROR = 99,
 }
 

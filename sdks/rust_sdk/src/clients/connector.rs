@@ -171,12 +171,9 @@ mod tests {
     /// Test ToolDescriptor with_side_effects builder
     #[test]
     fn test_tool_descriptor_with_side_effects() {
-        let descriptor = ToolDescriptor::new(
-            "write_file".to_string(),
-            "{}".to_string(),
-            "{}".to_string(),
-        )
-        .with_side_effects("filesystem".to_string());
+        let descriptor =
+            ToolDescriptor::new("write_file".to_string(), "{}".to_string(), "{}".to_string())
+                .with_side_effects("filesystem".to_string());
 
         assert_eq!(descriptor.side_effects, "filesystem");
     }
@@ -184,8 +181,9 @@ mod tests {
     /// Test ToolDescriptor with_timeout builder
     #[test]
     fn test_tool_descriptor_with_timeout() {
-        let descriptor = ToolDescriptor::new("slow_op".to_string(), "{}".to_string(), "{}".to_string())
-            .with_timeout(120);
+        let descriptor =
+            ToolDescriptor::new("slow_op".to_string(), "{}".to_string(), "{}".to_string())
+                .with_timeout(120);
 
         assert_eq!(descriptor.default_timeout_s, 120);
     }
@@ -206,8 +204,9 @@ mod tests {
     /// Test ToolDescriptor needs_worktree builder
     #[test]
     fn test_tool_descriptor_needs_worktree() {
-        let descriptor = ToolDescriptor::new("git_op".to_string(), "{}".to_string(), "{}".to_string())
-            .needs_worktree(true);
+        let descriptor =
+            ToolDescriptor::new("git_op".to_string(), "{}".to_string(), "{}".to_string())
+                .needs_worktree(true);
 
         assert!(descriptor.needs_worktree);
     }
@@ -215,9 +214,12 @@ mod tests {
     /// Test ToolDescriptor not_idempotent builder
     #[test]
     fn test_tool_descriptor_not_idempotent() {
-        let descriptor =
-            ToolDescriptor::new("create_file".to_string(), "{}".to_string(), "{}".to_string())
-                .not_idempotent();
+        let descriptor = ToolDescriptor::new(
+            "create_file".to_string(),
+            "{}".to_string(),
+            "{}".to_string(),
+        )
+        .not_idempotent();
 
         assert!(!descriptor.idempotent);
     }
@@ -247,8 +249,9 @@ mod tests {
     /// Test ToolDescriptor clone
     #[test]
     fn test_tool_descriptor_clone() {
-        let descriptor = ToolDescriptor::new("test".to_string(), "{}".to_string(), "{}".to_string())
-            .with_timeout(45);
+        let descriptor =
+            ToolDescriptor::new("test".to_string(), "{}".to_string(), "{}".to_string())
+                .with_timeout(45);
 
         let cloned = descriptor.clone();
         assert_eq!(descriptor.tool_name, cloned.tool_name);
@@ -351,9 +354,7 @@ mod tests {
     fn test_multiple_tools_registration() {
         let tools: Vec<ToolDescriptor> = vec!["read_file", "write_file", "delete_file", "list_dir"]
             .into_iter()
-            .map(|name| {
-                ToolDescriptor::new(name.to_string(), "{}".to_string(), "{}".to_string())
-            })
+            .map(|name| ToolDescriptor::new(name.to_string(), "{}".to_string(), "{}".to_string()))
             .collect();
 
         assert_eq!(tools.len(), 4);
@@ -444,9 +445,8 @@ mod tests {
     #[test]
     fn test_concurrency_values() {
         // Serial (1)
-        let serial =
-            ToolDescriptor::new("serial".to_string(), "{}".to_string(), "{}".to_string())
-                .with_concurrency(1);
+        let serial = ToolDescriptor::new("serial".to_string(), "{}".to_string(), "{}".to_string())
+            .with_concurrency(1);
         assert_eq!(serial.max_concurrency, 1);
 
         // Highly parallel

@@ -1,0 +1,105 @@
+// SW4RM Protocol - Handoff Proto Definition
+// Namespace Convention: sw4rm.{service} (e.g., sw4rm.handoff)
+// See: docs/IMPLEMENTATION_PLAN.md Phase 1.1 for namespace standards.
+
+syntax = "proto3";
+
+package sw4rm.handoff;
+
+import "common.proto";
+import "google/protobuf/duration.proto";
+
+enum HandoffStatus {
+  HANDOFF_STATUS_UNSPECIFIED = 0;
+  PENDING = 1;
+  ACCEPTED = 2;
+  REJECTED = 3;
+  COMPLETED = 4;
+  EXPIRED = 5;
+}
+
+// SW4-004 Inter-Swarm Composition
+message BudgetEnvelope {
+  uint64 token_budget_remaining = 1;    // combined LLM input+output tokens
+  uint64 wall_time_remaining_ms = 2;
+  uint64 deadline_epoch_ms = 3;
+  uint32 current_depth = 4;
+  uint32 max_delegation_depth = 5;
+}
+
+message SwarmDelegationPolicy {
+  uint32 max_retries_on_overloaded = 1;
+  uint64 initial_backoff_ms = 2;
+  double backoff_multiplier = 3;
+  uint64 max_backoff_ms = 4;
+  bool allow_spillover_routing = 5;     // permits redirect to equivalent peer gateway
+  uint32 max_redirects = 6;              // SW4-005 redirect chain limit
+}
+
+message CancelDelegation {
+  string correlation_id = 1;           // identifies the delegation to cancel
+  string reason = 2;                   // human-readable cancellation reason
+  uint64 grace_period_ms = 3;         // time for cleanup before forced termination (min 5000ms)
+}
+
+message CancelDelegationResponse {
+  bool acknowledged = 1;
+  string message = 2;
+}
+
+message HandoffRequest {
+  string request_id = 1;
+  string from_agent = 2;
+  string to_agent = 3;
+  string reason = 4;
+  bytes context_snapshot = 5;
+  repeated string capabilities_required = 6;
+  int32 priority = 7;
+  google.protobuf.Duration timeout = 8;
+
+  // SW4-004 Inter-Swarm Composition (fields 100-109)
+  BudgetEnvelope budget = 100;
+  SwarmDelegationPolicy delegation_policy = 101;
+}
+
+message HandoffResponse {
+  string request_id = 1;
+  bool accepted = 2;
+  string accepting_agent = 3;
+  string rejection_reason = 4;
+
+  // SW4-004 Inter-Swarm Composition (fields 100-109)
+  sw4rm.common.ErrorCode rejection_code = 100;
+  uint64 retry_after_ms = 101;
+
+  // SW4-005 Spillover Routing (fields 110-119)
+  string redirect_to_agent_id = 110;
+}
+
+message GetPendingHandoffsRequest {
+  string agent_id = 1;
+}
+
+message GetPendingHandoffsResponse {
+  repeated HandoffRequest pending_requests = 1;
+}
+
+message CompleteHandoffRequest {
+  string request_id = 1;
+  HandoffStatus status = 2;
+}
+
+message CompleteHandoffResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+service HandoffService {
+  rpc RequestHandoff(HandoffRequest) returns (sw4rm.common.Empty);
+  rpc AcceptHandoff(HandoffResponse) returns (sw4rm.common.Empty);
+  rpc RejectHandoff(HandoffResponse) returns (sw4rm.common.Empty);
+  rpc GetPendingHandoffs(GetPendingHandoffsRequest) returns (GetPendingHandoffsResponse);
+  rpc CompleteHandoff(CompleteHandoffRequest) returns (CompleteHandoffResponse);
+  // SW4-004 Inter-Swarm Composition: cascading cancellation
+  rpc CancelDelegation(sw4rm.handoff.CancelDelegation) returns (CancelDelegationResponse);
+}

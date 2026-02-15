@@ -1,199 +1,97 @@
-# SW4RM SDK Implementation Progress (Parity + Tests)
+# SW4RM SDK Implementation Progress (SW4-004/SW4-005)
 
-## Assertion
-SDK parity across Rust, Python, and JS/TS is complete. **All three SDKs expose HandoffClient, WorkflowClient, and NegotiationRoomClient from their main clients packages.** These three services now have both in-memory implementations AND gRPC server implementations for distributed deployments.
+This document tracks cross-SDK parity for the inter-swarm extensions:
 
-## Current Version: v0.5.0
+- SW4-004: Inter-Swarm Composition
+- SW4-005: Spillover Routing
 
-## Recent Changes (v0.5.0)
+Status values:
 
-### Completed
+- `DONE`: Implemented and covered by tests in that SDK.
+- `PARTIAL`: Implemented only for part of the extension surface.
+- `PENDING`: Not implemented yet.
 
-#### 1. gRPC Servers for Coordination Services
-Implemented full gRPC server implementations for Handoff, Workflow, and NegotiationRoom services in all 3 SDKs:
+## Cross-SDK Capability Matrix
 
-| SDK | Location | Run Command |
-|-----|----------|-------------|
-| Python | `sdks/py_sdk/reference-services/coordination/` | `python -m coordination.server --port 50060` |
-| Rust | `sdks/rust_sdk/reference-services/src/coordination/` | `cargo run --bin coordination-service -- --port 50060` |
-| TypeScript | `sdks/js_sdk/reference-services/src/coordination/` | `npm run start:coordination` |
+| Capability | Python | JS/TS | Rust | Common Lisp | Notes |
+|---|---|---|---|---|---|
+| SW4-004/SW4-005 handoff wire fields (`budget`, `delegation_policy`, `rejection_code`, `retry_after_ms`, `redirect_to_agent_id`) | DONE | DONE | DONE | DONE | All SDKs expose these fields on handoff request/response surfaces. |
+| SW4-004 deadline validation + delegation policy normalization | DONE | DONE | DONE | DONE | Enforced in each SDK handoff client path. |
+| SW4-005 caller redirect helper (`REDIRECT` follow, `OVERLOADED` retry, loop protection, redirect bounds, wall-time deduction) | DONE | DONE | DONE | DONE | Implemented in Python/JS/Rust/Common Lisp delegation helpers; JS/Rust/Common Lisp parity includes post-attempt `ACK_TIMEOUT` fail-fast and trimmed redirect-target validation ordering before redirect-bound fallback. |
+| SW4-005 gateway redirect emitter + health-aware peer selection | DONE | DONE | DONE | DONE | Implemented in Python/JS/Rust/Common Lisp gateway redirect-emitter helpers with health-aware peer filtering and spillover fallback semantics. |
+| SW4-004 cancellation helper behavior (cascade + grace-period handling) | DONE | DONE | DONE | DONE | Python/JS/Rust/CL now provide local cancellation helper APIs with cascade + grace-expiry semantics and forced-preemption signaling. |
+| SW4-004 conformance suite (T-001..T-012) | DONE | DONE | DONE | DONE | Full suite coverage is exercised in Python/JS/Rust/Common Lisp test adapters and parity suites. |
+| SW4-005 conformance suite (R-001..R-012) | DONE | DONE | DONE | DONE | Full suite coverage is exercised in Python/JS/Rust/Common Lisp test adapters and parity suites. |
+| Targeted SW4-004/SW4-005 parity tests | DONE | DONE | DONE | DONE | JS/Rust/CL include targeted parity tests for implemented surfaces. |
+| Shared SW4-005 gateway/delegation conformance vectors | DONE | DONE | DONE | DONE | `tests/conformance_vectors/sw4_005_delegation_vectors.json` (`v2`) is consumed by SDK-specific adapters in Python/JS/Rust/Common Lisp tests. |
+| Shared SW4-004 cancellation conformance vectors | DONE | DONE | DONE | DONE | `tests/conformance_vectors/sw4_004_cancellation_vectors.json` is consumed by SDK-specific adapters in Python/JS/Rust/Common Lisp tests. |
 
-**Features:**
-- Thread-safe state management (RLock in Python, DashMap in Rust, Map in TypeScript)
-- Complete proto compliance for all RPC methods
-- Request validation (required fields, score ranges 0-10, confidence 0-1)
-- DAG cycle detection for workflows
-- Unified server (all 3 services on one port)
-- Graceful shutdown (SIGINT/SIGTERM handlers)
+## Evidence (Code + Tests)
 
-#### 2. NegotiationRoomClient Concurrency Fix
-Added pluggable store abstraction to fix instance-local state issue:
+### Python
+- Handoff/gateway surfaces: `sdks/py_sdk/sw4rm/gateway.py`
+- Redirect helper: `sdks/py_sdk/sw4rm/delegation.py`
+- SW4-004 conformance tests: `sdks/py_sdk/tests/test_sw4_004_conformance.py`
+- SW4-005 conformance tests: `sdks/py_sdk/tests/test_sw4_005_conformance.py`
+- Shared vector adapter: `sdks/py_sdk/tests/test_cross_sdk_conformance_vectors.py`
 
-```python
-# Python - Default (shared in-process state)
-client = NegotiationRoomClient()
+### JS/TS
+- Handoff wire surface: `sdks/js_sdk/src/clients/handoff.ts`
+- Redirect helper: `sdks/js_sdk/src/runtime/delegation.ts`
+- Gateway redirect emitter helper: `sdks/js_sdk/src/runtime/gateway.ts`
+- Cancellation helper: `sdks/js_sdk/src/runtime/cancellation.ts`
+- SW4-004/SW4-005 parity tests: `sdks/js_sdk/test/handoff.test.ts`, `sdks/js_sdk/test/crossSdk.test.ts` (includes redirect-target validation ordering and post-attempt budget-exhaustion fail-fast checks)
+- Gateway redirect-emitter parity tests: `sdks/js_sdk/test/gateway.test.ts`
+- Cancellation parity tests: `sdks/js_sdk/test/cancellation.test.ts` (cascade propagation, grace boundary expiry, forced-preemption signaling, metadata normalization)
+- Full SW4-004/SW4-005 conformance coverage (T-001..T-012, R-001..R-012) across JS parity suites: `sdks/js_sdk/test/handoff.test.ts`, `sdks/js_sdk/test/crossSdk.test.ts`, `sdks/js_sdk/test/gateway.test.ts`, `sdks/js_sdk/test/cancellation.test.ts`
+- Shared vector adapter: `sdks/js_sdk/test/conformanceVectors.test.ts`
 
-# Explicit shared store (multi-instance in same process)
-store = InMemoryNegotiationRoomStore()
-producer = NegotiationRoomClient(store=store)
-critic = NegotiationRoomClient(store=store)
+### Rust
+- Handoff wire surface: `sdks/rust_sdk/src/clients/handoff.rs`
+- Redirect helper: `sdks/rust_sdk/src/clients/delegation.rs`
+- Gateway redirect emitter helper: `sdks/rust_sdk/src/clients/gateway.rs`
+- Cancellation helper: `sdks/rust_sdk/src/clients/cancellation.rs`
+- SW4-004/SW4-005 parity tests: `sdks/rust_sdk/tests/cross_sdk_tests.rs`
+- Redirect helper tests (including redirect-target validation ordering and post-attempt budget fast-fail): `sdks/rust_sdk/tests/integration_tests.rs`
+- Gateway redirect-emitter parity tests: `sdks/rust_sdk/tests/gateway_tests.rs`
+- Cancellation parity tests: `sdks/rust_sdk/tests/cancellation_tests.rs` (cascade propagation, grace boundary expiry, forced-preemption signaling, metadata normalization)
+- Full SW4-004/SW4-005 conformance coverage (T-001..T-012, R-001..R-012) across Rust parity suites: `sdks/rust_sdk/tests/cross_sdk_tests.rs`, `sdks/rust_sdk/tests/integration_tests.rs`, `sdks/rust_sdk/tests/gateway_tests.rs`, `sdks/rust_sdk/tests/cancellation_tests.rs`
+- Shared vector adapters:
+  - `sdks/rust_sdk/tests/integration_tests.rs` (`delegation_tests::test_delegate_to_swarm_shared_conformance_vectors`)
+  - `sdks/rust_sdk/tests/cancellation_tests.rs` (`shared_cancellation_conformance_vectors`)
 
-# File-based persistence (multi-process) - requires colony
-from colony.stores.python import JSONFileNegotiationRoomStore
-store = JSONFileNegotiationRoomStore("/var/lib/sw4rm/negotiation")
-client = NegotiationRoomClient(store=store)
-```
+### Common Lisp
+- Handoff wire + caller redirect helper + cancellation helper surface: `sdks/cl_sdk/src/clients/handoff.lisp`
+- Gateway redirect emitter helper: `sdks/cl_sdk/src/clients/gateway.lisp`
+- SW4-004/SW4-005 parity tests (including redirect/retry ordering, gateway peer health/redirect emission parity, budget exhaustion fail-fast, and cancellation metadata/cascade checks): `sdks/cl_sdk/test/suite.lisp`
+- Full SW4-004/SW4-005 conformance coverage (T-001..T-012, R-001..R-012): `sdks/cl_sdk/test/suite.lisp`
+- Shared vector adapters:
+  - `sdks/cl_sdk/test/suite.lisp` (`handoff-delegate-to-swarm-shared-conformance-vectors`)
+  - `sdks/cl_sdk/test/suite.lisp` (`handoff-cancellation-shared-conformance-vectors`)
 
-**Core store (in all 3 SDKs):**
-- `InMemoryNegotiationRoomStore` - Default, shared within process
+## Current Gaps
 
-**Colony stores (see `colony/stores/`):**
-- `JSONFileNegotiationRoomStore` - File-based persistence for multi-process
+- No remaining SW4-004/SW4-005 conformance-suite parity gaps across Python/JS/Rust/Common Lisp.
 
-**Test results:** 36 tests pass (6 new shared state tests)
+## Phase 6 Closure Summary (I49)
 
-#### 3. CI Proto Validation
-Created GitHub Actions workflow (`.github/workflows/proto-check.yml`) to detect proto drift:
+- Phase 6 (`I39`-`I49`) is closed with full tranche-chain evidence recorded under `artifacts/verification/`.
+- Cross-SDK parity for all tracked SW4-004/SW4-005 helper surfaces is complete after `I50` closed Common Lisp SW4-005 gateway redirect-emitter + health-aware peer selection.
+- Full-matrix verification was completed in `I48` and carried forward in `I49` closure documentation.
 
-- Regenerates protos for Python + JS SDKs
-- Detects modified or missing generated files
-- Rust excluded (compiles at build time via `build.rs`)
-- Actionable `::error::` annotations
+## Phase 7 Seed Targets
 
-### Files Changed (v0.5.0)
+- `I50`: Common Lisp SW4-005 gateway redirect-emitter parity closure (DONE).
+- `I51`: Full SW4-004/SW4-005 conformance suite expansion for JS/TS, Rust, and Common Lisp (DONE).
+- `I52`: Production transport + multi-process inter-swarm integration testbed bootstrap (DONE).
 
-**Python SDK:**
-- `sdks/py_sdk/reference-services/coordination/` - New directory with server implementations
-- `sdks/py_sdk/sw4rm/clients/negotiation_room.py` - Added store abstraction
-- `sdks/py_sdk/sw4rm/clients/negotiation_room_store.py` - New store implementations
-- `sdks/py_sdk/sw4rm/clients/__init__.py` - Export store types
+## I52 Bootstrap Artifacts
 
-**Rust SDK:**
-- `sdks/rust_sdk/reference-services/src/coordination/` - New module with server implementations
-- `sdks/rust_sdk/reference-services/src/bin/coordination_service.rs` - Server binary
-- `sdks/rust_sdk/src/clients/negotiation_room.rs` - Added store trait
-- `sdks/rust_sdk/src/clients/negotiation_room_store.rs` - Store implementations
-
-**JS/TS SDK:**
-- `sdks/js_sdk/reference-services/src/coordination/` - New directory with server implementations
-- `sdks/js_sdk/src/clients/negotiationRoom.ts` - Added store abstraction
-- `sdks/js_sdk/src/clients/negotiationRoomStore.ts` - Store implementations
-
-**CI:**
-- `.github/workflows/proto-check.yml` - New workflow for proto validation
-
----
-
-## Parity Matrix (Service Clients)
-
-Legend: grpc = gRPC client; server = gRPC server available in reference-services
-
-Service                | Rust        | JS/TS       | Python      | Server Available
------------------------|-------------|-------------|-------------|------------------
-ActivityService        | grpc        | grpc        | grpc        | Yes
-ConnectorService       | grpc        | grpc        | grpc        | Yes
-HandoffService         | grpc        | grpc        | grpc        | Yes (v0.5.0)
-HitlService            | grpc        | grpc        | grpc        | Yes
-LoggingService         | grpc        | grpc        | grpc        | Yes
-NegotiationService     | grpc        | grpc        | grpc        | Yes
-NegotiationRoomService | grpc        | grpc        | grpc        | Yes (v0.5.0)
-ReasoningProxy         | grpc        | grpc        | grpc        | Yes
-RegistryService        | grpc        | grpc        | grpc        | Yes
-RouterService          | grpc        | grpc        | grpc        | Yes
-SchedulerService       | grpc        | grpc        | grpc        | Yes
-SchedulerPolicyService | grpc        | grpc        | grpc        | Yes
-ToolService            | grpc        | grpc        | grpc        | Yes
-WorkflowService        | grpc        | grpc        | grpc        | Yes (v0.5.0)
-WorktreeService        | grpc        | grpc        | grpc        | Yes
-
-**All 15 services now have full gRPC client implementations across all 3 SDKs.**
+- Manifest-driven transport/testbed scaffold: `tests/inter_swarm_testbed/bootstrap_manifest.json`
+- Multi-process dual-swarm compose template: `tests/inter_swarm_testbed/docker-compose.multi-swarm.yml`
+- Bootstrap validation coverage: `sdks/py_sdk/tests/test_inter_swarm_testbed_bootstrap.py`
+- Runbook: `documentation/production/inter-swarm-transport-testbed.md`
 
 ---
 
-## Core Protocol TODOs
-
-All core protocol items are complete. See Completed Items section below.
-
----
-
-## Colony Items (Moved)
-
-The following items have been moved to `COLONY_SPEC_PROGRESS.md`:
-
-- **JSONFileNegotiationRoomStore** - Moved from core SDKs to `colony/stores/` (✓ complete)
-- Cross-language integration tests
-- Redis/Database store implementation
-- Dockerization
-- Harden file store implementations
-- Runnable examples in CI
-- Release cadence planning
-- Production packaging
-
-See [COLONY_SPEC_PROGRESS.md](./COLONY_SPEC_PROGRESS.md) for ecosystem extras, plugins, and deployment tooling.
-
----
-
-## Completed Items (v0.5.0)
-
-**Protocol Specification:**
-- [x] Spec v0.5.0 released with full alignment to proto definitions
-- [x] Policy-based auto-approval thresholds for Negotiation Room (§17.5)
-- [x] DAG validation and cycle detection for Workflow Orchestration (§17.7)
-- [x] Three-ID model documentation (§11.3) - `message_id`, `correlation_id`, `idempotency_token`
-- [x] Sequence diagrams for Negotiation Room (C.10), Handoff (C.11), Workflow (C.12)
-- [x] Appendix A expanded with complete proto file reference table
-
-**SDK Implementation:**
-- [x] Python HandoffClient moved to `sw4rm.clients`
-- [x] Python WorkflowClient added to `sw4rm.clients`
-- [x] Python Makefile fixed for all 15 proto files
-- [x] gRPC servers for Handoff, Workflow, NegotiationRoom (all 3 SDKs)
-- [x] Pluggable store abstraction for NegotiationRoomClient (all 3 SDKs)
-- [x] CI validation for proto generation
-- [x] 36 tests passing including 6 new shared state tests
-- [x] Error code normalization - `docs/ERROR_CODES.md` created with cross-SDK mapping
-- [x] Operational contracts documentation - `docs/OPERATIONAL_CONTRACTS.md` (~800 lines)
-- [x] JS/TS coordination tests - 86 tests (24 handoff, 32 workflow, 30 negotiation room)
-- [x] JSONFileNegotiationRoomStore moved to colony (all 3 SDKs)
-- [x] SDK READMEs updated with operational contracts references
-
----
-
-## Resolved Risks
-
-- ~~Python SDK can lose handoff/negotiation_room/workflow proto stubs when `make protos` is run.~~ **FIXED**: Makefile now includes all 15 proto files.
-- ~~Python SDK surface differs from Rust/JS for handoff/workflow.~~ **FIXED**: HandoffClient and WorkflowClient now exported from `sw4rm.clients`.
-- ~~NegotiationRoomClient state isolation breaks multi-instance deployments.~~ **FIXED**: Pluggable store abstraction allows shared state.
-- ~~No gRPC servers for coordination services.~~ **FIXED**: Full server implementations in all 3 SDKs.
-- ~~No CI validation for proto generation.~~ **FIXED**: GitHub Actions workflow added.
-- ~~Cross-SDK Behavior Drift.~~ **FIXED**: Operational contracts documented in `docs/OPERATIONAL_CONTRACTS.md`.
-- ~~Error Semantics Inconsistency.~~ **FIXED**: Error codes documented in `docs/ERROR_CODES.md`.
-- ~~JS Test Coverage Gap.~~ **FIXED**: 86 tests added for coordination services.
-
-## Active Risks
-
-*All core protocol risks resolved. Infrastructure risks (horizontal scaling, file store race conditions) tracked in [COLONY_SPEC_PROGRESS.md](./COLONY_SPEC_PROGRESS.md).*
-
----
-
-## Evidence Links
-
-- Protocol spec: `documentation/protocol/spec.md` (v0.5.0)
-- Proto definitions: `protos/*.proto` (15 service protos + 2 message-only)
-- Python clients: `sdks/py_sdk/sw4rm/clients/`
-- Rust clients: `sdks/rust_sdk/src/clients/`
-- JS/TS clients: `sdks/js_sdk/src/clients/`
-- Python servers: `sdks/py_sdk/reference-services/coordination/`
-- Rust servers: `sdks/rust_sdk/reference-services/src/coordination/`
-- JS servers: `sdks/js_sdk/reference-services/src/coordination/`
-- Colony stores: `sdks/colony/stores/{python,rust,typescript}/`
-- CI workflow: `.github/workflows/proto-check.yml`
-- Error codes: `sdks/docs/ERROR_CODES.md`
-- Operational contracts: `sdks/docs/OPERATIONAL_CONTRACTS.md`
-- Python tests: `sdks/py_sdk/tests/test_handoff.py`, `test_negotiation_room.py`, `test_workflow_engine.py`
-- Rust tests: inline in `handoff.rs` (8 tests), `workflow.rs` (12 tests), `negotiation_room.rs`
-- JS tests: `sdks/js_sdk/test/handoff.test.ts`, `workflow.test.ts`, `negotiationRoom.test.ts` (86 tests)
-
----
-
-*Last updated: 2026-01-10 | Version: 0.5.0*
+Last updated: 2026-02-15 (I52)

@@ -52,6 +52,92 @@ impl Default for HandoffStatus {
     }
 }
 
+pub const DEFAULT_MAX_RETRIES_ON_OVERLOADED: u32 = 2;
+pub const DEFAULT_INITIAL_BACKOFF_MS: u64 = 250;
+pub const DEFAULT_BACKOFF_MULTIPLIER: f64 = 2.0;
+pub const DEFAULT_MAX_BACKOFF_MS: u64 = 2000;
+pub const DEFAULT_ALLOW_SPILLOVER_ROUTING: bool = false;
+pub const DEFAULT_MAX_REDIRECTS: u32 = 0;
+
+pub const REJECTION_CODE_UNSPECIFIED: i32 = 0;
+pub const REJECTION_CODE_OVERLOADED: i32 = 16;
+pub const REJECTION_CODE_REDIRECT: i32 = 20;
+
+/// SW4-004 budget envelope for cross-swarm delegation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BudgetEnvelope {
+    pub token_budget_remaining: Option<u64>,
+    pub wall_time_remaining_ms: Option<u64>,
+    pub deadline_epoch_ms: u64,
+    pub current_depth: Option<u32>,
+    pub max_delegation_depth: Option<u32>,
+}
+
+impl BudgetEnvelope {
+    pub fn new(deadline_epoch_ms: u64) -> Self {
+        Self {
+            token_budget_remaining: None,
+            wall_time_remaining_ms: None,
+            deadline_epoch_ms,
+            current_depth: None,
+            max_delegation_depth: None,
+        }
+    }
+}
+
+/// SW4-004/SW4-005 delegation policy envelope.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SwarmDelegationPolicy {
+    pub max_retries_on_overloaded: u32,
+    pub initial_backoff_ms: u64,
+    pub backoff_multiplier: f64,
+    pub max_backoff_ms: u64,
+    pub allow_spillover_routing: bool,
+    pub max_redirects: u32,
+}
+
+impl Default for SwarmDelegationPolicy {
+    fn default() -> Self {
+        Self {
+            max_retries_on_overloaded: DEFAULT_MAX_RETRIES_ON_OVERLOADED,
+            initial_backoff_ms: DEFAULT_INITIAL_BACKOFF_MS,
+            backoff_multiplier: DEFAULT_BACKOFF_MULTIPLIER,
+            max_backoff_ms: DEFAULT_MAX_BACKOFF_MS,
+            allow_spillover_routing: DEFAULT_ALLOW_SPILLOVER_ROUTING,
+            max_redirects: DEFAULT_MAX_REDIRECTS,
+        }
+    }
+}
+
+impl SwarmDelegationPolicy {
+    fn normalized(policy: Option<Self>) -> Self {
+        let defaults = Self::default();
+        match policy {
+            Some(policy) => Self {
+                max_retries_on_overloaded: policy.max_retries_on_overloaded,
+                initial_backoff_ms: if policy.initial_backoff_ms > 0 {
+                    policy.initial_backoff_ms
+                } else {
+                    defaults.initial_backoff_ms
+                },
+                backoff_multiplier: if policy.backoff_multiplier > 0.0 {
+                    policy.backoff_multiplier
+                } else {
+                    defaults.backoff_multiplier
+                },
+                max_backoff_ms: if policy.max_backoff_ms > 0 {
+                    policy.max_backoff_ms
+                } else {
+                    defaults.max_backoff_ms
+                },
+                allow_spillover_routing: policy.allow_spillover_routing,
+                max_redirects: policy.max_redirects,
+            },
+            None => defaults,
+        }
+    }
+}
+
 /// Request to hand off execution to another agent.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HandoffRequest {
@@ -77,6 +163,10 @@ pub struct HandoffRequest {
     pub created_at: DateTime<Utc>,
     /// Timeout for the handoff to be accepted (spec §17.6 MUST)
     pub timeout: Option<std::time::Duration>,
+    /// SW4-004 budget envelope for cross-swarm handoff
+    pub budget: Option<BudgetEnvelope>,
+    /// SW4-004/SW4-005 delegation policy envelope
+    pub delegation_policy: Option<SwarmDelegationPolicy>,
 }
 
 impl HandoffRequest {
@@ -100,6 +190,8 @@ impl HandoffRequest {
             metadata: HashMap::new(),
             created_at: Utc::now(),
             timeout: None,
+            budget: None,
+            delegation_policy: None,
         }
     }
 
@@ -138,6 +230,25 @@ impl HandoffRequest {
         self.metadata.insert(key, value);
         self
     }
+
+    /// Set SW4-004 budget envelope.
+    pub fn with_budget(mut self, budget: BudgetEnvelope) -> Self {
+        self.budget = Some(budget);
+        self
+    }
+
+    /// Set SW4-004/SW4-005 delegation policy.
+    pub fn with_delegation_policy(mut self, policy: SwarmDelegationPolicy) -> Self {
+        self.delegation_policy = Some(policy);
+        self
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RejectHandoffOptions {
+    pub rejection_code: Option<i32>,
+    pub retry_after_ms: Option<u64>,
+    pub redirect_to_agent_id: Option<String>,
 }
 
 /// Response to a handoff request.
@@ -149,6 +260,14 @@ pub struct HandoffResponse {
     pub handoff_id: String,
     /// Explanation if the handoff was rejected
     pub rejection_reason: Option<String>,
+    /// Agent that accepted this handoff (if accepted)
+    pub accepting_agent: Option<String>,
+    /// SW4-004/SW4-005 rejection code (sw4rm.common.ErrorCode)
+    pub rejection_code: Option<i32>,
+    /// SW4-004 retry hint in milliseconds for OVERLOADED
+    pub retry_after_ms: Option<u64>,
+    /// SW4-005 redirect target agent ID for REDIRECT
+    pub redirect_to_agent_id: Option<String>,
     /// Current status of the handoff
     pub status: HandoffStatus,
     /// Additional metadata about the handoff
@@ -162,6 +281,10 @@ impl HandoffResponse {
             accepted: true,
             handoff_id,
             rejection_reason: None,
+            accepting_agent: None,
+            rejection_code: None,
+            retry_after_ms: None,
+            redirect_to_agent_id: None,
             status: HandoffStatus::Pending,
             metadata: HashMap::new(),
         }
@@ -173,6 +296,10 @@ impl HandoffResponse {
             accepted: false,
             handoff_id,
             rejection_reason: Some(reason),
+            accepting_agent: None,
+            rejection_code: Some(REJECTION_CODE_UNSPECIFIED),
+            retry_after_ms: None,
+            redirect_to_agent_id: None,
             status: HandoffStatus::Rejected,
             metadata: HashMap::new(),
         }
@@ -255,6 +382,20 @@ impl HandoffClient {
     /// `HandoffResponse` with accepted=true (pending acceptance), handoff_id,
     /// and status=PENDING.
     pub fn request_handoff(&self, request: HandoffRequest) -> Result<HandoffResponse> {
+        let mut request = request;
+        if let Some(budget) = &request.budget {
+            if budget.deadline_epoch_ms == 0 {
+                return Err(Error::Validation(
+                    "budget.deadline_epoch_ms is required for cross-swarm delegation".to_string(),
+                ));
+            }
+        }
+        if request.budget.is_some() || request.delegation_policy.is_some() {
+            request.delegation_policy = Some(SwarmDelegationPolicy::normalized(
+                request.delegation_policy.clone(),
+            ));
+        }
+
         let handoff_id = request.request_id.clone();
         let to_agent = request.to_agent.clone();
 
@@ -262,6 +403,10 @@ impl HandoffClient {
             accepted: true,
             handoff_id: handoff_id.clone(),
             rejection_reason: None,
+            accepting_agent: None,
+            rejection_code: None,
+            retry_after_ms: None,
+            redirect_to_agent_id: None,
             status: HandoffStatus::Pending,
             metadata: {
                 let mut m = HashMap::new();
@@ -320,6 +465,7 @@ impl HandoffClient {
 
             response.accepted = true;
             response.status = HandoffStatus::Accepted;
+            response.accepting_agent = Some(request.to_agent.clone());
             response
                 .metadata
                 .insert("accepted_at".to_string(), Utc::now().to_rfc3339());
@@ -349,6 +495,16 @@ impl HandoffClient {
     ///
     /// Returns an error if handoff_id is not found or handoff is not in PENDING status.
     pub fn reject_handoff(&self, handoff_id: &str, reason: &str) -> Result<()> {
+        self.reject_handoff_with_options(handoff_id, reason, RejectHandoffOptions::default())
+    }
+
+    /// Reject a pending handoff request with SW4-004/SW4-005 response metadata.
+    pub fn reject_handoff_with_options(
+        &self,
+        handoff_id: &str,
+        reason: &str,
+        options: RejectHandoffOptions,
+    ) -> Result<()> {
         let mut storage = self
             .storage
             .write()
@@ -370,6 +526,12 @@ impl HandoffClient {
             response.accepted = false;
             response.status = HandoffStatus::Rejected;
             response.rejection_reason = Some(reason.to_string());
+            response.rejection_code =
+                Some(options.rejection_code.unwrap_or(REJECTION_CODE_UNSPECIFIED));
+            response.retry_after_ms = options.retry_after_ms.filter(|value| *value > 0);
+            response.redirect_to_agent_id = options
+                .redirect_to_agent_id
+                .filter(|value| !value.trim().is_empty());
             response
                 .metadata
                 .insert("rejected_at".to_string(), Utc::now().to_rfc3339());
@@ -499,6 +661,166 @@ impl std::fmt::Debug for HandoffClient {
     }
 }
 
+#[cfg(feature = "proto")]
+fn duration_to_proto(timeout: std::time::Duration) -> prost_types::Duration {
+    let seconds = timeout.as_secs().min(i64::MAX as u64) as i64;
+    let nanos = timeout.subsec_nanos() as i32;
+    prost_types::Duration { seconds, nanos }
+}
+
+#[cfg(feature = "proto")]
+fn duration_from_proto(timeout: Option<prost_types::Duration>) -> Option<std::time::Duration> {
+    let timeout = timeout?;
+    if timeout.seconds < 0 || timeout.nanos < 0 || timeout.nanos >= 1_000_000_000 {
+        return None;
+    }
+    Some(std::time::Duration::new(
+        timeout.seconds as u64,
+        timeout.nanos as u32,
+    ))
+}
+
+#[cfg(feature = "proto")]
+impl BudgetEnvelope {
+    pub fn to_proto(&self) -> crate::proto::sw4rm::handoff::BudgetEnvelope {
+        crate::proto::sw4rm::handoff::BudgetEnvelope {
+            token_budget_remaining: self.token_budget_remaining.unwrap_or_default(),
+            wall_time_remaining_ms: self.wall_time_remaining_ms.unwrap_or_default(),
+            deadline_epoch_ms: self.deadline_epoch_ms,
+            current_depth: self.current_depth.unwrap_or_default(),
+            max_delegation_depth: self.max_delegation_depth.unwrap_or_default(),
+        }
+    }
+
+    pub fn from_proto(value: crate::proto::sw4rm::handoff::BudgetEnvelope) -> Self {
+        Self {
+            token_budget_remaining: (value.token_budget_remaining > 0)
+                .then_some(value.token_budget_remaining),
+            wall_time_remaining_ms: (value.wall_time_remaining_ms > 0)
+                .then_some(value.wall_time_remaining_ms),
+            deadline_epoch_ms: value.deadline_epoch_ms,
+            current_depth: (value.current_depth > 0).then_some(value.current_depth),
+            max_delegation_depth: (value.max_delegation_depth > 0)
+                .then_some(value.max_delegation_depth),
+        }
+    }
+}
+
+#[cfg(feature = "proto")]
+impl SwarmDelegationPolicy {
+    pub fn to_proto(&self) -> crate::proto::sw4rm::handoff::SwarmDelegationPolicy {
+        crate::proto::sw4rm::handoff::SwarmDelegationPolicy {
+            max_retries_on_overloaded: self.max_retries_on_overloaded,
+            initial_backoff_ms: self.initial_backoff_ms,
+            backoff_multiplier: self.backoff_multiplier,
+            max_backoff_ms: self.max_backoff_ms,
+            allow_spillover_routing: self.allow_spillover_routing,
+            max_redirects: self.max_redirects,
+        }
+    }
+
+    pub fn from_proto(value: crate::proto::sw4rm::handoff::SwarmDelegationPolicy) -> Self {
+        Self {
+            max_retries_on_overloaded: value.max_retries_on_overloaded,
+            initial_backoff_ms: value.initial_backoff_ms,
+            backoff_multiplier: value.backoff_multiplier,
+            max_backoff_ms: value.max_backoff_ms,
+            allow_spillover_routing: value.allow_spillover_routing,
+            max_redirects: value.max_redirects,
+        }
+    }
+}
+
+#[cfg(feature = "proto")]
+impl HandoffRequest {
+    pub fn to_proto(&self) -> crate::proto::sw4rm::handoff::HandoffRequest {
+        crate::proto::sw4rm::handoff::HandoffRequest {
+            request_id: self.request_id.clone(),
+            from_agent: self.from_agent.clone(),
+            to_agent: self.to_agent.clone(),
+            reason: self.reason.clone(),
+            context_snapshot: self.context_snapshot.clone().unwrap_or_default(),
+            capabilities_required: self.capabilities_required.clone(),
+            priority: self.priority,
+            timeout: self.timeout.map(duration_to_proto),
+            budget: self.budget.as_ref().map(BudgetEnvelope::to_proto),
+            delegation_policy: self
+                .delegation_policy
+                .as_ref()
+                .map(SwarmDelegationPolicy::to_proto),
+        }
+    }
+
+    pub fn from_proto(value: crate::proto::sw4rm::handoff::HandoffRequest) -> Self {
+        Self {
+            request_id: if value.request_id.is_empty() {
+                Uuid::new_v4().to_string()
+            } else {
+                value.request_id
+            },
+            from_agent: value.from_agent,
+            to_agent: value.to_agent,
+            reason: value.reason,
+            context_snapshot: (!value.context_snapshot.is_empty())
+                .then_some(value.context_snapshot),
+            preserve_history: true,
+            capabilities_required: value.capabilities_required,
+            priority: value.priority,
+            metadata: HashMap::new(),
+            created_at: Utc::now(),
+            timeout: duration_from_proto(value.timeout),
+            budget: value.budget.map(BudgetEnvelope::from_proto),
+            delegation_policy: value
+                .delegation_policy
+                .map(SwarmDelegationPolicy::from_proto),
+        }
+    }
+}
+
+#[cfg(feature = "proto")]
+impl HandoffResponse {
+    pub fn to_proto(&self) -> crate::proto::sw4rm::handoff::HandoffResponse {
+        crate::proto::sw4rm::handoff::HandoffResponse {
+            request_id: self.handoff_id.clone(),
+            accepted: self.accepted,
+            accepting_agent: self.accepting_agent.clone().unwrap_or_default(),
+            rejection_reason: self.rejection_reason.clone().unwrap_or_default(),
+            rejection_code: self.rejection_code.unwrap_or(REJECTION_CODE_UNSPECIFIED),
+            retry_after_ms: self.retry_after_ms.unwrap_or_default(),
+            redirect_to_agent_id: self.redirect_to_agent_id.clone().unwrap_or_default(),
+        }
+    }
+
+    pub fn from_proto(value: crate::proto::sw4rm::handoff::HandoffResponse) -> Self {
+        let accepted = value.accepted;
+        let has_rejection = !value.rejection_reason.is_empty()
+            || value.rejection_code != REJECTION_CODE_UNSPECIFIED
+            || value.retry_after_ms > 0
+            || !value.redirect_to_agent_id.is_empty();
+        let status = if accepted {
+            HandoffStatus::Accepted
+        } else if has_rejection {
+            HandoffStatus::Rejected
+        } else {
+            HandoffStatus::Pending
+        };
+        Self {
+            accepted,
+            handoff_id: value.request_id,
+            rejection_reason: (!value.rejection_reason.is_empty())
+                .then_some(value.rejection_reason),
+            accepting_agent: (!value.accepting_agent.is_empty()).then_some(value.accepting_agent),
+            rejection_code: (value.rejection_code != REJECTION_CODE_UNSPECIFIED)
+                .then_some(value.rejection_code),
+            retry_after_ms: (value.retry_after_ms > 0).then_some(value.retry_after_ms),
+            redirect_to_agent_id: (!value.redirect_to_agent_id.is_empty())
+                .then_some(value.redirect_to_agent_id),
+            status,
+            metadata: HashMap::new(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -534,6 +856,7 @@ mod tests {
 
         let status = client.get_handoff_status(&handoff_id).unwrap().unwrap();
         assert_eq!(status.status, HandoffStatus::Accepted);
+        assert_eq!(status.accepting_agent, Some("agent-2".to_string()));
     }
 
     #[test]
@@ -627,6 +950,8 @@ mod tests {
 
     #[test]
     fn test_handoff_request_builder() {
+        let budget = BudgetEnvelope::new(1_735_000_000_000);
+        let policy = SwarmDelegationPolicy::default();
         let request = HandoffRequest::new(
             "agent-1".to_string(),
             "agent-2".to_string(),
@@ -636,13 +961,91 @@ mod tests {
         .with_preserve_history(true)
         .with_capabilities(vec!["file-operations".to_string()])
         .with_priority(5)
-        .with_metadata("key".to_string(), "value".to_string());
+        .with_metadata("key".to_string(), "value".to_string())
+        .with_budget(budget)
+        .with_delegation_policy(policy);
 
         assert!(request.context_snapshot.is_some());
         assert!(request.preserve_history);
         assert_eq!(request.capabilities_required.len(), 1);
         assert_eq!(request.priority, 5);
         assert_eq!(request.metadata.get("key"), Some(&"value".to_string()));
+        assert!(request.budget.is_some());
+        assert!(request.delegation_policy.is_some());
+    }
+
+    #[test]
+    fn test_cross_swarm_budget_requires_deadline() {
+        let client = HandoffClient::new();
+        let request = HandoffRequest::new(
+            "agent-1".to_string(),
+            "agent-2".to_string(),
+            "Cross-swarm handoff".to_string(),
+        )
+        .with_budget(BudgetEnvelope::new(0));
+
+        let err = client.request_handoff(request).unwrap_err();
+        assert!(matches!(err, Error::Validation(_)));
+    }
+
+    #[test]
+    fn test_cross_swarm_policy_defaults_are_normalized() {
+        let client = HandoffClient::new();
+        let request = HandoffRequest::new(
+            "agent-1".to_string(),
+            "agent-2".to_string(),
+            "Cross-swarm handoff".to_string(),
+        )
+        .with_budget(BudgetEnvelope::new(1_735_000_000_000))
+        .with_delegation_policy(SwarmDelegationPolicy {
+            max_retries_on_overloaded: 4,
+            initial_backoff_ms: 0,
+            backoff_multiplier: 0.0,
+            max_backoff_ms: 0,
+            allow_spillover_routing: true,
+            max_redirects: 3,
+        });
+
+        client.request_handoff(request).unwrap();
+        let pending = client.get_pending_handoffs("agent-2").unwrap();
+        let policy = pending[0].delegation_policy.as_ref().unwrap();
+        assert_eq!(policy.max_retries_on_overloaded, 4);
+        assert_eq!(policy.initial_backoff_ms, DEFAULT_INITIAL_BACKOFF_MS);
+        assert_eq!(policy.backoff_multiplier, DEFAULT_BACKOFF_MULTIPLIER);
+        assert_eq!(policy.max_backoff_ms, DEFAULT_MAX_BACKOFF_MS);
+        assert!(policy.allow_spillover_routing);
+        assert_eq!(policy.max_redirects, 3);
+    }
+
+    #[test]
+    fn test_reject_handoff_with_options() {
+        let client = HandoffClient::new();
+        let request = HandoffRequest::new(
+            "agent-1".to_string(),
+            "agent-2".to_string(),
+            "Need specialized help".to_string(),
+        );
+
+        let response = client.request_handoff(request).unwrap();
+        client
+            .reject_handoff_with_options(
+                &response.handoff_id,
+                "Agent overloaded",
+                RejectHandoffOptions {
+                    rejection_code: Some(REJECTION_CODE_OVERLOADED),
+                    retry_after_ms: Some(500),
+                    redirect_to_agent_id: Some("agent-2b".to_string()),
+                },
+            )
+            .unwrap();
+
+        let status = client
+            .get_handoff_status(&response.handoff_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(status.rejection_code, Some(REJECTION_CODE_OVERLOADED));
+        assert_eq!(status.retry_after_ms, Some(500));
+        assert_eq!(status.redirect_to_agent_id, Some("agent-2b".to_string()));
     }
 
     #[test]
@@ -679,7 +1082,9 @@ mod tests {
         let response = client.request_handoff(request).unwrap();
         let handoff_id = response.handoff_id.clone();
 
-        client.reject_handoff(&handoff_id, "First rejection").unwrap();
+        client
+            .reject_handoff(&handoff_id, "First rejection")
+            .unwrap();
         let result = client.reject_handoff(&handoff_id, "Second rejection");
         assert!(result.is_err());
     }
@@ -697,11 +1102,17 @@ mod tests {
         assert_eq!(response.status, HandoffStatus::Pending);
 
         client.accept_handoff(&response.handoff_id).unwrap();
-        let status = client.get_handoff_status(&response.handoff_id).unwrap().unwrap();
+        let status = client
+            .get_handoff_status(&response.handoff_id)
+            .unwrap()
+            .unwrap();
         assert_eq!(status.status, HandoffStatus::Accepted);
 
         client.complete_handoff(&response.handoff_id).unwrap();
-        let status = client.get_handoff_status(&response.handoff_id).unwrap().unwrap();
+        let status = client
+            .get_handoff_status(&response.handoff_id)
+            .unwrap()
+            .unwrap();
         assert_eq!(status.status, HandoffStatus::Completed);
     }
 
@@ -720,8 +1131,65 @@ mod tests {
         client
             .reject_handoff(&response.handoff_id, "Not equipped")
             .unwrap();
-        let status = client.get_handoff_status(&response.handoff_id).unwrap().unwrap();
+        let status = client
+            .get_handoff_status(&response.handoff_id)
+            .unwrap()
+            .unwrap();
         assert_eq!(status.status, HandoffStatus::Rejected);
         assert!(status.rejection_reason.is_some());
+    }
+
+    #[cfg(feature = "proto")]
+    #[test]
+    fn test_proto_roundtrip_with_sw4_fields() {
+        let request = HandoffRequest::new(
+            "agent-a".to_string(),
+            "agent-b".to_string(),
+            "Cross-swarm handoff".to_string(),
+        )
+        .with_timeout(std::time::Duration::from_millis(750))
+        .with_budget(BudgetEnvelope {
+            token_budget_remaining: Some(2000),
+            wall_time_remaining_ms: Some(5000),
+            deadline_epoch_ms: 1_735_000_000_000,
+            current_depth: Some(1),
+            max_delegation_depth: Some(3),
+        })
+        .with_delegation_policy(SwarmDelegationPolicy::default());
+
+        let proto_request = request.to_proto();
+        let roundtrip_request = HandoffRequest::from_proto(proto_request);
+        assert_eq!(
+            roundtrip_request.budget.unwrap().deadline_epoch_ms,
+            1_735_000_000_000
+        );
+        assert!(roundtrip_request.delegation_policy.is_some());
+        assert_eq!(
+            roundtrip_request.timeout,
+            Some(std::time::Duration::from_millis(750))
+        );
+
+        let response = HandoffResponse {
+            accepted: false,
+            handoff_id: "handoff-1".to_string(),
+            rejection_reason: Some("Overloaded".to_string()),
+            accepting_agent: None,
+            rejection_code: Some(REJECTION_CODE_REDIRECT),
+            retry_after_ms: Some(250),
+            redirect_to_agent_id: Some("agent-c".to_string()),
+            status: HandoffStatus::Rejected,
+            metadata: HashMap::new(),
+        };
+        let proto_response = response.to_proto();
+        let roundtrip_response = HandoffResponse::from_proto(proto_response);
+        assert_eq!(
+            roundtrip_response.rejection_code,
+            Some(REJECTION_CODE_REDIRECT)
+        );
+        assert_eq!(
+            roundtrip_response.redirect_to_agent_id,
+            Some("agent-c".to_string())
+        );
+        assert_eq!(roundtrip_response.status, HandoffStatus::Rejected);
     }
 }

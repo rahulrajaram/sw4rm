@@ -73,6 +73,9 @@ export * from './runtime/ackHelpers.js';
 export * from './runtime/activitySync.js';
 export * from './runtime/streams.js';
 export * from './runtime/negotiationEvents.js';
+export * from './runtime/delegation.js';
+export * from './runtime/cancellation.js';
+export * from './runtime/gateway.js';
 export * from './persistence/persistence.js';
 
 // Phase 2 Runtime (Voting, Policy Store, Agent State)

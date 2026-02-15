@@ -121,10 +121,14 @@ impl WorkflowNode {
     /// Returns an error if node_id or agent_id is empty.
     pub fn new(node_id: String, agent_id: String) -> Result<Self> {
         if node_id.trim().is_empty() {
-            return Err(Error::Config("node_id must be a non-empty string".to_string()));
+            return Err(Error::Config(
+                "node_id must be a non-empty string".to_string(),
+            ));
         }
         if agent_id.trim().is_empty() {
-            return Err(Error::Config("agent_id must be a non-empty string".to_string()));
+            return Err(Error::Config(
+                "agent_id must be a non-empty string".to_string(),
+            ));
         }
         Ok(Self {
             node_id,
@@ -198,10 +202,14 @@ impl WorkflowDefinition {
     /// or dependencies reference non-existent nodes.
     pub fn new(workflow_id: String, nodes: HashMap<String, WorkflowNode>) -> Result<Self> {
         if workflow_id.trim().is_empty() {
-            return Err(Error::Config("workflow_id must be a non-empty string".to_string()));
+            return Err(Error::Config(
+                "workflow_id must be a non-empty string".to_string(),
+            ));
         }
         if nodes.is_empty() {
-            return Err(Error::Config("workflow must contain at least one node".to_string()));
+            return Err(Error::Config(
+                "workflow must contain at least one node".to_string(),
+            ));
         }
 
         // Validate all dependency references exist
@@ -519,7 +527,9 @@ impl WorkflowClient {
         }
 
         let instance_id = instance.instance_id.clone();
-        storage.instances.insert(instance_id.clone(), instance.clone());
+        storage
+            .instances
+            .insert(instance_id.clone(), instance.clone());
 
         Ok(instance)
     }
@@ -905,8 +915,14 @@ mod tests {
 
         assert!(node.dependencies.contains("dep1"));
         assert_eq!(node.trigger_type, TriggerType::Manual);
-        assert_eq!(node.input_mapping.get("param"), Some(&"state_key".to_string()));
-        assert_eq!(node.output_mapping.get("result"), Some(&"output_key".to_string()));
+        assert_eq!(
+            node.input_mapping.get("param"),
+            Some(&"state_key".to_string())
+        );
+        assert_eq!(
+            node.output_mapping.get("result"),
+            Some(&"output_key".to_string())
+        );
         assert_eq!(node.metadata.get("key"), Some(&"value".to_string()));
     }
 

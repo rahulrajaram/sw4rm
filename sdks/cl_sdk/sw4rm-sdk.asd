@@ -54,6 +54,7 @@
                              (:file "reasoning")
                              (:file "logging")
                              (:file "activity")
+                             (:file "gateway")
                              (:file "handoff")
                              (:file "workflow"))))
   :in-order-to ((test-op (test-op #:sw4rm-sdk/tests))))
@@ -65,4 +66,8 @@
   :components ((:module "test"
                 :components ((:file "suite"))))
   :perform (test-op (o c)
-             (symbol-call :fiveam '#:run! :sw4rm-test '#:sw4rm-suite)))
+             (let* ((suite-package (or (find-package :sw4rm-test)
+                                       (error "SW4RM test package missing")))
+                    (suite-symbol (or (find-symbol "SW4RM-SUITE" suite-package)
+                                      (error "SW4RM suite symbol missing"))))
+               (symbol-call :fiveam '#:run! suite-symbol))))

@@ -23,6 +23,7 @@
  *
  * Based on handoff.proto definitions.
  */
+import { ErrorCode } from '../internal/errorMapping.js';
 
 /**
  * Status of a handoff request.
@@ -34,6 +35,36 @@ export enum HandoffStatus {
   REJECTED = 3,
   COMPLETED = 4,
   EXPIRED = 5,
+}
+
+export const DEFAULT_MAX_RETRIES_ON_OVERLOADED = 2;
+export const DEFAULT_INITIAL_BACKOFF_MS = 250;
+export const DEFAULT_BACKOFF_MULTIPLIER = 2.0;
+export const DEFAULT_MAX_BACKOFF_MS = 2000;
+export const DEFAULT_MAX_REDIRECTS = 0;
+
+/**
+ * SW4-004 budget envelope for cross-swarm delegation.
+ */
+export interface BudgetEnvelope {
+  tokenBudgetRemaining?: number;
+  wallTimeRemainingMs?: number;
+  /** Required for cross-swarm delegation. */
+  deadlineEpochMs: number;
+  currentDepth?: number;
+  maxDelegationDepth?: number;
+}
+
+/**
+ * SW4-004/SW4-005 delegation policy envelope.
+ */
+export interface SwarmDelegationPolicy {
+  maxRetriesOnOverloaded?: number;
+  initialBackoffMs?: number;
+  backoffMultiplier?: number;
+  maxBackoffMs?: number;
+  allowSpilloverRouting?: boolean;
+  maxRedirects?: number;
 }
 
 /**
@@ -59,6 +90,10 @@ export interface HandoffRequest {
   priority: number;
   /** Timeout in milliseconds for the handoff to be accepted */
   timeoutMs?: number;
+  /** SW4-004 budget envelope for cross-swarm handoff */
+  budget?: BudgetEnvelope;
+  /** SW4-004/SW4-005 delegation policy envelope */
+  delegationPolicy?: SwarmDelegationPolicy;
   /** Timestamp when the request was created (ISO-8601 string) */
   createdAt?: string;
 }
@@ -78,6 +113,62 @@ export interface HandoffResponse {
   acceptingAgent?: string;
   /** Reason for rejection (if not accepted) */
   rejectionReason?: string;
+  /** SW4-004/SW4-005 rejection code */
+  rejectionCode?: ErrorCode;
+  /** SW4-004 retry hint in milliseconds (for OVERLOADED) */
+  retryAfterMs?: number;
+  /** SW4-005 redirect target agent ID */
+  redirectToAgentId?: string;
+}
+
+export interface RejectHandoffOptions {
+  rejectionCode?: ErrorCode;
+  retryAfterMs?: number;
+  redirectToAgentId?: string;
+}
+
+function defaultDelegationPolicy(): SwarmDelegationPolicy {
+  return {
+    maxRetriesOnOverloaded: DEFAULT_MAX_RETRIES_ON_OVERLOADED,
+    initialBackoffMs: DEFAULT_INITIAL_BACKOFF_MS,
+    backoffMultiplier: DEFAULT_BACKOFF_MULTIPLIER,
+    maxBackoffMs: DEFAULT_MAX_BACKOFF_MS,
+    allowSpilloverRouting: false,
+    maxRedirects: DEFAULT_MAX_REDIRECTS,
+  };
+}
+
+function normalizeDelegationPolicy(
+  policy?: SwarmDelegationPolicy
+): SwarmDelegationPolicy {
+  const defaults = defaultDelegationPolicy();
+  const maxRetriesOnOverloaded = policy?.maxRetriesOnOverloaded;
+  const initialBackoffMs = policy?.initialBackoffMs;
+  const backoffMultiplier = policy?.backoffMultiplier;
+  const maxBackoffMs = policy?.maxBackoffMs;
+  const allowSpilloverRouting = policy?.allowSpilloverRouting;
+  const maxRedirects = policy?.maxRedirects;
+
+  return {
+    maxRetriesOnOverloaded:
+      maxRetriesOnOverloaded === undefined
+        ? defaults.maxRetriesOnOverloaded
+        : maxRetriesOnOverloaded,
+    initialBackoffMs:
+      initialBackoffMs !== undefined && initialBackoffMs > 0
+        ? initialBackoffMs
+        : defaults.initialBackoffMs,
+    backoffMultiplier:
+      backoffMultiplier !== undefined && backoffMultiplier > 0
+        ? backoffMultiplier
+        : defaults.backoffMultiplier,
+    maxBackoffMs:
+      maxBackoffMs !== undefined && maxBackoffMs > 0
+        ? maxBackoffMs
+        : defaults.maxBackoffMs,
+    allowSpilloverRouting: allowSpilloverRouting ?? defaults.allowSpilloverRouting,
+    maxRedirects: maxRedirects === undefined ? defaults.maxRedirects : maxRedirects,
+  };
 }
 
 /**
@@ -144,11 +235,23 @@ export class HandoffClient {
         `Handoff request with ID '${request.requestId}' already exists`
       );
     }
+    if (
+      request.budget !== undefined &&
+      (!request.budget.deadlineEpochMs || request.budget.deadlineEpochMs <= 0)
+    ) {
+      throw new HandoffValidationError(
+        'budget.deadlineEpochMs is required for cross-swarm delegation'
+      );
+    }
 
     // Set createdAt if not provided
     const requestWithTimestamp: HandoffRequest = {
       ...request,
       createdAt: request.createdAt || new Date().toISOString(),
+      delegationPolicy:
+        request.budget !== undefined || request.delegationPolicy !== undefined
+          ? normalizeDelegationPolicy(request.delegationPolicy)
+          : undefined,
     };
 
     this.requests.set(request.requestId, requestWithTimestamp);
@@ -179,6 +282,7 @@ export class HandoffClient {
       requestId: request.requestId,
       accepted: false,
       rejectionReason: `Handoff request timed out after ${timeoutMs}ms`,
+      rejectionCode: ErrorCode.ACK_TIMEOUT,
     };
     this.responses.set(request.requestId, timeoutResponse);
 
@@ -253,7 +357,11 @@ export class HandoffClient {
    * await client.rejectHandoff("handoff-123", "Agent at capacity");
    * ```
    */
-  async rejectHandoff(handoffId: string, reason: string): Promise<void> {
+  async rejectHandoff(
+    handoffId: string,
+    reason: string,
+    options?: RejectHandoffOptions
+  ): Promise<void> {
     const request = this.requests.get(handoffId);
     if (!request) {
       throw new HandoffValidationError(
@@ -271,6 +379,9 @@ export class HandoffClient {
       requestId: handoffId,
       accepted: false,
       rejectionReason: reason,
+      rejectionCode: options?.rejectionCode ?? ErrorCode.ERROR_CODE_UNSPECIFIED,
+      retryAfterMs: options?.retryAfterMs,
+      redirectToAgentId: options?.redirectToAgentId,
     };
 
     this.responses.set(handoffId, response);

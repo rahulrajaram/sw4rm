@@ -33,6 +33,10 @@ export class AgentDescriptor extends jspb.Message {
     getPublicKey_asU8(): Uint8Array;
     getPublicKey_asB64(): string;
     setPublicKey(value: Uint8Array | string): AgentDescriptor;
+    getRegistrationType(): RegistrationType;
+    setRegistrationType(value: RegistrationType): AgentDescriptor;
+    getMaxConcurrentDelegations(): number;
+    setMaxConcurrentDelegations(value: number): AgentDescriptor;
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AgentDescriptor.AsObject;
@@ -54,6 +58,8 @@ export namespace AgentDescriptor {
         modalitiesSupportedList: Array<string>,
         reasoningConnectorsList: Array<string>,
         publicKey: Uint8Array | string,
+        registrationType: RegistrationType,
+        maxConcurrentDelegations: number,
     }
 }
 
@@ -192,4 +198,10 @@ export namespace DeregisterAgentResponse {
     export type AsObject = {
         ok: boolean,
     }
+}
+
+export enum RegistrationType {
+    REGISTRATION_TYPE_UNSPECIFIED = 0,
+    STANDARD_AGENT = 1,
+    SWARM_GATEWAY = 2,
 }

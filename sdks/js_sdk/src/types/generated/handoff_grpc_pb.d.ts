@@ -15,6 +15,7 @@ interface IHandoffServiceService extends grpc.ServiceDefinition<grpc.UntypedServ
     rejectHandoff: IHandoffServiceService_IRejectHandoff;
     getPendingHandoffs: IHandoffServiceService_IGetPendingHandoffs;
     completeHandoff: IHandoffServiceService_ICompleteHandoff;
+    cancelDelegation: IHandoffServiceService_ICancelDelegation;
 }
 
 interface IHandoffServiceService_IRequestHandoff extends grpc.MethodDefinition<handoff_pb.HandoffRequest, common_pb.Empty> {
@@ -62,6 +63,15 @@ interface IHandoffServiceService_ICompleteHandoff extends grpc.MethodDefinition<
     responseSerialize: grpc.serialize<handoff_pb.CompleteHandoffResponse>;
     responseDeserialize: grpc.deserialize<handoff_pb.CompleteHandoffResponse>;
 }
+interface IHandoffServiceService_ICancelDelegation extends grpc.MethodDefinition<handoff_pb.CancelDelegation, handoff_pb.CancelDelegationResponse> {
+    path: "/sw4rm.handoff.HandoffService/CancelDelegation";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<handoff_pb.CancelDelegation>;
+    requestDeserialize: grpc.deserialize<handoff_pb.CancelDelegation>;
+    responseSerialize: grpc.serialize<handoff_pb.CancelDelegationResponse>;
+    responseDeserialize: grpc.deserialize<handoff_pb.CancelDelegationResponse>;
+}
 
 export const HandoffServiceService: IHandoffServiceService;
 
@@ -71,6 +81,7 @@ export interface IHandoffServiceServer extends grpc.UntypedServiceImplementation
     rejectHandoff: grpc.handleUnaryCall<handoff_pb.HandoffResponse, common_pb.Empty>;
     getPendingHandoffs: grpc.handleUnaryCall<handoff_pb.GetPendingHandoffsRequest, handoff_pb.GetPendingHandoffsResponse>;
     completeHandoff: grpc.handleUnaryCall<handoff_pb.CompleteHandoffRequest, handoff_pb.CompleteHandoffResponse>;
+    cancelDelegation: grpc.handleUnaryCall<handoff_pb.CancelDelegation, handoff_pb.CancelDelegationResponse>;
 }
 
 export interface IHandoffServiceClient {
@@ -89,6 +100,9 @@ export interface IHandoffServiceClient {
     completeHandoff(request: handoff_pb.CompleteHandoffRequest, callback: (error: grpc.ServiceError | null, response: handoff_pb.CompleteHandoffResponse) => void): grpc.ClientUnaryCall;
     completeHandoff(request: handoff_pb.CompleteHandoffRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: handoff_pb.CompleteHandoffResponse) => void): grpc.ClientUnaryCall;
     completeHandoff(request: handoff_pb.CompleteHandoffRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: handoff_pb.CompleteHandoffResponse) => void): grpc.ClientUnaryCall;
+    cancelDelegation(request: handoff_pb.CancelDelegation, callback: (error: grpc.ServiceError | null, response: handoff_pb.CancelDelegationResponse) => void): grpc.ClientUnaryCall;
+    cancelDelegation(request: handoff_pb.CancelDelegation, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: handoff_pb.CancelDelegationResponse) => void): grpc.ClientUnaryCall;
+    cancelDelegation(request: handoff_pb.CancelDelegation, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: handoff_pb.CancelDelegationResponse) => void): grpc.ClientUnaryCall;
 }
 
 export class HandoffServiceClient extends grpc.Client implements IHandoffServiceClient {
@@ -108,4 +122,7 @@ export class HandoffServiceClient extends grpc.Client implements IHandoffService
     public completeHandoff(request: handoff_pb.CompleteHandoffRequest, callback: (error: grpc.ServiceError | null, response: handoff_pb.CompleteHandoffResponse) => void): grpc.ClientUnaryCall;
     public completeHandoff(request: handoff_pb.CompleteHandoffRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: handoff_pb.CompleteHandoffResponse) => void): grpc.ClientUnaryCall;
     public completeHandoff(request: handoff_pb.CompleteHandoffRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: handoff_pb.CompleteHandoffResponse) => void): grpc.ClientUnaryCall;
+    public cancelDelegation(request: handoff_pb.CancelDelegation, callback: (error: grpc.ServiceError | null, response: handoff_pb.CancelDelegationResponse) => void): grpc.ClientUnaryCall;
+    public cancelDelegation(request: handoff_pb.CancelDelegation, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: handoff_pb.CancelDelegationResponse) => void): grpc.ClientUnaryCall;
+    public cancelDelegation(request: handoff_pb.CancelDelegation, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: handoff_pb.CancelDelegationResponse) => void): grpc.ClientUnaryCall;
 }

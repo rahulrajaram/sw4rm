@@ -18,11 +18,16 @@
 //! compatible between Rust and JavaScript SDK implementations.
 
 use sw4rm_sdk::{
+    clients::handoff::{
+        BudgetEnvelope, HandoffClient, HandoffRequest, HandoffStatus, RejectHandoffOptions,
+        SwarmDelegationPolicy, DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_BACKOFF_MS,
+        DEFAULT_MAX_BACKOFF_MS, REJECTION_CODE_OVERLOADED,
+    },
+    clients::negotiation_room::NegotiationVote,
     constants::message_type,
     envelope::EnvelopeBuilder,
     policy_store::EffectivePolicy,
     voting::aggregate_votes,
-    clients::negotiation_room::NegotiationVote,
 };
 
 /// Test that envelope structure matches spec and JS SDK.
@@ -72,8 +77,7 @@ fn test_envelope_json_serialization() {
 
     // Serialize to JSON
     let json = serde_json::to_string(&envelope).expect("Should serialize to JSON");
-    let parsed: serde_json::Value =
-        serde_json::from_str(&json).expect("Should parse JSON");
+    let parsed: serde_json::Value = serde_json::from_str(&json).expect("Should parse JSON");
 
     // Verify all required fields are present
     assert!(parsed.get("message_id").is_some());
@@ -175,8 +179,7 @@ fn test_policy_json_serialization() {
 
     // Serialize to JSON
     let json = serde_json::to_string(&policy).expect("Should serialize to JSON");
-    let parsed: serde_json::Value =
-        serde_json::from_str(&json).expect("Should parse JSON");
+    let parsed: serde_json::Value = serde_json::from_str(&json).expect("Should parse JSON");
 
     // Verify all three policy types are present
     assert!(parsed.get("negotiation").is_some());
@@ -197,4 +200,70 @@ fn test_policy_json_serialization() {
     let esc = parsed.get("escalation").unwrap();
     assert!(esc.get("auto_escalate_on_deadlock").is_some());
     assert!(esc.get("deadlock_rounds").is_some());
+}
+
+#[test]
+fn test_handoff_request_sw4_004_policy_defaults() {
+    let client = HandoffClient::new();
+    let request = HandoffRequest::new(
+        "agent-a".to_string(),
+        "agent-b".to_string(),
+        "Cross-swarm handoff".to_string(),
+    )
+    .with_budget(BudgetEnvelope::new(1_735_000_000_000))
+    .with_delegation_policy(SwarmDelegationPolicy {
+        max_retries_on_overloaded: 3,
+        initial_backoff_ms: 0,
+        backoff_multiplier: 0.0,
+        max_backoff_ms: 0,
+        allow_spillover_routing: true,
+        max_redirects: 2,
+    });
+
+    client.request_handoff(request).unwrap();
+    let pending = client.get_pending_handoffs("agent-b").unwrap();
+    assert_eq!(pending.len(), 1);
+    let policy = pending[0].delegation_policy.as_ref().unwrap();
+    assert_eq!(policy.max_retries_on_overloaded, 3);
+    assert_eq!(policy.initial_backoff_ms, DEFAULT_INITIAL_BACKOFF_MS);
+    assert_eq!(policy.backoff_multiplier, DEFAULT_BACKOFF_MULTIPLIER);
+    assert_eq!(policy.max_backoff_ms, DEFAULT_MAX_BACKOFF_MS);
+}
+
+#[test]
+fn test_handoff_response_sw4_005_metadata_surface() {
+    let client = HandoffClient::new();
+    let request = HandoffRequest::new(
+        "agent-a".to_string(),
+        "agent-b".to_string(),
+        "Overloaded target".to_string(),
+    );
+    let response = client.request_handoff(request).unwrap();
+
+    client
+        .reject_handoff_with_options(
+            &response.handoff_id,
+            "Capacity exceeded",
+            RejectHandoffOptions {
+                rejection_code: Some(REJECTION_CODE_OVERLOADED),
+                retry_after_ms: Some(400),
+                redirect_to_agent_id: Some("agent-c".to_string()),
+            },
+        )
+        .unwrap();
+
+    let status = client
+        .get_handoff_status(&response.handoff_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(status.status, HandoffStatus::Rejected);
+    assert_eq!(status.rejection_code, Some(REJECTION_CODE_OVERLOADED));
+    assert_eq!(status.retry_after_ms, Some(400));
+    assert_eq!(status.redirect_to_agent_id, Some("agent-c".to_string()));
+
+    let json = serde_json::to_string(&status).expect("Should serialize handoff response");
+    let parsed: serde_json::Value = serde_json::from_str(&json).expect("Should parse JSON");
+    assert!(parsed.get("rejection_code").is_some());
+    assert!(parsed.get("retry_after_ms").is_some());
+    assert!(parsed.get("redirect_to_agent_id").is_some());
 }

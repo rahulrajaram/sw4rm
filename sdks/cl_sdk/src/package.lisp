@@ -62,6 +62,8 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:+ttl-expired+
    #:+duplicate-detected+
    #:+already-in-progress+
+   #:+overloaded+
+   #:+redirect+
    #:+internal-error+
 
    ;; AgentState enum
@@ -287,4 +289,48 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:secret-resolver
    #:secret-not-found
    #:secret-key
-   #:secret-backend-error))
+   #:secret-backend-error)
+
+  ;; Gateway redirect emitter (SW4-005 local gateway helper)
+  (:export
+   #:+registration-type-standard-agent+
+   #:+registration-type-swarm-gateway+
+   #:+default-peer-liveness-threshold-ms+
+   #:+non-serving-agent-states+
+   #:gateway-peer-descriptor
+   #:make-gateway-peer-descriptor
+   #:gateway-peer-descriptor-agent-id
+   #:gateway-peer-descriptor-registration-type
+   #:gateway-peer-descriptor-capabilities
+   #:gateway-redirect-emitter
+   #:set-peer-descriptors
+   #:update-peer-runtime-state
+   #:touch-peer-heartbeat
+   #:record-peer-overloaded
+   #:emit-overloaded-response)
+
+  ;; Handoff client (SW4-004/SW4-005 local surface)
+  (:export
+   #:handoff-client
+   #:+default-max-retries-on-overloaded+
+   #:+default-initial-backoff-ms+
+   #:+default-backoff-multiplier+
+   #:+default-max-backoff-ms+
+   #:+default-allow-spillover-routing+
+   #:+default-max-redirects+
+   #:delegate-to-swarm
+   #:+min-cancel-grace-period-ms+
+   #:handoff-default-delegation-policy
+   #:initiate-handoff
+   #:accept-handoff
+   #:reject-handoff
+   #:reject-handoff-with-options
+   #:complete-handoff
+   #:get-pending-handoffs
+   #:get-handoff-status
+   #:register-child-delegation
+   #:cancel-delegation
+   #:cancelled-delegation-p
+   #:cancellation-grace-expired-p
+   #:forced-preemption-error-code
+   #:collect-forced-preemptions))

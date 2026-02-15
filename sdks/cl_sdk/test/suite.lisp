@@ -154,6 +154,14 @@
   "ErrorCode ALREADY_IN_PROGRESS must be 15."
   (is (= 15 sw4rm-sdk::+already-in-progress+)))
 
+(test error-code-overloaded-is-16
+  "ErrorCode OVERLOADED must be 16."
+  (is (= 16 sw4rm-sdk::+overloaded+)))
+
+(test error-code-redirect-is-20
+  "ErrorCode REDIRECT must be 20."
+  (is (= 20 sw4rm-sdk::+redirect+)))
+
 ;; -- AgentState enum (spec S8) --------------------------------------------
 
 (test agent-state-unspecified-is-0
@@ -875,15 +883,14 @@
 
 
 ;;; =======================================================================
-;;;  5. Client Stubs
+;;;  5. Client Behavior
 ;;; =======================================================================
 ;;;
-;;; The handoff-client and workflow-client inherit from base-client and all
-;;; RPC methods signal rpc-error with code "UNIMPLEMENTED". We verify that
-;;; instantiation succeeds and methods signal the expected condition.
+;;; Verify base-client behavior, local handoff lifecycle semantics, and
+;;; workflow client stubs that remain unimplemented.
 
 (def-suite client-stubs-suite
-  :description "Client stub instantiation and error signaling tests"
+  :description "Client behavior and stub signaling tests"
   :in sw4rm-suite)
 (in-suite client-stubs-suite)
 
@@ -924,78 +931,683 @@
 
 ;; -- handoff-client -------------------------------------------------------
 
+(defun %make-handoff-client ()
+  "Create a handoff client instance for tests."
+  (make-instance 'sw4rm-sdk::handoff-client
+                 :address "localhost:50070"))
+
+(defun %handoff-request (&key
+                           (request-id "handoff-1")
+                           (from-agent "agent-a")
+                           (to-agent "agent-b")
+                           (reason "Need specialized processing")
+                           budget
+                           delegation-policy)
+  "Build a valid handoff request plist with optional SW4-004/005 envelopes."
+  (let ((request (list :request-id request-id
+                       :from-agent from-agent
+                       :to-agent to-agent
+                       :reason reason
+                       :context "ctx"
+                       :capabilities-required '("gateway")
+                       :priority 5)))
+    (when budget
+      (setf (getf request :budget) budget))
+    (when delegation-policy
+      (setf (getf request :delegation-policy) delegation-policy))
+    request))
+
+(defun %make-now-ms-fn (timestamps)
+  "Return a deterministic NOW function that consumes TIMESTAMPS in order."
+  (let ((remaining (copy-list timestamps))
+        (last-value (if timestamps (car (last timestamps)) 0)))
+    (lambda ()
+      (if remaining
+          (prog1 (car remaining)
+            (setf remaining (cdr remaining)))
+          last-value))))
+
+(defun %gateway-peer (agent-id &key
+                                 (registration-type sw4rm-sdk::+registration-type-swarm-gateway+)
+                                 (capabilities '("plan" "execute")))
+  "Build a gateway peer descriptor test value."
+  (sw4rm-sdk::make-gateway-peer-descriptor
+   :agent-id agent-id
+   :registration-type registration-type
+   :capabilities capabilities))
+
+(defun %gateway-request (request-id &key (allow-spillover nil))
+  "Build a minimal handoff request for gateway redirect-emitter tests."
+  (list :request-id request-id
+        :from-agent "parent"
+        :to-agent "gateway-1"
+        :reason "delegate"
+        :delegation-policy (list :allow-spillover-routing allow-spillover)))
+
+(defun %normalize-json-key (key)
+  "Normalize JSON key names for case-insensitive lookup."
+  (let* ((text (string-downcase
+                (cond
+                  ((symbolp key) (symbol-name key))
+                  ((stringp key) key)
+                  (t (princ-to-string key)))))
+         (hyphenated (substitute #\- #\_ text)))
+    (with-output-to-string (out)
+      (let ((last-hyphen nil))
+        (loop for ch across hyphenated do
+          (if (char= ch #\-)
+              (unless last-hyphen
+                (write-char ch out))
+              (write-char ch out))
+          (setf last-hyphen (char= ch #\-)))))))
+
+(defun %json-object-get (object wanted-key &optional default)
+  "Read WANTED-KEY from OBJECT, where OBJECT is an alist or hash table."
+  (let ((normalized-wanted (%normalize-json-key wanted-key)))
+    (cond
+      ((hash-table-p object)
+       (let ((value default)
+             (found nil))
+         (maphash (lambda (key candidate)
+                    (when (string= normalized-wanted (%normalize-json-key key))
+                      (setf value candidate)
+                      (setf found t)))
+                  object)
+         (if found value default)))
+      ((listp object)
+       (let ((entry
+               (find normalized-wanted object
+                     :test (lambda (wanted candidate)
+                             (and (consp candidate)
+                                  (string= wanted
+                                           (%normalize-json-key (car candidate))))))))
+         (if entry (cdr entry) default)))
+      (t default))))
+
+(defun %json-array->list (value)
+  "Convert VALUE to a proper list for vector/list JSON arrays."
+  (cond
+    ((vectorp value) (coerce value 'list))
+    ((listp value) value)
+    (t '())))
+
+(defun %shared-delegation-vector-file-path ()
+  "Path to the shared cross-SDK SW4-005 delegation vectors."
+  (merge-pathnames
+   #P"../../tests/conformance_vectors/sw4_005_delegation_vectors.json"
+   (asdf:system-source-directory :sw4rm-sdk)))
+
+(defun %load-shared-delegation-vectors ()
+  "Load shared SW4-005 delegation vectors from the repo root."
+  (with-open-file (stream (%shared-delegation-vector-file-path) :direction :input)
+    (%json-array->list (%json-object-get (json:decode-json stream) "vectors"))))
+
+(defun %rejection-code-from-vector-name (name)
+  "Map shared vector rejection code names to protocol constants."
+  (let ((normalized (string-upcase (if (symbolp name) (symbol-name name) name))))
+    (cond
+      ((string= normalized "VALIDATION_ERROR") sw4rm-sdk::+validation-error+)
+      ((string= normalized "REDIRECT") sw4rm-sdk::+redirect+)
+      (t (error "Unsupported vector rejection code: ~A" name)))))
+
+(defun %shared-cancellation-vector-file-path ()
+  "Path to the shared cross-SDK SW4-004 cancellation vectors."
+  (merge-pathnames
+   #P"../../tests/conformance_vectors/sw4_004_cancellation_vectors.json"
+   (asdf:system-source-directory :sw4rm-sdk)))
+
+(defun %load-shared-cancellation-vectors ()
+  "Load shared SW4-004 cancellation vectors from the repo root."
+  (with-open-file (stream (%shared-cancellation-vector-file-path) :direction :input)
+    (%json-array->list (%json-object-get (json:decode-json stream) "vectors"))))
+
+(defun %cancellation-code-from-vector-name (name)
+  "Map shared cancellation vector error-code names to protocol constants."
+  (let ((normalized (string-upcase (if (symbolp name) (symbol-name name) name))))
+    (cond
+      ((string= normalized "ERROR_CODE_UNSPECIFIED") sw4rm-sdk::+error-code-unspecified+)
+      ((string= normalized "FORCED_PREEMPTION") sw4rm-sdk::+forced-preemption+)
+      (t (error "Unsupported cancellation vector code: ~A" name)))))
+
 (test handoff-client-creation
   "Creating a handoff-client should succeed."
-  (let ((c (make-instance 'sw4rm-sdk::handoff-client
-                           :address "localhost:50070")))
+  (let ((c (%make-handoff-client)))
     (is (typep c 'sw4rm-sdk::handoff-client))
     (is (typep c 'sw4rm-sdk::base-client))))
 
-(test handoff-initiate-signals-rpc-error
-  "initiate-handoff must signal rpc-error with UNIMPLEMENTED code."
-  (let ((c (make-instance 'sw4rm-sdk::handoff-client
-                           :address "localhost:50070")))
-    (handler-case
-        (progn
-          (sw4rm-sdk::initiate-handoff c '(:from-agent "a" :to-agent "b"))
-          (fail "Expected rpc-error to be signaled"))
-      (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
+(test handoff-initiate-creates-pending-and-status
+  "initiate-handoff should store a pending request and status."
+  (let* ((c (%make-handoff-client))
+         (response (sw4rm-sdk::initiate-handoff c (%handoff-request :request-id "handoff-123")))
+         (pending (sw4rm-sdk::get-pending-handoffs c "agent-b"))
+         (status (sw4rm-sdk::get-handoff-status c "handoff-123")))
+    (is (eq t (getf response :accepted)))
+    (is (eq :pending (getf response :status)))
+    (is (string= "handoff-123" (getf response :handoff-id)))
+    (is (= 1 (length pending)))
+    (is (string= "handoff-123" (getf (first pending) :request-id)))
+    (is (eq :pending (getf status :status)))))
 
-(test handoff-accept-signals-rpc-error
-  "accept-handoff must signal rpc-error with UNIMPLEMENTED code."
-  (let ((c (make-instance 'sw4rm-sdk::handoff-client
-                           :address "localhost:50070")))
-    (handler-case
-        (progn
-          (sw4rm-sdk::accept-handoff c "handoff-123")
-          (fail "Expected rpc-error to be signaled"))
-      (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
+(test handoff-initiate-validates-budget-deadline
+  "Cross-swarm handoff requires budget.deadline-epoch-ms."
+  (let ((c (%make-handoff-client)))
+    (signals sw4rm-sdk::validation-error
+      (sw4rm-sdk::initiate-handoff
+       c
+       (%handoff-request
+        :request-id "handoff-no-deadline"
+        :budget '(:token-budget-remaining 1000
+                  :deadline-epoch-ms 0))))))
 
-(test handoff-reject-signals-rpc-error
-  "reject-handoff must signal rpc-error with UNIMPLEMENTED code."
-  (let ((c (make-instance 'sw4rm-sdk::handoff-client
-                           :address "localhost:50070")))
-    (handler-case
-        (progn
-          (sw4rm-sdk::reject-handoff c "handoff-123" "no capacity")
-          (fail "Expected rpc-error to be signaled"))
-      (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
+(test handoff-initiate-normalizes-delegation-policy
+  "initiate-handoff should normalize optional policy values."
+  (let* ((c (%make-handoff-client))
+         (_request-created
+           (sw4rm-sdk::initiate-handoff
+            c
+            (%handoff-request
+             :request-id "handoff-policy"
+             :budget '(:deadline-epoch-ms 1700000000000)
+             :delegation-policy
+             '(:max-retries-on-overloaded 4
+               :initial-backoff-ms 0
+               :backoff-multiplier 0
+               :max-backoff-ms 0
+               :allow-spillover-routing t
+               :max-redirects 3))))
+         (pending (sw4rm-sdk::get-pending-handoffs c "agent-b"))
+         (policy (getf (first pending) :delegation-policy)))
+    (declare (ignore _request-created))
+    (is (= 4 (getf policy :max-retries-on-overloaded)))
+    (is (= sw4rm-sdk::+default-initial-backoff-ms+
+           (getf policy :initial-backoff-ms)))
+    (is (= sw4rm-sdk::+default-backoff-multiplier+
+           (getf policy :backoff-multiplier)))
+    (is (= sw4rm-sdk::+default-max-backoff-ms+
+           (getf policy :max-backoff-ms)))
+    (is (eq t (getf policy :allow-spillover-routing)))
+    (is (= 3 (getf policy :max-redirects)))))
 
-(test handoff-complete-signals-rpc-error
-  "complete-handoff must signal rpc-error with UNIMPLEMENTED code."
-  (let ((c (make-instance 'sw4rm-sdk::handoff-client
-                           :address "localhost:50070")))
-    (handler-case
-        (progn
-          (sw4rm-sdk::complete-handoff c "handoff-123")
-          (fail "Expected rpc-error to be signaled"))
-      (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
+(test handoff-accept-updates-status-and-removes-pending
+  "accept-handoff should transition to :accepted and clear pending list."
+  (let ((c (%make-handoff-client)))
+    (sw4rm-sdk::initiate-handoff c (%handoff-request :request-id "handoff-accept"))
+    (let ((response (sw4rm-sdk::accept-handoff c "handoff-accept")))
+      (is (eq :accepted (getf response :status)))
+      (is (string= "agent-b" (getf response :accepting-agent))))
+    (is (null (sw4rm-sdk::get-pending-handoffs c "agent-b")))))
 
-(test handoff-get-pending-signals-rpc-error
-  "get-pending must signal rpc-error with UNIMPLEMENTED code."
-  (let ((c (make-instance 'sw4rm-sdk::handoff-client
-                           :address "localhost:50070")))
-    (handler-case
-        (progn
-          (sw4rm-sdk::get-pending-handoffs c "agent-1")
-          (fail "Expected rpc-error to be signaled"))
-      (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
+(test handoff-reject-default-and-overload-metadata
+  "reject-handoff should support default, OVERLOADED, and REDIRECT metadata."
+  (let ((c (%make-handoff-client)))
+    (sw4rm-sdk::initiate-handoff c (%handoff-request :request-id "handoff-default-reject"))
+    (let ((default-reject (sw4rm-sdk::reject-handoff c "handoff-default-reject" "busy")))
+      (is (eq :rejected (getf default-reject :status)))
+      (is (= sw4rm-sdk::+error-code-unspecified+
+             (getf default-reject :rejection-code))))
 
-(test handoff-get-status-signals-rpc-error
-  "get-handoff-status must signal rpc-error with UNIMPLEMENTED code."
-  (let ((c (make-instance 'sw4rm-sdk::handoff-client
-                           :address "localhost:50070")))
-    (handler-case
-        (progn
-          (sw4rm-sdk::get-handoff-status c "handoff-123")
-          (fail "Expected rpc-error to be signaled"))
-      (sw4rm-sdk::rpc-error (e)
-        (is (string= "UNIMPLEMENTED" (sw4rm-sdk::rpc-error-status-code e)))))))
+    (sw4rm-sdk::initiate-handoff c (%handoff-request :request-id "handoff-overloaded"))
+    (let ((overloaded
+            (sw4rm-sdk::reject-handoff-with-options
+             c
+             "handoff-overloaded"
+             "overloaded"
+             :rejection-code sw4rm-sdk::+overloaded+
+             :retry-after-ms 1200)))
+      (is (= sw4rm-sdk::+overloaded+ (getf overloaded :rejection-code)))
+      (is (= 1200 (getf overloaded :retry-after-ms)))
+      (is (null (getf overloaded :redirect-to-agent-id))))
+
+    (sw4rm-sdk::initiate-handoff c (%handoff-request :request-id "handoff-redirect"))
+    (let ((redirect
+            (sw4rm-sdk::reject-handoff-with-options
+             c
+             "handoff-redirect"
+             "redirect"
+             :rejection-code sw4rm-sdk::+redirect+
+             :redirect-to-agent-id "agent-c")))
+      (is (= sw4rm-sdk::+redirect+ (getf redirect :rejection-code)))
+      (is (string= "agent-c" (getf redirect :redirect-to-agent-id)))
+      (is (null (getf redirect :retry-after-ms))))))
+
+(test handoff-reject-normalizes-blank-redirect-metadata
+  "reject-handoff-with-options should drop blank redirect target metadata."
+  (let ((c (%make-handoff-client)))
+    (sw4rm-sdk::initiate-handoff c (%handoff-request :request-id "handoff-blank-redirect"))
+    (let ((response
+            (sw4rm-sdk::reject-handoff-with-options
+             c
+             "handoff-blank-redirect"
+             "redirect"
+             :rejection-code sw4rm-sdk::+redirect+
+             :redirect-to-agent-id (concatenate 'string "   " (string #\Tab) "  "))))
+      (is (= sw4rm-sdk::+redirect+ (getf response :rejection-code)))
+      (is (null (getf response :redirect-to-agent-id))))))
+
+(test gateway-emits-redirect-when-spillover-enabled-and-healthy-peer-available
+  "gateway redirect-emitter should emit REDIRECT when a healthy peer is eligible."
+  (let ((gateway
+          (make-instance 'sw4rm-sdk::gateway-redirect-emitter
+                         :agent-id "gateway-1"
+                         :capabilities '("plan" "execute")
+                         :peer-descriptors
+                         (list (%gateway-peer "worker-1"
+                                              :registration-type
+                                              sw4rm-sdk::+registration-type-standard-agent+)
+                               (%gateway-peer "gateway-2")))))
+    (let ((response (sw4rm-sdk::emit-overloaded-response
+                     gateway
+                     (%gateway-request "req-redirect" :allow-spillover t))))
+      (is (null (getf response :accepted)))
+      (is (= sw4rm-sdk::+redirect+ (getf response :rejection-code)))
+      (is (= 0 (getf response :retry-after-ms)))
+      (is (string= "gateway-2" (getf response :redirect-to-agent-id))))))
+
+(test gateway-falls-back-to-overloaded-when-spillover-disabled
+  "gateway redirect-emitter should emit OVERLOADED when spillover is disabled."
+  (let ((gateway
+          (make-instance 'sw4rm-sdk::gateway-redirect-emitter
+                         :agent-id "gateway-1"
+                         :capabilities '("plan" "execute")
+                         :retry-after-ms 222
+                         :peer-descriptors (list (%gateway-peer "gateway-2")))))
+    (let ((response (sw4rm-sdk::emit-overloaded-response
+                     gateway
+                     (%gateway-request "req-no-spillover" :allow-spillover nil))))
+      (is (null (getf response :accepted)))
+      (is (= sw4rm-sdk::+overloaded+ (getf response :rejection-code)))
+      (is (= 222 (getf response :retry-after-ms)))
+      (is (null (getf response :redirect-to-agent-id))))))
+
+(test gateway-filters-stale-non-serving-and-cooldown-peers
+  "gateway redirect-emitter should exclude stale/non-serving/cooldown peers."
+  (let ((clock-ms 200000))
+    (let ((gateway
+            (make-instance 'sw4rm-sdk::gateway-redirect-emitter
+                           :agent-id "gateway-1"
+                           :capabilities '("plan" "execute")
+                           :now-ms-fn (lambda () clock-ms)
+                           :peer-descriptors
+                           (list (%gateway-peer "peer-stale")
+                                 (%gateway-peer "peer-initializing")
+                                 (%gateway-peer "peer-cooldown")
+                                 (%gateway-peer "peer-shutting-down")
+                                 (%gateway-peer "peer-healthy")))))
+      (sw4rm-sdk::update-peer-runtime-state
+       gateway
+       "peer-stale"
+       :state sw4rm-sdk::+running+
+       :last-heartbeat-ms (- clock-ms 120000))
+      (sw4rm-sdk::touch-peer-heartbeat
+       gateway
+       "peer-initializing"
+       :state sw4rm-sdk::+initializing+)
+      (sw4rm-sdk::touch-peer-heartbeat
+       gateway
+       "peer-cooldown"
+       :state sw4rm-sdk::+running+)
+      (sw4rm-sdk::record-peer-overloaded
+       gateway
+       "peer-cooldown"
+       :retry-after-ms 15000)
+      (sw4rm-sdk::touch-peer-heartbeat
+       gateway
+       "peer-shutting-down"
+       :state sw4rm-sdk::+shutting-down+)
+      (sw4rm-sdk::touch-peer-heartbeat
+       gateway
+       "peer-healthy"
+       :state sw4rm-sdk::+running+)
+
+      (let ((response (sw4rm-sdk::emit-overloaded-response
+                       gateway
+                       (%gateway-request "req-health-filter" :allow-spillover t))))
+        (is (null (getf response :accepted)))
+        (is (= sw4rm-sdk::+redirect+ (getf response :rejection-code)))
+        (is (string= "peer-healthy" (getf response :redirect-to-agent-id)))))))
+
+(test gateway-uses-round-robin-selection-across-healthy-peers
+  "gateway redirect-emitter should round-robin across healthy eligible peers."
+  (let ((clock-ms 10000))
+    (let ((gateway
+            (make-instance 'sw4rm-sdk::gateway-redirect-emitter
+                           :agent-id "gateway-1"
+                           :capabilities '("plan" "execute")
+                           :now-ms-fn (lambda () clock-ms)
+                           :peer-descriptors
+                           (list (%gateway-peer "peer-1")
+                                 (%gateway-peer "peer-2")
+                                 (%gateway-peer "peer-3"))))
+          (seen '()))
+      (sw4rm-sdk::touch-peer-heartbeat gateway "peer-1" :state sw4rm-sdk::+running+)
+      (sw4rm-sdk::touch-peer-heartbeat gateway "peer-2" :state sw4rm-sdk::+running+)
+      (sw4rm-sdk::touch-peer-heartbeat gateway "peer-3" :state sw4rm-sdk::+running+)
+
+      (dotimes (idx 6)
+        (let ((response
+                (sw4rm-sdk::emit-overloaded-response
+                 gateway
+                 (%gateway-request (format nil "req-rr-~D" idx) :allow-spillover t))))
+          (push (or (getf response :redirect-to-agent-id) "") seen)))
+      (setf seen (nreverse seen))
+      (is (equal '("peer-1" "peer-2" "peer-3" "peer-1" "peer-2" "peer-3")
+                 seen)))))
+
+(test handoff-delegate-to-swarm-shared-conformance-vectors
+  "delegate-to-swarm should execute shared SW4-005 cross-SDK vectors."
+  (dolist (vector (%load-shared-delegation-vectors))
+    (let* ((vector-id (%json-object-get vector "id"))
+           (budget (%json-object-get vector "budget"))
+           (policy (%json-object-get vector "policy"))
+           (expected (%json-object-get vector "expected"))
+           (redirect-map (%json-object-get vector "redirect_map"))
+           (attempts '())
+           (response
+             (sw4rm-sdk::delegate-to-swarm
+              (lambda (request)
+                (let* ((to-agent (getf request :to-agent))
+                       (target-agent (%json-object-get redirect-map to-agent)))
+                  (unless target-agent
+                    (error "Vector ~A missing redirect target for ~A" vector-id to-agent))
+                  (push to-agent attempts)
+                  (list :request-id (getf request :request-id)
+                        :accepted nil
+                        :status :rejected
+                        :rejection-code sw4rm-sdk::+redirect+
+                        :redirect-to-agent-id target-agent)))
+              :request-id (%json-object-get vector "request_id")
+              :from-agent (%json-object-get vector "from_agent")
+              :to-agent (%json-object-get vector "to_agent")
+              :reason (%json-object-get vector "reason")
+              :budget (list :deadline-epoch-ms (%json-object-get budget "deadline_epoch_ms")
+                            :wall-time-remaining-ms (%json-object-get budget "wall_time_remaining_ms"))
+              :delegation-policy (list :allow-spillover-routing
+                                       (not (null (%json-object-get policy "allow_spillover_routing")))
+                                       :max-redirects (%json-object-get policy "max_redirects"))
+              :now-ms-fn (let ((now-ms (- (%json-object-get budget "deadline_epoch_ms") 1000)))
+                           (lambda () now-ms))
+              :sleep-seconds-fn (lambda (_seconds) (declare (ignore _seconds)) nil)
+              :rand-uniform-fn (lambda (low _high) (declare (ignore _high)) low))))
+      (setf attempts (nreverse attempts))
+      (is (eql (not (null (%json-object-get expected "accepted")))
+               (not (null (getf response :accepted)))))
+      (is (= (%rejection-code-from-vector-name (%json-object-get expected "rejection_code"))
+             (getf response :rejection-code)))
+      (is (equal (%json-array->list (%json-object-get expected "attempts"))
+                 attempts))
+      (let ((reason-needle (%json-object-get expected "reason_contains")))
+        (when reason-needle
+          (is (search (string-downcase reason-needle)
+                      (string-downcase (or (getf response :rejection-reason) ""))))))
+      (let ((expected-redirect (%json-object-get expected "redirect_to_agent_id")))
+        (when expected-redirect
+          (is (string= expected-redirect
+                       (or (getf response :redirect-to-agent-id) ""))))))))
+
+(test handoff-delegate-to-swarm-redirect-validation-precedes-bound-fallback
+  "delegate-to-swarm validates redirect target metadata before redirect-bound fallback."
+  (let ((attempt 0))
+    (let ((response
+            (sw4rm-sdk::delegate-to-swarm
+             (lambda (_request)
+               (declare (ignore _request))
+               (incf attempt)
+               (cond
+                 ((= attempt 1)
+                  (list :accepted nil
+                        :status :rejected
+                        :rejection-code sw4rm-sdk::+redirect+
+                        :redirect-to-agent-id "agent-c"))
+                 ((= attempt 2)
+                  (list :accepted nil
+                        :status :rejected
+                        :rejection-code sw4rm-sdk::+redirect+
+                        :redirect-to-agent-id "agent-d"))
+                 (t
+                  (list :accepted nil
+                        :status :rejected
+                        :rejection-code sw4rm-sdk::+redirect+
+                        :redirect-to-agent-id "   "))))
+             :request-id "delegate-redirect-validation-ordering"
+             :from-agent "agent-a"
+             :to-agent "agent-b"
+             :reason "delegation-needed"
+             :budget '(:deadline-epoch-ms 100000
+                       :wall-time-remaining-ms 5000)
+             :delegation-policy '(:allow-spillover-routing t
+                                  :max-redirects 2)
+             :now-ms-fn (%make-now-ms-fn '(1000 1001 1002 1003 1004 1005))
+             :sleep-seconds-fn (lambda (_seconds) (declare (ignore _seconds)) nil)
+             :rand-uniform-fn (lambda (low _high) (declare (ignore _high)) low))))
+      (is (= 3 attempt))
+      (is (= sw4rm-sdk::+validation-error+ (getf response :rejection-code)))
+      (is (search "missing non-empty redirect_to_agent_id"
+                  (getf response :rejection-reason))))))
+
+(test handoff-delegate-to-swarm-detects-redirect-loops
+  "delegate-to-swarm should reject redirect loops with VALIDATION_ERROR."
+  (let ((attempt 0))
+    (let ((response
+            (sw4rm-sdk::delegate-to-swarm
+             (lambda (_request)
+               (declare (ignore _request))
+               (incf attempt)
+               (if (= attempt 1)
+                   (list :accepted nil
+                         :status :rejected
+                         :rejection-code sw4rm-sdk::+redirect+
+                         :redirect-to-agent-id "agent-c")
+                   (list :accepted nil
+                         :status :rejected
+                         :rejection-code sw4rm-sdk::+redirect+
+                         :redirect-to-agent-id "agent-b")))
+             :request-id "delegate-redirect-loop"
+             :from-agent "agent-a"
+             :to-agent "agent-b"
+             :reason "delegation-needed"
+             :budget '(:deadline-epoch-ms 100000
+                       :wall-time-remaining-ms 5000)
+             :delegation-policy '(:allow-spillover-routing t
+                                  :max-redirects 4)
+             :now-ms-fn (%make-now-ms-fn '(1000 1001 1002 1003))
+             :sleep-seconds-fn (lambda (_seconds) (declare (ignore _seconds)) nil)
+             :rand-uniform-fn (lambda (low _high) (declare (ignore _high)) low))))
+      (is (= 2 attempt))
+      (is (= sw4rm-sdk::+validation-error+ (getf response :rejection-code)))
+      (is (search "Redirect loop detected"
+                  (getf response :rejection-reason))))))
+
+(test handoff-delegate-to-swarm-overloaded-retries-and-deducts-budget
+  "delegate-to-swarm should retry OVERLOADED responses and deduct elapsed + sleep wall-time."
+  (let ((attempt 0)
+        (seen-wall-time '())
+        (slept-seconds '()))
+    (let ((response
+            (sw4rm-sdk::delegate-to-swarm
+             (lambda (request)
+               (incf attempt)
+               (push (getf (getf request :budget) :wall-time-remaining-ms)
+                     seen-wall-time)
+               (if (= attempt 1)
+                   (list :accepted nil
+                         :status :rejected
+                         :rejection-code sw4rm-sdk::+overloaded+
+                         :retry-after-ms 50)
+                   (list :accepted t
+                         :status :accepted)))
+             :request-id "delegate-overloaded-retry"
+             :from-agent "agent-a"
+             :to-agent "agent-b"
+             :reason "delegation-needed"
+             :budget '(:deadline-epoch-ms 100000
+                       :wall-time-remaining-ms 200)
+             :delegation-policy '(:max-retries-on-overloaded 3)
+             :now-ms-fn (%make-now-ms-fn '(1000 1010 1010 1060 1060 1070))
+             :sleep-seconds-fn
+             (lambda (seconds)
+               (push seconds slept-seconds)
+               nil)
+             :rand-uniform-fn (lambda (low _high) (declare (ignore _high)) low))))
+      (setf seen-wall-time (nreverse seen-wall-time))
+      (setf slept-seconds (nreverse slept-seconds))
+      (is (= 2 attempt))
+      (is (eq t (getf response :accepted)))
+      (is (= 2 (length seen-wall-time)))
+      (is (= 200 (first seen-wall-time)))
+      (is (= 140 (second seen-wall-time)))
+      (is (= 1 (length slept-seconds)))
+      (is (< (abs (- (first slept-seconds) 0.05d0)) 0.0001d0)))))
+
+(test handoff-delegate-to-swarm-fails-fast-on-post-attempt-budget-exhaustion
+  "delegate-to-swarm should return ACK_TIMEOUT when budget exhausts immediately after an attempt."
+  (let ((attempt 0))
+    (let ((response
+            (sw4rm-sdk::delegate-to-swarm
+             (lambda (_request)
+               (declare (ignore _request))
+               (incf attempt)
+               (list :accepted nil
+                     :status :rejected
+                     :rejection-code sw4rm-sdk::+overloaded+
+                     :retry-after-ms 10))
+             :request-id "delegate-budget-exhausted-after-attempt"
+             :from-agent "agent-a"
+             :to-agent "agent-b"
+             :reason "delegation-needed"
+             :budget '(:deadline-epoch-ms 100000
+                       :wall-time-remaining-ms 20)
+             :delegation-policy '(:max-retries-on-overloaded 3)
+             :now-ms-fn (%make-now-ms-fn '(2000 2025))
+             :sleep-seconds-fn (lambda (_seconds) (declare (ignore _seconds)) nil)
+             :rand-uniform-fn (lambda (low _high) (declare (ignore _high)) low))))
+      (is (= 1 attempt))
+      (is (= sw4rm-sdk::+ack-timeout+ (getf response :rejection-code)))
+      (is (string= "Delegation deadline exhausted before handoff acceptance"
+                   (getf response :rejection-reason))))))
+
+(test handoff-complete-requires-accepted-status
+  "complete-handoff should fail for non-accepted status and succeed after accept."
+  (let ((c (%make-handoff-client)))
+    (sw4rm-sdk::initiate-handoff c (%handoff-request :request-id "handoff-complete"))
+    (signals sw4rm-sdk::rpc-error
+      (sw4rm-sdk::complete-handoff c "handoff-complete"))
+    (sw4rm-sdk::accept-handoff c "handoff-complete")
+    (let ((response (sw4rm-sdk::complete-handoff c "handoff-complete")))
+      (is (eq :completed (getf response :status))))))
+
+(test handoff-cancel-delegation-cascade-and-grace-checks
+  "Cancellation helper should cascade to children and enforce grace-period rules."
+  (let ((c (%make-handoff-client)))
+    (is (sw4rm-sdk::register-child-delegation c "parent-corr" "child-corr"))
+    (let ((cancel-response
+            (sw4rm-sdk::cancel-delegation
+             c
+             '(:correlation-id "parent-corr"
+               :reason "abort"
+               :grace-period-ms 10))))
+      (is (eq t (getf cancel-response :acknowledged))))
+
+    (is (sw4rm-sdk::cancelled-delegation-p c "parent-corr"))
+    (is (sw4rm-sdk::cancelled-delegation-p c "child-corr"))
+
+    (let* ((flags (sw4rm-sdk::handoff-client-cancellation-flags c))
+           (parent (gethash "parent-corr" flags))
+           (cancel-time-ms (getf parent :cancel-time-ms))
+           (grace-period-ms (getf parent :grace-period-ms))
+           (before-expiry (+ cancel-time-ms (1- grace-period-ms)))
+           (at-expiry (+ cancel-time-ms grace-period-ms)))
+      (is (>= grace-period-ms sw4rm-sdk::+min-cancel-grace-period-ms+))
+      (is (not (sw4rm-sdk::cancellation-grace-expired-p c "parent-corr" before-expiry)))
+      (is (sw4rm-sdk::cancellation-grace-expired-p c "parent-corr" at-expiry))
+      (is (= sw4rm-sdk::+error-code-unspecified+
+             (sw4rm-sdk::forced-preemption-error-code c "parent-corr" before-expiry)))
+      (is (= sw4rm-sdk::+forced-preemption+
+             (sw4rm-sdk::forced-preemption-error-code c "parent-corr" at-expiry)))
+      (let ((forced (sw4rm-sdk::collect-forced-preemptions
+                     c
+                     '("parent-corr" "child-corr")
+                     at-expiry)))
+        (is (= 2 (length forced)))
+        (is (member "parent-corr" forced :test #'string=))
+        (is (member "child-corr" forced :test #'string=))))))
+
+(test handoff-cancellation-shared-conformance-vectors
+  "cancel-delegation should execute shared SW4-004 cross-SDK vectors."
+  (dolist (vector (%load-shared-cancellation-vectors))
+    (let* ((request (%json-object-get vector "request"))
+           (expected (%json-object-get vector "expected"))
+           (c (%make-handoff-client)))
+      (dolist (child-link (%json-array->list (%json-object-get vector "children")))
+        (sw4rm-sdk::register-child-delegation
+         c
+         (%json-object-get child-link "parent")
+         (%json-object-get child-link "child")))
+
+      (let ((response
+              (sw4rm-sdk::cancel-delegation
+               c
+               (list :correlation-id (%json-object-get request "correlation_id")
+                     :reason (%json-object-get request "reason")
+                     :grace-period-ms (%json-object-get request "grace_period_ms")))))
+        (is (eql (not (null (%json-object-get expected "acknowledged")))
+                 (not (null (getf response :acknowledged)))))
+
+        (let* ((flags (sw4rm-sdk::handoff-client-cancellation-flags c))
+               (root-id (%json-object-get request "correlation_id"))
+               (root-flag (gethash root-id flags)))
+          (is (not (null root-flag)))
+          (is (= (%json-object-get expected "effective_grace_period_ms")
+                 (getf root-flag :grace-period-ms)))
+
+          (dolist (correlation-id (%json-array->list (%json-object-get expected "cancelled")))
+            (is (sw4rm-sdk::cancelled-delegation-p c correlation-id)))
+
+          (dolist (check (%json-array->list (%json-object-get expected "grace_expiry_checks")))
+            (let* ((correlation-id (%json-object-get check "correlation_id"))
+                   (offset-ms (%json-object-get check "offset_ms" 0))
+                   (flag (gethash correlation-id flags)))
+              (is (not (null flag)))
+              (when flag
+                (let ((check-now (+ (getf flag :cancel-time-ms)
+                                    (getf flag :grace-period-ms)
+                                    offset-ms)))
+                  (is (eql (not (null (%json-object-get check "expired")))
+                           (not (null (sw4rm-sdk::cancellation-grace-expired-p
+                                       c
+                                       correlation-id
+                                       check-now)))))))))
+
+          (dolist (check (%json-array->list (%json-object-get expected "forced_preemption_checks")))
+            (let* ((correlation-id (%json-object-get check "correlation_id"))
+                   (offset-ms (%json-object-get check "offset_ms" 0))
+                   (flag (gethash correlation-id flags)))
+              (is (not (null flag)))
+              (when flag
+                (let ((check-now (+ (getf flag :cancel-time-ms)
+                                    (getf flag :grace-period-ms)
+                                    offset-ms)))
+                  (is (= (%cancellation-code-from-vector-name (%json-object-get check "error_code"))
+                         (sw4rm-sdk::forced-preemption-error-code c correlation-id check-now)))))))
+
+          (let ((collect (%json-object-get expected "collect_forced")))
+            (when collect
+              (let* ((offset-ms (%json-object-get collect "offset_ms" 0))
+                     (collect-now (+ (getf root-flag :cancel-time-ms)
+                                     (getf root-flag :grace-period-ms)
+                                     offset-ms))
+                     (active (%json-array->list (%json-object-get collect "active_correlations")))
+                     (expected-forced (sort (copy-list (%json-array->list
+                                                        (%json-object-get collect "expected")))
+                                            #'string<))
+                     (forced (sort (copy-list (sw4rm-sdk::collect-forced-preemptions
+                                               c active collect-now))
+                                   #'string<)))
+                (is (equal expected-forced forced))))))))))
+
+(test handoff-status-for-missing-id-is-nil
+  "get-handoff-status should return NIL when handoff does not exist."
+  (let ((c (%make-handoff-client)))
+    (is (null (sw4rm-sdk::get-handoff-status c "missing-id")))))
 
 ;; -- workflow-client ------------------------------------------------------
 

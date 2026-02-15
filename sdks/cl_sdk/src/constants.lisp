@@ -123,6 +123,14 @@
 (defconstant +already-in-progress+ 15
   "Operation is already in progress (idempotency token maps to non-terminal state).")
 
+;; SW4-004 Inter-Swarm Composition (values 16-19)
+(defconstant +overloaded+ 16
+  "Gateway backpressure signal indicating temporary overload.")
+
+;; SW4-005 Spillover Routing (values 20-23)
+(defconstant +redirect+ 20
+  "Gateway redirect signal to an equivalent peer gateway.")
+
 (defconstant +internal-error+ 99
   "Internal system error - catch-all for unexpected failures.")
 

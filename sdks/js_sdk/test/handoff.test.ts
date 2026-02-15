@@ -17,7 +17,13 @@ import {
   HandoffClient,
   HandoffRequest,
   HandoffValidationError,
+  DEFAULT_INITIAL_BACKOFF_MS,
+  DEFAULT_MAX_BACKOFF_MS,
+  DEFAULT_MAX_REDIRECTS,
+  DEFAULT_MAX_RETRIES_ON_OVERLOADED,
+  DEFAULT_BACKOFF_MULTIPLIER,
 } from '../src/clients/handoff.js';
+import { ErrorCode } from '../src/internal/errorMapping.js';
 
 describe('HandoffClient', () => {
   let client: HandoffClient;
@@ -122,6 +128,99 @@ describe('HandoffClient', () => {
       await client.acceptHandoff('handoff-custom');
       await requestPromise;
     });
+
+    it('should validate cross-swarm budget deadline is present', async () => {
+      const request: HandoffRequest = {
+        requestId: 'handoff-invalid-budget',
+        fromAgent: 'agent-a',
+        toAgent: 'agent-b',
+        reason: 'Cross-swarm handoff',
+        contextSnapshot: new Uint8Array(),
+        capabilitiesRequired: ['gateway'],
+        priority: 5,
+        budget: {
+          wallTimeRemainingMs: 1000,
+          deadlineEpochMs: 0,
+        },
+      };
+
+      await expect(client.requestHandoff(request)).rejects.toThrow(
+        HandoffValidationError
+      );
+      await expect(client.requestHandoff(request)).rejects.toThrow(
+        'budget.deadlineEpochMs is required for cross-swarm delegation'
+      );
+    });
+
+    it('should normalize delegation policy defaults for cross-swarm handoff', async () => {
+      const request: HandoffRequest = {
+        requestId: 'handoff-policy-defaults',
+        fromAgent: 'agent-a',
+        toAgent: 'agent-b',
+        reason: 'Cross-swarm handoff',
+        contextSnapshot: new Uint8Array(),
+        capabilitiesRequired: ['gateway'],
+        priority: 5,
+        budget: {
+          deadlineEpochMs: Date.now() + 60_000,
+        },
+      };
+
+      const requestPromise = client.requestHandoff(request);
+      const pending = await client.getPendingHandoffs('agent-b');
+      const policy = pending[0].delegationPolicy;
+
+      expect(policy).toBeDefined();
+      expect(policy?.maxRetriesOnOverloaded).toBe(
+        DEFAULT_MAX_RETRIES_ON_OVERLOADED
+      );
+      expect(policy?.initialBackoffMs).toBe(DEFAULT_INITIAL_BACKOFF_MS);
+      expect(policy?.backoffMultiplier).toBe(DEFAULT_BACKOFF_MULTIPLIER);
+      expect(policy?.maxBackoffMs).toBe(DEFAULT_MAX_BACKOFF_MS);
+      expect(policy?.allowSpilloverRouting).toBe(false);
+      expect(policy?.maxRedirects).toBe(DEFAULT_MAX_REDIRECTS);
+
+      await client.acceptHandoff('handoff-policy-defaults');
+      await requestPromise;
+    });
+
+    it('should normalize invalid optional policy values', async () => {
+      const request: HandoffRequest = {
+        requestId: 'handoff-policy-normalize',
+        fromAgent: 'agent-a',
+        toAgent: 'agent-b',
+        reason: 'Cross-swarm handoff',
+        contextSnapshot: new Uint8Array(),
+        capabilitiesRequired: ['gateway'],
+        priority: 5,
+        budget: {
+          deadlineEpochMs: Date.now() + 60_000,
+        },
+        delegationPolicy: {
+          maxRetriesOnOverloaded: 4,
+          initialBackoffMs: 0,
+          backoffMultiplier: 0,
+          maxBackoffMs: 0,
+          allowSpilloverRouting: true,
+          maxRedirects: 3,
+        },
+      };
+
+      const requestPromise = client.requestHandoff(request);
+      const pending = await client.getPendingHandoffs('agent-b');
+      const policy = pending[0].delegationPolicy;
+
+      expect(policy).toBeDefined();
+      expect(policy?.maxRetriesOnOverloaded).toBe(4);
+      expect(policy?.initialBackoffMs).toBe(DEFAULT_INITIAL_BACKOFF_MS);
+      expect(policy?.backoffMultiplier).toBe(DEFAULT_BACKOFF_MULTIPLIER);
+      expect(policy?.maxBackoffMs).toBe(DEFAULT_MAX_BACKOFF_MS);
+      expect(policy?.allowSpilloverRouting).toBe(true);
+      expect(policy?.maxRedirects).toBe(3);
+
+      await client.acceptHandoff('handoff-policy-normalize');
+      await requestPromise;
+    });
   });
 
   describe('acceptHandoff', () => {
@@ -220,6 +319,53 @@ describe('HandoffClient', () => {
       const response = await responsePromise;
       expect(response.accepted).toBe(false);
       expect(response.rejectionReason).toBe('Agent at capacity');
+      expect(response.rejectionCode).toBe(ErrorCode.ERROR_CODE_UNSPECIFIED);
+    });
+
+    it('should preserve rejection metadata for overload and redirect fields', async () => {
+      const request: HandoffRequest = {
+        requestId: 'handoff-reject-metadata',
+        fromAgent: 'agent-a',
+        toAgent: 'agent-b',
+        reason: 'Cross-swarm handoff',
+        contextSnapshot: new Uint8Array(),
+        capabilitiesRequired: ['gateway'],
+        priority: 5,
+      };
+
+      const responsePromise = client.requestHandoff(request);
+
+      await client.rejectHandoff('handoff-reject-metadata', 'Gateway overloaded', {
+        rejectionCode: ErrorCode.OVERLOADED,
+        retryAfterMs: 1200,
+      });
+
+      const response = await responsePromise;
+      expect(response.accepted).toBe(false);
+      expect(response.rejectionCode).toBe(ErrorCode.OVERLOADED);
+      expect(response.retryAfterMs).toBe(1200);
+      expect(response.redirectToAgentId).toBeUndefined();
+
+      const request2: HandoffRequest = {
+        requestId: 'handoff-reject-redirect',
+        fromAgent: 'agent-a',
+        toAgent: 'agent-b',
+        reason: 'Cross-swarm handoff',
+        contextSnapshot: new Uint8Array(),
+        capabilitiesRequired: ['gateway'],
+        priority: 5,
+      };
+
+      const responsePromise2 = client.requestHandoff(request2);
+      await client.rejectHandoff('handoff-reject-redirect', 'Try peer gateway', {
+        rejectionCode: ErrorCode.REDIRECT,
+        redirectToAgentId: 'agent-c',
+      });
+
+      const response2 = await responsePromise2;
+      expect(response2.rejectionCode).toBe(ErrorCode.REDIRECT);
+      expect(response2.redirectToAgentId).toBe('agent-c');
+      expect(response2.retryAfterMs).toBeUndefined();
     });
 
     it('should remove handoff from pending after rejection', async () => {
@@ -468,6 +614,7 @@ describe('HandoffClient', () => {
 
       expect(response.accepted).toBe(false);
       expect(response.rejectionReason).toContain('timed out');
+      expect(response.rejectionCode).toBe(ErrorCode.ACK_TIMEOUT);
     });
 
     it('should use default timeout when not specified', async () => {

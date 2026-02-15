@@ -6,7 +6,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildEnvelope, MessageType } from '../src/index.js';
+import {
+  buildEnvelope,
+  delegateToSwarm,
+  ErrorCode,
+  MessageType,
+  type HandoffRequest,
+} from '../src/index.js';
 
 describe('Cross-SDK Compatibility', () => {
   describe('Envelope Structure', () => {
@@ -103,6 +109,260 @@ describe('Cross-SDK Compatibility', () => {
       expect('TOOL_CALL' in MessageType).toBe(true);
       expect('TOOL_RESULT' in MessageType).toBe(true);
       expect('TOOL_ERROR' in MessageType).toBe(true);
+    });
+  });
+
+  describe('SW4-005 Delegation Helper', () => {
+    it('should reject redirect loops with validation error', async () => {
+      const attempts: string[] = [];
+
+      const response = await delegateToSwarm({
+        sendHandoffFn: (request: HandoffRequest) => {
+          attempts.push(request.toAgent);
+          if (request.toAgent === 'gateway-a') {
+            return {
+              requestId: request.requestId,
+              accepted: false,
+              rejectionCode: ErrorCode.REDIRECT,
+              redirectToAgentId: 'gateway-b',
+            };
+          }
+
+          return {
+            requestId: request.requestId,
+            accepted: false,
+            rejectionCode: ErrorCode.REDIRECT,
+            redirectToAgentId: 'gateway-a',
+          };
+        },
+        fromAgent: 'parent',
+        toAgent: 'gateway-a',
+        reason: 'delegate',
+        requestId: 'req-loop',
+        budget: {
+          deadlineEpochMs: 1_000_000,
+          wallTimeRemainingMs: 10_000,
+        },
+        delegationPolicy: {
+          allowSpilloverRouting: true,
+          maxRedirects: 4,
+        },
+        nowMsFn: () => 500_000,
+      });
+
+      expect(response.accepted).toBe(false);
+      expect(response.rejectionCode).toBe(ErrorCode.VALIDATION_ERROR);
+      expect(response.rejectionReason?.toLowerCase()).toContain('loop');
+      expect(attempts).toEqual(['gateway-a', 'gateway-b']);
+    });
+
+    it('should enforce effective default max_redirects=2 when configured as 0', async () => {
+      const attempts: string[] = [];
+
+      const response = await delegateToSwarm({
+        sendHandoffFn: (request: HandoffRequest) => {
+          attempts.push(request.toAgent);
+          const routing: Record<string, string> = {
+            'gateway-a': 'gateway-b',
+            'gateway-b': 'gateway-c',
+            'gateway-c': 'gateway-d',
+          };
+          return {
+            requestId: request.requestId,
+            accepted: false,
+            rejectionCode: ErrorCode.REDIRECT,
+            redirectToAgentId: routing[request.toAgent],
+          };
+        },
+        fromAgent: 'parent',
+        toAgent: 'gateway-a',
+        reason: 'delegate',
+        requestId: 'req-default-bound',
+        budget: {
+          deadlineEpochMs: 2_000_000,
+          wallTimeRemainingMs: 10_000,
+        },
+        delegationPolicy: {
+          allowSpilloverRouting: true,
+          maxRedirects: 0,
+        },
+        nowMsFn: () => 1_500_000,
+      });
+
+      expect(response.accepted).toBe(false);
+      expect(response.rejectionCode).toBe(ErrorCode.REDIRECT);
+      expect(attempts).toEqual(['gateway-a', 'gateway-b', 'gateway-c']);
+    });
+
+    it('should fallback to original redirect response when spillover is disabled', async () => {
+      const attempts: string[] = [];
+
+      const response = await delegateToSwarm({
+        sendHandoffFn: (request: HandoffRequest) => {
+          attempts.push(request.toAgent);
+          return {
+            requestId: request.requestId,
+            accepted: false,
+            rejectionCode: ErrorCode.REDIRECT,
+            redirectToAgentId: 'gateway-b',
+          };
+        },
+        fromAgent: 'parent',
+        toAgent: 'gateway-a',
+        reason: 'delegate',
+        requestId: 'req-no-spillover',
+        budget: {
+          deadlineEpochMs: 2_000_000,
+          wallTimeRemainingMs: 10_000,
+        },
+        delegationPolicy: {
+          allowSpilloverRouting: false,
+          maxRedirects: 5,
+        },
+        nowMsFn: () => 1_500_000,
+      });
+
+      expect(response.accepted).toBe(false);
+      expect(response.rejectionCode).toBe(ErrorCode.REDIRECT);
+      expect(response.redirectToAgentId).toBe('gateway-b');
+      expect(attempts).toEqual(['gateway-a']);
+    });
+
+    it('should validate redirect target before redirect bound handling', async () => {
+      const attempts: string[] = [];
+
+      const response = await delegateToSwarm({
+        sendHandoffFn: (request: HandoffRequest) => {
+          attempts.push(request.toAgent);
+          if (request.toAgent === 'gateway-a') {
+            return {
+              requestId: request.requestId,
+              accepted: false,
+              rejectionCode: ErrorCode.REDIRECT,
+              redirectToAgentId: 'gateway-b',
+            };
+          }
+          return {
+            requestId: request.requestId,
+            accepted: false,
+            rejectionCode: ErrorCode.REDIRECT,
+            redirectToAgentId: '   ',
+          };
+        },
+        fromAgent: 'parent',
+        toAgent: 'gateway-a',
+        reason: 'delegate',
+        requestId: 'req-redirect-target-validation',
+        budget: {
+          deadlineEpochMs: 2_000_000,
+          wallTimeRemainingMs: 10_000,
+        },
+        delegationPolicy: {
+          allowSpilloverRouting: true,
+          maxRedirects: 1,
+        },
+        nowMsFn: () => 1_500_000,
+      });
+
+      expect(response.accepted).toBe(false);
+      expect(response.rejectionCode).toBe(ErrorCode.VALIDATION_ERROR);
+      expect(response.rejectionReason).toContain('non-empty');
+      expect(attempts).toEqual(['gateway-a', 'gateway-b']);
+    });
+
+    it('should deduct wall-time budget across redirects and overloaded retries', async () => {
+      const attempts: string[] = [];
+      const capturedWallTimes: number[] = [];
+      let nowMs = 10_000;
+
+      const response = await delegateToSwarm({
+        sendHandoffFn: (request: HandoffRequest) => {
+          attempts.push(request.toAgent);
+          capturedWallTimes.push(request.budget?.wallTimeRemainingMs ?? -1);
+
+          if (attempts.length === 1) {
+            nowMs += 30;
+            return {
+              requestId: request.requestId,
+              accepted: false,
+              rejectionCode: ErrorCode.REDIRECT,
+              redirectToAgentId: 'gateway-b',
+            };
+          }
+          if (attempts.length === 2) {
+            nowMs += 20;
+            return {
+              requestId: request.requestId,
+              accepted: false,
+              rejectionCode: ErrorCode.OVERLOADED,
+              retryAfterMs: 100,
+            };
+          }
+          return {
+            requestId: request.requestId,
+            accepted: true,
+            acceptingAgent: 'gateway-b',
+          };
+        },
+        fromAgent: 'parent',
+        toAgent: 'gateway-a',
+        reason: 'delegate',
+        requestId: 'req-budget',
+        budget: {
+          deadlineEpochMs: 20_000,
+          wallTimeRemainingMs: 500,
+        },
+        delegationPolicy: {
+          allowSpilloverRouting: true,
+          maxRedirects: 3,
+          maxRetriesOnOverloaded: 1,
+        },
+        nowMsFn: () => nowMs,
+        sleepMsFn: (milliseconds: number) => {
+          nowMs += milliseconds;
+        },
+        randUniformFn: (_low: number, high: number) => high,
+      });
+
+      expect(response.accepted).toBe(true);
+      expect(attempts).toEqual(['gateway-a', 'gateway-b', 'gateway-b']);
+      expect(capturedWallTimes).toEqual([500, 470, 330]);
+    });
+
+    it('should fail fast with ACK_TIMEOUT when budget is exhausted after an attempt', async () => {
+      const attempts: string[] = [];
+      let nowMs = 10_000;
+
+      const response = await delegateToSwarm({
+        sendHandoffFn: (request: HandoffRequest) => {
+          attempts.push(request.toAgent);
+          nowMs += 75;
+          return {
+            requestId: request.requestId,
+            accepted: false,
+            rejectionCode: ErrorCode.REDIRECT,
+            redirectToAgentId: 'gateway-b',
+          };
+        },
+        fromAgent: 'parent',
+        toAgent: 'gateway-a',
+        reason: 'delegate',
+        requestId: 'req-budget-fast-fail',
+        budget: {
+          deadlineEpochMs: 20_000,
+          wallTimeRemainingMs: 50,
+        },
+        delegationPolicy: {
+          allowSpilloverRouting: true,
+          maxRedirects: 3,
+        },
+        nowMsFn: () => nowMs,
+      });
+
+      expect(response.accepted).toBe(false);
+      expect(response.rejectionCode).toBe(ErrorCode.ACK_TIMEOUT);
+      expect(response.rejectionReason).toContain('deadline exhausted');
+      expect(attempts).toEqual(['gateway-a']);
     });
   });
 

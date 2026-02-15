@@ -111,7 +111,9 @@ mod tests {
 
         assert_eq!(invocation.proposed_actions.len(), 4);
         assert!(invocation.proposed_actions.contains(&"approve".to_string()));
-        assert!(invocation.proposed_actions.contains(&"escalate_to_manager".to_string()));
+        assert!(invocation
+            .proposed_actions
+            .contains(&"escalate_to_manager".to_string()));
     }
 
     /// Test HitlInvocation with rich context

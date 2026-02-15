@@ -146,7 +146,8 @@ proto.sw4rm.common.Envelope.toObject = function(includeInstance, msg) {
     ttlMs: jspb.Message.getFieldWithDefault(msg, 13, 0),
     timestamp: (f = msg.getTimestamp()) && google_protobuf_timestamp_pb.Timestamp.toObject(includeInstance, f),
     payload: msg.getPayload_asB64(),
-    state: jspb.Message.getFieldWithDefault(msg, 16, 0)
+    state: jspb.Message.getFieldWithDefault(msg, 16, 0),
+    parentCorrelationId: jspb.Message.getFieldWithDefault(msg, 100, "")
   };
 
   if (includeInstance) {
@@ -247,6 +248,10 @@ proto.sw4rm.common.Envelope.deserializeBinaryFromReader = function(msg, reader) 
     case 16:
       var value = /** @type {!proto.sw4rm.common.EnvelopeState} */ (reader.readEnum());
       msg.setState(value);
+      break;
+    case 100:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setParentCorrelationId(value);
       break;
     default:
       reader.skipField();
@@ -387,6 +392,13 @@ proto.sw4rm.common.Envelope.serializeBinaryToWriter = function(message, writer) 
   if (f !== 0.0) {
     writer.writeEnum(
       16,
+      f
+    );
+  }
+  f = message.getParentCorrelationId();
+  if (f.length > 0) {
+    writer.writeString(
+      100,
       f
     );
   }
@@ -721,6 +733,24 @@ proto.sw4rm.common.Envelope.prototype.getState = function() {
  */
 proto.sw4rm.common.Envelope.prototype.setState = function(value) {
   return jspb.Message.setProto3EnumField(this, 16, value);
+};
+
+
+/**
+ * optional string parent_correlation_id = 100;
+ * @return {string}
+ */
+proto.sw4rm.common.Envelope.prototype.getParentCorrelationId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 100, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.sw4rm.common.Envelope} returns this
+ */
+proto.sw4rm.common.Envelope.prototype.setParentCorrelationId = function(value) {
+  return jspb.Message.setProto3StringField(this, 100, value);
 };
 
 
@@ -1096,6 +1126,8 @@ proto.sw4rm.common.ErrorCode = {
   TTL_EXPIRED: 13,
   DUPLICATE_DETECTED: 14,
   ALREADY_IN_PROGRESS: 15,
+  OVERLOADED: 16,
+  REDIRECT: 20,
   INTERNAL_ERROR: 99
 };
 

@@ -22,6 +22,28 @@ function deserialize_sw4rm_common_Empty(buffer_arg) {
   return common_pb.Empty.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_sw4rm_handoff_CancelDelegation(arg) {
+  if (!(arg instanceof handoff_pb.CancelDelegation)) {
+    throw new Error('Expected argument of type sw4rm.handoff.CancelDelegation');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_sw4rm_handoff_CancelDelegation(buffer_arg) {
+  return handoff_pb.CancelDelegation.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_sw4rm_handoff_CancelDelegationResponse(arg) {
+  if (!(arg instanceof handoff_pb.CancelDelegationResponse)) {
+    throw new Error('Expected argument of type sw4rm.handoff.CancelDelegationResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_sw4rm_handoff_CancelDelegationResponse(buffer_arg) {
+  return handoff_pb.CancelDelegationResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_sw4rm_handoff_CompleteHandoffRequest(arg) {
   if (!(arg instanceof handoff_pb.CompleteHandoffRequest)) {
     throw new Error('Expected argument of type sw4rm.handoff.CompleteHandoffRequest');
@@ -144,6 +166,18 @@ var HandoffServiceService = exports.HandoffServiceService = {
     requestDeserialize: deserialize_sw4rm_handoff_CompleteHandoffRequest,
     responseSerialize: serialize_sw4rm_handoff_CompleteHandoffResponse,
     responseDeserialize: deserialize_sw4rm_handoff_CompleteHandoffResponse,
+  },
+  // SW4-004 Inter-Swarm Composition: cascading cancellation
+cancelDelegation: {
+    path: '/sw4rm.handoff.HandoffService/CancelDelegation',
+    requestStream: false,
+    responseStream: false,
+    requestType: handoff_pb.CancelDelegation,
+    responseType: handoff_pb.CancelDelegationResponse,
+    requestSerialize: serialize_sw4rm_handoff_CancelDelegation,
+    requestDeserialize: deserialize_sw4rm_handoff_CancelDelegation,
+    responseSerialize: serialize_sw4rm_handoff_CancelDelegationResponse,
+    responseDeserialize: deserialize_sw4rm_handoff_CancelDelegationResponse,
   },
 };
 

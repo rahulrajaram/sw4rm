@@ -18,6 +18,10 @@ export enum ErrorCode {
   TTL_EXPIRED = 13,
   DUPLICATE_DETECTED = 14,
   ALREADY_IN_PROGRESS = 15,
+  // SW4-004 Inter-Swarm Composition
+  OVERLOADED = 16,
+  // SW4-005 Spillover Routing
+  REDIRECT = 20,
   INTERNAL_ERROR = 99,
 }
 
@@ -211,4 +215,3 @@ export function mapGrpcStatusToErrorCode(status: number): ErrorCode {
       return ErrorCode.INTERNAL_ERROR;
   }
 }
-

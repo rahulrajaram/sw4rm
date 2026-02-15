@@ -31,9 +31,7 @@
 //!
 //! Based on the `PolicyStore` pattern established in `policy_store.rs`.
 
-use crate::clients::negotiation_room::{
-    NegotiationDecision, NegotiationProposal, NegotiationVote,
-};
+use crate::clients::negotiation_room::{NegotiationDecision, NegotiationProposal, NegotiationVote};
 use crate::{Error, Result};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -60,7 +58,8 @@ pub trait NegotiationRoomStore: Send + Sync {
     fn save_proposal(&self, proposal: NegotiationProposal) -> Result<()>;
 
     /// List all proposals, optionally filtered by negotiation room.
-    fn list_proposals(&self, negotiation_room_id: Option<&str>) -> Result<Vec<NegotiationProposal>>;
+    fn list_proposals(&self, negotiation_room_id: Option<&str>)
+        -> Result<Vec<NegotiationProposal>>;
 
     /// Retrieve all votes for a specific artifact.
     fn get_votes(&self, artifact_id: &str) -> Result<Vec<NegotiationVote>>;
@@ -186,7 +185,10 @@ impl NegotiationRoomStore for InMemoryNegotiationRoomStore {
         Ok(())
     }
 
-    fn list_proposals(&self, negotiation_room_id: Option<&str>) -> Result<Vec<NegotiationProposal>> {
+    fn list_proposals(
+        &self,
+        negotiation_room_id: Option<&str>,
+    ) -> Result<Vec<NegotiationProposal>> {
         let storage = self
             .storage
             .read()
