@@ -97,8 +97,7 @@ nav:
     - Handoff Serialization: protocol/handoff-serialization.md
     - Advanced Patterns: protocol/advanced-patterns.md
     - Protocol Extensions: protocol/extensions/index.md
-    - Spec Extensions: protocol/spec_extensions.md
-    - Spec Enhancements (Draft): protocol/spec_enhancements.md
+    - SDK Extensions: protocol/sdk_extensions.md
   - Examples:
     - examples/index.md
     - Use Cases: examples/use-cases.md

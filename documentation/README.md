@@ -36,6 +36,38 @@ make docs-build
 
 The built site will be in the `site/` directory.
 
+## SW4-004/SW4-005 Status Tracking
+
+Cross-SDK implementation status for the inter-swarm extensions is tracked in:
+
+- `sdks/SDK_IMPLEMENTATION_PROGRESS.md` (capability matrix by SDK)
+- `documentation/protocol/extensions/index.md` (extension-level status summary)
+
+When updating SW4-004 or SW4-005 docs/claims, update both files together so conformance wording and SDK parity reporting stay consistent.
+
+## Phase Status (2026-02-15)
+
+- **Phase 6** (`I39`-`I49`): Closed. Evidence under `artifacts/verification/`.
+- **Phase 7** (`I50`-`I52`): Closed. CL gateway parity, cross-SDK conformance, testbed bootstrap.
+- **Phase 8** (`I53`-`I55`): Closed. Dispatch authority reconciliation, smoke workflow, CI lockstep.
+- Evidence lookup: `IMPLEMENTATION_PLAN.md` > Verification Snapshot > Evidence Index.
+- Production transport runbook: `documentation/production/inter-swarm-transport-testbed.md`.
+- CI smoke workflow: `.github/workflows/ci-inter-swarm-smoke-evidence.yml`.
+
+## Verification Pipeline Runbook (Anti-Recursive Dispatch)
+
+Use this flow to avoid recursive `yarli run` dispatch loops during tranche execution:
+
+1. Run preflight checks before tranche verification loops:
+   ```bash
+   make yarli-preflight
+   ```
+2. Run tranche checks directly from the shell (`py-test`, `proto-check`, `docs-lint`, `docs-build`) instead of invoking `yarli run` from inside a tranche task.
+3. Detect recursion by scanning tranche Verify steps and active logs for nested/self-dispatch (`yarli run`) patterns.
+4. If recursion is detected, stop the inner run immediately, keep the captured logs in `artifacts/verification/`, and resume verification with direct command-family invocations.
+5. For Common Lisp verification, use `make test-lisp`. If `sdks/cl_sdk` does not expose a `test` make target, the command automatically reports the caveat and runs the explicit SBCL fallback invocation.
+6. Record detection/recovery and guardrail evidence in `IMPLEMENTATION_PLAN.md` before advancing to the next tranche.
+
 ## Structure
 
 ```

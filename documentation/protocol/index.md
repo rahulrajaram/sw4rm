@@ -2,16 +2,33 @@
 
 ([Link to full RFC](https://github.com/rahulrajaram/sw4rm/blob/master/documentation/protocol/spec.md))
 
-**SW4RM Protocol v0.5.0** | **Status: Production Ready** | **Last Updated: 2026-02-11**
+**SW4RM Protocol v0.6.0** | **Status: Production Ready** | **Last Updated: 2026-02-15**
 
 Related documents:
 
 - [Protocol RFC](spec.md)
 - [Protocol Extensions](extensions/index.md)
 - [Voting Strategies](voting-strategies.md)
-- [Spec Enhancements (Draft)](spec_enhancements.md)
+- [SDK Extensions](sdk_extensions.md)
 
 ??? note "Changelog"
+
+    **0.6.0 (2026-02-15)**
+
+    - Versioned extension structure: normative protocol evolution is now tracked
+      in versioned extension release files (`extensions/v0.N.0.md`). The core
+      spec (`spec.md`) is frozen; only the version number changes.
+
+    - SW4-004 bumped to 0.3.0: implementation profiles, conformance test outline,
+      tightened cancellation semantics.
+
+    - SW4-005 bumped to 0.3.0: implementation profile alignment, conformance test
+      outline, tightened adaptive spillover.
+
+    - Renamed `spec_extensions.md` to `sdk_extensions.md` to distinguish
+      SDK extensions (non-normative) from protocol extensions (normative).
+
+    - Absorbed `spec_enhancements.md` into `extensions/v0.6.0.md`.
 
     **0.5.0 (2026-01-04)**
 
@@ -563,5 +580,5 @@ Google's A2A focuses on secure, interoperable agent messaging across enterprise 
 - [ACK Lifecycle](acks.md) - Acknowledgment handling patterns
 - [Advanced Patterns (v0.5.0)](advanced-patterns.md) - Negotiation Room, Agent Handoff, Workflow Orchestration, Three-ID Model
 - [Handoff Serialization](handoff-serialization.md) - Agent delegation and state transfer wire format
-- [Spec Extensions](spec_extensions.md) - Protocol extension specifications
+- [SDK Extensions](sdk_extensions.md) - Non-normative SDK extension specifications
 - [Deprecations](../migration/deprecations.md) - Deprecated APIs and migration guides

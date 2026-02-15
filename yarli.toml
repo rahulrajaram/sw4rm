@@ -25,33 +25,76 @@ safe_mode = "execute"
 # database_url = "postgres://postgres:postgres@localhost:5432/yarli"
 
 [cli]
-backend = "claude"
+backend = "custom"
 prompt_mode = "arg"
-command = "claude"
-args = ["--model", "sonnet-4.5"]
+command = "codex"
+args = ["--dangerously-bypass-approvals-and-sandbox", "exec", "--json"]
 
 [event_loop]
-max_iterations = 5
+max_iterations = 40
 max_runtime_seconds = 14400
-idle_timeout_secs = 1800
+idle_timeout_secs = 21600
 checkpoint_interval = 5
 
-[features]
-parallel = false
+[run]
+# Prompt file for `yarli run` (resolved before IMPLEMENTATION_PLAN.md tranches).
+prompt_file = "PROMPT.md"
+# Auto-advance through tranches when verification passes.
+auto_advance_policy = "stable-ok"
+# Maximum number of implementation tranches to auto-advance in one run.
+max_auto_advance_tranches = 20
+# Wait timeout for continuation polling between tranche transitions.
+continue_wait_timeout_seconds = 60
+# Enforce allowed_paths metadata from plan entries as scope constraints.
+enforce_plan_tranche_allowed_paths = true
 
+# Verification tasks — run after each tranche and at final gate.
+[[run.tasks]]
+key = "py-test"
+cmd = "cd sdks/py_sdk && python -m pytest tests/ -x -q"
+class = "io"
 
+[[run.tasks]]
+key = "conformance"
+cmd = "python -m pytest sdks/py_sdk/tests/test_sw4_004_conformance.py -v"
+class = "io"
+
+[[run.tasks]]
+key = "conformance-005"
+cmd = "python -m pytest sdks/py_sdk/tests/test_sw4_005_conformance.py -v"
+class = "io"
+
+[[run.tasks]]
+key = "proto-check"
+cmd = "make smoke"
+class = "io"
+
+[[run.tasks]]
+key = "docs-lint"
+cmd = "python scripts/check_docs_style.py"
+class = "io"
+
+[[run.tasks]]
+key = "docs-build"
+cmd = "make docs-build"
+class = "io"
+
+[[run.tasks]]
+key = "dispatch-authority-check"
+cmd = "python scripts/check_dispatch_authority.py --tranches .yarli/tranches.toml --plan IMPLEMENTATION_PLAN.md --prompt PROMPT.md"
+class = "io"
 
 [queue]
 # How many ready tasks a worker claims per tick.
 claim_batch_size = 4
 # Lease timeout for claimed tasks.
-lease_ttl_seconds = 30
+lease_ttl_seconds = 3600
 # Lease heartbeat interval.
-heartbeat_interval_seconds = 5
+heartbeat_interval_seconds = 10
 # Stale lease sweep interval.
-reclaim_interval_seconds = 10
+reclaim_interval_seconds = 30
 # Additional grace before reclaiming stale leases.
-reclaim_grace_seconds = 5
+reclaim_grace_seconds = 60
 # Concurrency caps.
 per_run_cap = 8
 io_cap = 16
@@ -64,10 +107,15 @@ tool_cap = 8
 runner = "native"
 # Working directory for command execution.
 working_dir = "."
+# Required when [features].parallel = true.
+worktree_root = ".yarl/workspaces"
 # Default command timeout in seconds (0 disables timeout).
-command_timeout_seconds = 300
+command_timeout_seconds = 3600
 # Scheduler tick cadence.
-tick_interval_ms = 100
+tick_interval_ms = 200
+
+[features]
+parallel = false
 
 [execution.overwatch]
 # Overwatch service settings (used only when execution.runner = "overwatch").
@@ -84,8 +132,8 @@ service_url = "http://127.0.0.1:8089"
 # max_task_cpu_system_ticks = 100000
 # max_task_io_read_bytes = 1073741824
 # max_task_io_write_bytes = 1073741824
-# max_task_total_tokens = 25000
-# max_run_total_tokens = 250000
+max_task_total_tokens = 500000
+max_run_total_tokens = 3000000
 # max_run_peak_rss_bytes = 2147483648
 # max_run_cpu_user_ticks = 500000
 # max_run_cpu_system_ticks = 500000
@@ -93,15 +141,24 @@ service_url = "http://127.0.0.1:8089"
 # max_run_io_write_bytes = 4294967296
 
 [git]
-default_target_branch = "main"
+default_target_branch = "master"
 destructive_default_deny = true
 
 [policy]
 enforce_policies = true
 audit_decisions = true
 
+[memory]
+enabled = true
+project_id = "sigagent"
+
 [memory.haake]
-enabled = false
+enabled = true
+command = "haake"
+project_dir = "/home/rahul/Documents/sigagent"
+query_limit = 10
+inject_on_run_start = true
+inject_on_failure = true
 # [memory]
 # enabled = true
 # project_id = "my-project"
@@ -125,3 +182,4 @@ audit_file = ".yarl/audit.jsonl"
 [ui]
 # auto | stream | tui
 mode = "auto"
+verbose_output = true

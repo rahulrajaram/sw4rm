@@ -1,6 +1,6 @@
 # RFC: SW4RM - Interruptible, Message-Driven Agent Coordination Protocol
 
-Version: 0.5.0 (2026-01-04)
+Version: 0.6.0 (2026-02-15)
 
 ## Versioning and Changelog
 
@@ -10,6 +10,11 @@ The versioning scope encompasses this document and the canonical protocol buffer
 
 **Changelog:**
 
+- **0.6.0 (2026-02-15)**: Versioned extension structure. Normative protocol
+  evolution is now tracked in versioned extension release files
+  (`extensions/v0.N.0.md`). This document (`spec.md`) is frozen as a static
+  core specification where only the version number changes. See
+  `extensions/v0.6.0.md` for changes in this release.
 
 - **0.5.0 (2026-01-04)**: Documentation alignment release. Updated protocol docs
   and examples to reflect actual SDK/proto behavior and clarified planned vs
@@ -1025,7 +1030,7 @@ Providers MUST map failures to structured error codes (e.g., `TOOL_TIMEOUT`, `VA
 
 ### 18.4 Security and Isolation
 
-Tool execution MUST honor confinement and capability policies (see 6.4 and documentation/protocol/spec_enhancements.md Section 4.5). Default posture SHOULD be deny-by-default with explicit grants for filesystem, network, and process privileges.
+Tool execution MUST honor confinement and capability policies (see 6.4). Default posture SHOULD be deny-by-default with explicit grants for filesystem, network, and process privileges.
 
 ### 18.5 Execution Policy Fields
 

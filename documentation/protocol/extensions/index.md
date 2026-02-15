@@ -6,7 +6,16 @@ Related documents:
 
 - [Protocol Specification](../index.md)
 - [Protocol RFC](../spec.md)
-- [Spec Enhancements (Draft)](../spec_enhancements.md)
+- [SDK Extensions](../sdk_extensions.md) (non-normative SDK features)
+
+## Versioned Extension Releases
+
+The core specification (`spec.md`) is a static document: only the version number changes. All normative protocol evolution is tracked in versioned extension release files, one per spec version. Each file summarizes what extensions shipped or changed in that release.
+
+| Spec Version | Release File | Date |
+|---|---|---|
+| 0.5.0 | [v0.5.0.md](./v0.5.0.md) | 2026-01-04 |
+| 0.6.0 | [v0.6.0.md](./v0.6.0.md) | 2026-02-15 |
 
 ## Extension Index
 

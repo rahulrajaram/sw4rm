@@ -118,6 +118,10 @@ validate_docs.py
 .cultivar-new/
 .cultivar.bak/
 .cultivar/
+.yarl/
+.yarli/
+artifacts/
+~/
 
 # External tooling
 quicklisp.lisp

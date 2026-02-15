@@ -1,11 +1,11 @@
 # 6.22. SDK Extensions Reference
 
-> **Version**: 0.5.0 | **Last updated**: 2026-02-11
+> **Version**: 0.5.0 | **Last updated**: 2026-02-15
 
 SDK extensions provide developer-convenience features that go beyond the normative
 protocol specification. These are NOT part of the core protocol; conformant SDKs
 are NOT REQUIRED to implement them. See
-[spec_extensions.md](../protocol/spec_extensions.md) for the canonical extension
+[sdk_extensions.md](../protocol/sdk_extensions.md) for the canonical extension
 catalog.
 
 ## 6.22.1. Secret Management
@@ -532,3 +532,80 @@ persistence.save_records(buffer.to_dict(), buffer.order())
 records, order = persistence.load_records()
 buffer.restore(records, order)
 ```
+
+---
+
+## 6.22.15. Inter-SW4RM Edge Semantics Hardening
+
+**SDKs**: Python, JS/TS, Rust, Common Lisp
+
+Python/JS/TS/Rust/Common Lisp delegation helpers share redirect/retry and
+budget edge semantics for SW4-004/SW4-005 delegation flows.
+Cancellation helper parity is implemented in Python/JS/TS/Rust/Common Lisp.
+Gateway redirect-emitter parity is implemented in Python/JS/TS/Rust/Common Lisp.
+
+### Redirect and Retry Semantics
+
+- Redirect loop detection is deterministic across chained redirects (Python, JS/TS, Rust, Common Lisp).
+- Redirect targets must be non-empty after trimming whitespace (Python, JS/TS, Rust, Common Lisp).
+- Redirect follow depth uses `max_redirects`, with effective default `2` when unset.
+- `OVERLOADED` retries consume wall time and obey deadline bounds before sleep
+  (Python, JS/TS, Rust, Common Lisp).
+
+### Deadline and Wall-Time Accounting
+
+- Each send attempt decrements `budget.wall_time_remaining_ms` by observed elapsed time.
+- Retry sleep also decrements `budget.wall_time_remaining_ms`.
+- Python helper fallback mapping is deterministic: budget/deadline exhaustion maps to `ACK_TIMEOUT`, while non-`OVERLOADED`/non-`REDIRECT` rejections are returned unchanged.
+- If wall-time or deadline is exhausted after an attempt, caller behavior fails
+  fast with `ACK_TIMEOUT` instead of attempting another redirect/retry
+  (Python, JS/TS, Rust, Common Lisp).
+
+### Cancellation Safe-Points
+
+- Python gateway/cancellation helpers provide:
+- Gateways reject already-cancelled correlations before scheduling work.
+- Gateways re-check cancellation immediately before accepting new work to block late cancellation races.
+- Grace-period expiry remains enforceable through forced preemption.
+- Python, JS/TS, Rust, and Common Lisp cancellation helpers provide cross-SDK parity for local cancellation state handling:
+- parent/child cancellation cascade intent propagation,
+- grace window clamping with minimum `5000ms`,
+- forced-preemption signaling once grace expires, and
+- normalized cancellation metadata (`reason`, `grace_period_ms`, plus normalized caller metadata fields).
+
+### Peer Eligibility and Health Exclusion
+
+- Python, JS/TS, Rust, and Common Lisp gateway redirect-emitter helpers now provide:
+- Redirect candidates are restricted to `SWARM_GATEWAY` peers with matching capabilities.
+- Non-serving peers (`INITIALIZING`, `FAILED_STATE`, `SHUTTING_DOWN`) are excluded.
+- Stale and cooldown peers are excluded from redirect selection.
+- Redirect responses use canonical `REDIRECT` shaping (`Gateway at capacity; redirect to peer gateway`) and fallback to `OVERLOADED` (`Gateway at capacity` + retry hint) when spillover routing is disabled or no eligible peer remains.
+
+---
+
+## 6.22.16. Cross-SDK Conformance Vector Harness v2
+
+**SDKs**: Python, JS/TS, Rust, Common Lisp
+
+The repository now includes shared SW4-004 and SW4-005 vector suites used by
+all SDK test suites so the same cancellation and gateway/delegation
+expectations are exercised with SDK-native adapters.
+
+### Harness Layout
+
+- Shared vectors:
+  - `tests/conformance_vectors/sw4_005_delegation_vectors.json` (gateway/delegation)
+  - `tests/conformance_vectors/sw4_004_cancellation_vectors.json` (cancellation)
+- Harness guide: `tests/conformance_vectors/README.md`
+- Python adapter: `sdks/py_sdk/tests/test_cross_sdk_conformance_vectors.py`
+- JS/TS adapter: `sdks/js_sdk/test/conformanceVectors.test.ts`
+- Rust adapters:
+  - `sdks/rust_sdk/tests/integration_tests.rs` (`delegation_tests`)
+  - `sdks/rust_sdk/tests/cancellation_tests.rs` (`shared_cancellation_conformance_vectors`)
+- Common Lisp adapter: `sdks/cl_sdk/test/suite.lisp` (`client-stubs-suite`)
+
+### Adding New Vectors
+
+1. Add a new entry under `vectors` in the appropriate shared suite file.
+2. Keep fields SDK-agnostic (`request`, `policy`, `redirect_map`, `expected`, etc.).
+3. Re-run all four SDK suites (`py-test`, `test-js`, `test-rust`, `test-lisp`) so each adapter executes the new vector.

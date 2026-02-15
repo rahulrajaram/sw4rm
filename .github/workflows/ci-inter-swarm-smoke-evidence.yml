@@ -1,0 +1,80 @@
+name: Inter-Swarm Smoke Evidence CI
+
+on:
+  push:
+    paths:
+      - '.github/workflows/ci-inter-swarm-smoke-evidence.yml'
+      - 'documentation/**'
+      - 'mkdocs.yml'
+      - 'tests/inter_swarm_testbed/**'
+      - 'sdks/py_sdk/tests/test_inter_swarm_testbed_bootstrap.py'
+      - 'pyproject.toml'
+  pull_request:
+    paths:
+      - '.github/workflows/ci-inter-swarm-smoke-evidence.yml'
+      - 'documentation/**'
+      - 'mkdocs.yml'
+      - 'tests/inter_swarm_testbed/**'
+      - 'sdks/py_sdk/tests/test_inter_swarm_testbed_bootstrap.py'
+      - 'pyproject.toml'
+
+jobs:
+  smoke-evidence-lockstep:
+    name: Smoke + Docs Lockstep
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: pyproject.toml
+
+      - name: Install test + docs dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[docs]"
+          python -m pip install pytest
+
+      - name: Run CI smoke target (bounded)
+        run: |
+          mkdir -p artifacts/verification
+          python tests/inter_swarm_testbed/ci_smoke_target.py \
+            --summary-json artifacts/verification/i55-ci-smoke-summary.json \
+            --log-file artifacts/verification/i55-ci-smoke-workflow.log \
+            2>&1 | tee artifacts/verification/i55-ci-smoke-target.log
+
+      - name: Run lockstep smoke/doc tests
+        run: |
+          python -m pytest -q \
+            tests/inter_swarm_testbed/test_smoke_workflow.py \
+            tests/inter_swarm_testbed/test_ci_smoke_target.py \
+            tests/inter_swarm_testbed/test_ci_docs_lockstep.py \
+            2>&1 | tee artifacts/verification/i55-ci-smoke-tests.log
+
+      - name: Docs lint
+        run: |
+          python scripts/check_docs_style.py \
+            2>&1 | tee artifacts/verification/i55-ci-docs-lint.log
+
+      - name: Docs build
+        run: |
+          python -m mkdocs build \
+            2>&1 | tee artifacts/verification/i55-ci-docs-build.log
+
+      - name: Upload smoke + docs evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inter-swarm-smoke-evidence
+          path: |
+            artifacts/verification/i55-ci-smoke-summary.json
+            artifacts/verification/i55-ci-smoke-workflow.log
+            artifacts/verification/i55-ci-smoke-target.log
+            artifacts/verification/i55-ci-smoke-tests.log
+            artifacts/verification/i55-ci-docs-lint.log
+            artifacts/verification/i55-ci-docs-build.log

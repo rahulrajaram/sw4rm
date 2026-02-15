@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "description": "Bootstrap scaffold for production-transport inter-swarm integration testbed",
+  "transport": {
+    "primary_protocol": "grpc",
+    "health_rpc": "grpc.health.v1.Health/Check",
+    "security_profiles": [
+      "local-insecure",
+      "production-mtls"
+    ]
+  },
+  "hosts": [
+    {
+      "swarm_id": "swarm-a",
+      "host": "127.0.0.1",
+      "services": {
+        "registry": 56052,
+        "router": 56051,
+        "scheduler": 56053
+      }
+    },
+    {
+      "swarm_id": "swarm-b",
+      "host": "127.0.0.1",
+      "services": {
+        "registry": 57052,
+        "router": 57051,
+        "scheduler": 57053
+      }
+    }
+  ],
+  "bootstrap_commands": {
+    "python_local": "cd sdks/py_sdk/reference-services && REGISTRY_PORT={registry} ROUTER_PORT={router} SCHEDULER_PORT={scheduler} ./start_services.sh --local --no-wait",
+    "js_local": "cd sdks/js_sdk/reference-services && REGISTRY_PORT={registry} ROUTER_PORT={router} SCHEDULER_PORT={scheduler} ./start_services.sh --local",
+    "rust_local": "cd sdks/rust_sdk/reference-services && REGISTRY_PORT={registry} ROUTER_PORT={router} SCHEDULER_PORT={scheduler} ./start_services.sh --local",
+    "compose": "docker compose -f tests/inter_swarm_testbed/docker-compose.multi-swarm.yml up --build -d",
+    "smoke_workflow_bounded": "python tests/inter_swarm_testbed/smoke_workflow.py --mode bounded",
+    "smoke_workflow_compose": "python tests/inter_swarm_testbed/smoke_workflow.py --mode compose --require-docker",
+    "ci_smoke_target": "python tests/inter_swarm_testbed/ci_smoke_target.py --summary-json artifacts/verification/i55-ci-smoke-summary.json --log-file artifacts/verification/i55-ci-smoke-workflow.log"
+  },
+  "smoke_scenarios": [
+    {
+      "id": "repeatable-bounded-smoke-workflow",
+      "description": "Run canonical bounded smoke workflow wrapper (layout + compose config validation).",
+      "check": "python tests/inter_swarm_testbed/smoke_workflow.py --mode bounded"
+    },
+    {
+      "id": "dual-swarm-compose-smoke",
+      "description": "Run full compose smoke workflow (up/ps/down) when docker is available.",
+      "check": "python tests/inter_swarm_testbed/smoke_workflow.py --mode compose --require-docker"
+    }
+  ]
+}

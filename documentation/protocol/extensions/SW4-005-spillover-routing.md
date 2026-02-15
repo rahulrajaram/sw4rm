@@ -1,8 +1,9 @@
 # SW4-005: Spillover Routing
 
 **Status:** Draft
-**Version:** 0.2.1
-**Date:** 2026-02-14
+**Version:** 0.3.0
+**Date:** 2026-02-15
+**Spec Release:** v0.6.0 — Implementation profile alignment (§15) and conformance test outline (§11) added in this version.
 **Extends:** Core Spec §4 (Architecture), SW4-004 §2.2 (Delegation Policy), SW4-004 §4.3 (OVERLOADED Backpressure), SW4-004 §9.3 (Adaptive Spillover)
 
 ## Abstract

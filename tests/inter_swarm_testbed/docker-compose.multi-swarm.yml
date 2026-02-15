@@ -1,0 +1,124 @@
+services:
+  swarm_a_registry:
+    image: python:3.11-slim
+    working_dir: /repo
+    command: >
+      sh -lc "python -m pip install --quiet -e /repo/sdks/py_sdk -r /repo/sdks/py_sdk/reference-services/requirements.txt &&
+              REGISTRY_PORT=56052 python /repo/sdks/py_sdk/reference-services/hive/registry_service.py"
+    volumes:
+      - ../..:/repo
+    ports:
+      - "56052:56052"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; grpc.insecure_channel('localhost:56052').channel_ready().result(timeout=1.0)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks:
+      - inter_swarm_testbed
+
+  swarm_a_router:
+    image: python:3.11-slim
+    working_dir: /repo
+    command: >
+      sh -lc "python -m pip install --quiet -e /repo/sdks/py_sdk -r /repo/sdks/py_sdk/reference-services/requirements.txt &&
+              ROUTER_PORT=56051 python /repo/sdks/py_sdk/reference-services/hive/router_service.py"
+    volumes:
+      - ../..:/repo
+    ports:
+      - "56051:56051"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; grpc.insecure_channel('localhost:56051').channel_ready().result(timeout=1.0)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks:
+      - inter_swarm_testbed
+
+  swarm_a_scheduler:
+    image: python:3.11-slim
+    working_dir: /repo
+    command: >
+      sh -lc "python -m pip install --quiet -e /repo/sdks/py_sdk -r /repo/sdks/py_sdk/reference-services/requirements.txt &&
+              REGISTRY_HOST=swarm_a_registry REGISTRY_PORT=56052 ROUTER_HOST=swarm_a_router ROUTER_PORT=56051 SCHEDULER_PORT=56053
+              python /repo/sdks/py_sdk/reference-services/hive/scheduler_service.py"
+    volumes:
+      - ../..:/repo
+    ports:
+      - "56053:56053"
+    depends_on:
+      swarm_a_registry:
+        condition: service_healthy
+      swarm_a_router:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; grpc.insecure_channel('localhost:56053').channel_ready().result(timeout=1.0)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks:
+      - inter_swarm_testbed
+
+  swarm_b_registry:
+    image: python:3.11-slim
+    working_dir: /repo
+    command: >
+      sh -lc "python -m pip install --quiet -e /repo/sdks/py_sdk -r /repo/sdks/py_sdk/reference-services/requirements.txt &&
+              REGISTRY_PORT=57052 python /repo/sdks/py_sdk/reference-services/hive/registry_service.py"
+    volumes:
+      - ../..:/repo
+    ports:
+      - "57052:57052"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; grpc.insecure_channel('localhost:57052').channel_ready().result(timeout=1.0)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks:
+      - inter_swarm_testbed
+
+  swarm_b_router:
+    image: python:3.11-slim
+    working_dir: /repo
+    command: >
+      sh -lc "python -m pip install --quiet -e /repo/sdks/py_sdk -r /repo/sdks/py_sdk/reference-services/requirements.txt &&
+              ROUTER_PORT=57051 python /repo/sdks/py_sdk/reference-services/hive/router_service.py"
+    volumes:
+      - ../..:/repo
+    ports:
+      - "57051:57051"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; grpc.insecure_channel('localhost:57051').channel_ready().result(timeout=1.0)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks:
+      - inter_swarm_testbed
+
+  swarm_b_scheduler:
+    image: python:3.11-slim
+    working_dir: /repo
+    command: >
+      sh -lc "python -m pip install --quiet -e /repo/sdks/py_sdk -r /repo/sdks/py_sdk/reference-services/requirements.txt &&
+              REGISTRY_HOST=swarm_b_registry REGISTRY_PORT=57052 ROUTER_HOST=swarm_b_router ROUTER_PORT=57051 SCHEDULER_PORT=57053
+              python /repo/sdks/py_sdk/reference-services/hive/scheduler_service.py"
+    volumes:
+      - ../..:/repo
+    ports:
+      - "57053:57053"
+    depends_on:
+      swarm_b_registry:
+        condition: service_healthy
+      swarm_b_router:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; grpc.insecure_channel('localhost:57053').channel_ready().result(timeout=1.0)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks:
+      - inter_swarm_testbed
+
+networks:
+  inter_swarm_testbed:
+    driver: bridge

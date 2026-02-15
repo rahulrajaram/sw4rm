@@ -173,6 +173,15 @@ docs-fix-spacing:
 install-git-hooks:
 	bash scripts/install_git_hooks.sh
 
+.PHONY: yarli-recursive-guard yarli-invariants yarli-preflight
+yarli-recursive-guard:
+	$(PYTHON) scripts/check_recursive_dispatch_guard.py --prompt PROMPT.md --plan IMPLEMENTATION_PLAN.md
+
+yarli-invariants:
+	$(PYTHON) scripts/check_yarli_invariants.py --config yarli.toml
+
+yarli-preflight: yarli-recursive-guard yarli-invariants
+
 # Add dev-deps as an implicit prerequisite for common tasks
 protos: dev-deps
 smoke: dev-deps
@@ -227,17 +236,33 @@ test-js:
 
 test-lisp:
 	@set -e; \
-	if command -v sbcl >/dev/null 2>&1; then \
-	  if [ -f "$$HOME/quicklisp/setup.lisp" ]; then \
-	    echo "[lisp] Running Common Lisp tests..."; \
-	    $(MAKE) -C sdks/cl_sdk test; \
-	  else \
-	    echo "[lisp] Quicklisp not found at $$HOME/quicklisp/setup.lisp. Install Quicklisp to run Lisp tests."; \
-	    exit 4; \
-	  fi; \
-	else \
-	  echo "[lisp] SBCL not found. Install SBCL to run Lisp tests."; \
+	SBCL_BIN="$${SBCL_BIN:-$$(command -v sbcl 2>/dev/null || true)}"; \
+	if [ -z "$$SBCL_BIN" ] && [ -x /usr/bin/sbcl ]; then \
+	  SBCL_BIN=/usr/bin/sbcl; \
+	  echo "[lisp] sbcl not found in PATH; using fallback $$SBCL_BIN"; \
+	fi; \
+	if [ -z "$$SBCL_BIN" ]; then \
+	  echo "[lisp] SBCL not found. Install SBCL or set SBCL_BIN=/path/to/sbcl."; \
 	  exit 5; \
+	fi; \
+	if [ ! -f "$$HOME/quicklisp/setup.lisp" ]; then \
+	  echo "[lisp] Quicklisp not found at $$HOME/quicklisp/setup.lisp. Install Quicklisp to run Lisp tests."; \
+	  exit 4; \
+	fi; \
+	if [ -f sdks/cl_sdk/Makefile ] && $(MAKE) -C sdks/cl_sdk -n test >/dev/null 2>&1; then \
+	  echo "[lisp] Running Common Lisp tests via sdks/cl_sdk make target..."; \
+	  SBCL="$$SBCL_BIN" $(MAKE) -C sdks/cl_sdk test; \
+	else \
+	  echo "[lisp] Caveat: sdks/cl_sdk test make target not available; falling back to explicit SBCL invocation."; \
+	  "$$SBCL_BIN" \
+	    --disable-debugger \
+	    --load "$$HOME/quicklisp/setup.lisp" \
+	    --eval '(push (truename "$(CURDIR)/sdks/cl_sdk") asdf:*central-registry*)' \
+	    --eval '(ql:quickload :fiveam)' \
+	    --eval '(ql:quickload :sw4rm-sdk)' \
+	    --eval '(load "$(CURDIR)/sdks/cl_sdk/test/suite.lisp")' \
+	    --eval '(fiveam:run! (quote sw4rm-test::sw4rm-suite))' \
+	    --quit; \
 	fi
 
 # Run JS ACK demo examples that exercise Router + ACK flow

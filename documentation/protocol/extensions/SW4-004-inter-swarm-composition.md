@@ -1,8 +1,9 @@
 # SW4-004: Inter-Swarm Composition Extension
 
 **Status:** Draft
-**Version:** 0.2.1
-**Date:** 2026-02-14
+**Version:** 0.3.0
+**Date:** 2026-02-15
+**Spec Release:** v0.6.0 — Implementation profiles (§9.4) and conformance test outline (§10) added in this version.
 **Extends:** Core Spec §4 (Architecture), §7.2 (Cooperative Preemption), §11 (Message Lifecycle), §17.6 (Agent Handoff Protocol), §18.6 (Streaming Tool Cancellation), SW4-002 (Timeout Profiles), SW4-003 (Observability)
 
 ## Abstract
