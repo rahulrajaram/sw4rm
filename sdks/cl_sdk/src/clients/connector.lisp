@@ -60,10 +60,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC ConnectorService.RegisterProvider
-      (error 'rpc-error
-             :message "RegisterProvider not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-provider-register-request provider-id tools))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.connector.ConnectorService/RegisterProvider"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-provider-register-response response-bytes)))))
 
 (defgeneric list-providers (client)
   (:documentation "List all registered tool providers.
@@ -124,7 +127,10 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC ConnectorService.GetProvider
-      (error 'rpc-error
-             :message "GetProvider not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-describe-tools-request provider-id))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.connector.ConnectorService/DescribeTools"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-describe-tools-response response-bytes)))))

@@ -58,10 +58,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC ActivityService.AppendArtifact
-      (error 'rpc-error
-             :message "RegisterActivity not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-append-artifact-request artifact))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.activity.ActivityService/AppendArtifact"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-append-artifact-response response-bytes)))))
 
 (defgeneric deregister-activity (client artifact-id)
   (:documentation "Remove an artifact from the activity log.
@@ -126,10 +129,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC ActivityService.ListArtifacts
-      (error 'rpc-error
-             :message "ListActivities not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-list-artifacts-request negotiation-id kind))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.activity.ActivityService/ListArtifacts"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-list-artifacts-response response-bytes)))))
 
 (defgeneric get-artifact (client artifact-id)
   (:documentation "Retrieve a specific artifact by ID.

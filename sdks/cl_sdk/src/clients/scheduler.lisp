@@ -59,10 +59,16 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC SchedulerService.SubmitTask
-      (error 'rpc-error
-             :message "SubmitTask not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-submit-task-request
+                             agent-id task-id
+                             :priority priority :scope scope
+                             :params params :content-type content-type))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.scheduler.SchedulerService/SubmitTask"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-submit-task-response response-bytes)))))
 
 (defgeneric cancel-task (client agent-id task-id &optional reason)
   (:documentation "Cancel a pending or running task.
@@ -159,10 +165,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC SchedulerService.RequestPreemption
-      (error 'rpc-error
-             :message "PreemptAgent not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-preempt-request agent-id task-id reason))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.scheduler.SchedulerService/RequestPreemption"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-preempt-response response-bytes)))))
 
 (defgeneric poll-activity-buffer (client agent-id)
   (:documentation "Poll the activity buffer for an agent's task queue.
@@ -193,10 +202,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC SchedulerService.PollActivityBuffer
-      (error 'rpc-error
-             :message "PollActivityBuffer not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-poll-activity-buffer-request agent-id))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.scheduler.SchedulerService/PollActivityBuffer"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-poll-activity-buffer-response response-bytes)))))
 
 (defgeneric purge-activity (client agent-id task-ids)
   (:documentation "Purge completed/failed tasks from the activity buffer.
@@ -223,7 +235,10 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC SchedulerService.PurgeActivity
-      (error 'rpc-error
-             :message "PurgeActivity not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-purge-activity-request agent-id task-ids))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.scheduler.SchedulerService/PurgeActivity"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-purge-activity-response response-bytes)))))

@@ -60,10 +60,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC ToolService.Call
-      (error 'rpc-error
-             :message "CallTool not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-tool-call tool-call))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.tool.ToolService/Call"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-tool-frame response-bytes)))))
 
 (defgeneric stream-tool-call (client tool-call handler-fn)
   (:documentation "Execute a streaming tool call.
@@ -101,11 +104,17 @@ library's streaming API."))
 
 (defmethod stream-tool-call ((client tool-client) tool-call handler-fn)
   (ensure-connected client)
-  ;; Stub: In real implementation, this would call gRPC ToolService.CallStream
-  ;; and iterate over the response stream, calling handler-fn for each frame
-  (error 'rpc-error
-         :message "StreamToolCall not implemented - requires gRPC integration"
-         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
+  (let ((request-bytes (encode-tool-call tool-call)))
+    (grpc-server-stream
+     (client-channel client)
+     "/sw4rm.tool.ToolService/CallStream"
+     request-bytes
+     (lambda (response-bytes)
+       (if response-bytes
+           (let ((frame (decode-tool-frame response-bytes)))
+             (when frame
+               (funcall handler-fn frame)))
+           (funcall handler-fn nil))))))
 
 (defgeneric cancel-tool-call (client call-id)
   (:documentation "Cancel a running tool call (best effort).
@@ -131,10 +140,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC ToolService.Cancel
-      (error 'rpc-error
-             :message "CancelToolCall not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-tool-call (list :call-id call-id)))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.tool.ToolService/Cancel"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-tool-error response-bytes)))))
 
 (defgeneric list-tools (client &optional provider-id)
   (:documentation "List available tools, optionally filtered by provider.

@@ -79,10 +79,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC HitlService.Decide
-      (error 'rpc-error
-             :message "Escalate not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-hitl-invocation invocation))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.hitl.HitlService/Decide"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-hitl-decision response-bytes)))))
 
 (defgeneric respond (client decision-id selected-option &optional notes)
   (:documentation "Submit a human decision response.

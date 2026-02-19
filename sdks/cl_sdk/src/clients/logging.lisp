@@ -64,10 +64,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC LoggingService.Ingest
-      (error 'rpc-error
-             :message "LogEvent not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-log-event event))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.logging.LoggingService/Ingest"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-ingest-response response-bytes)))))
 
 (defgeneric query-logs (client &key correlation-id agent-id level start-time end-time
                                     tags limit)

@@ -81,10 +81,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC WorkflowService.SubmitDAG
-      (error 'rpc-error
-             :message "SubmitDAG not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-create-workflow-request workflow-definition))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.workflow.WorkflowService/CreateWorkflow"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-create-workflow-response response-bytes)))))
 
 (defgeneric get-workflow-status (client workflow-id)
   (:documentation "Get the current status of a workflow.
@@ -127,10 +130,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC WorkflowService.GetStatus
-      (error 'rpc-error
-             :message "GetWorkflowStatus not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-get-workflow-state-request workflow-id))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.workflow.WorkflowService/GetWorkflowState"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-get-workflow-state-response response-bytes)))))
 
 (defgeneric cancel-workflow (client workflow-id &optional reason)
   (:documentation "Cancel a running workflow.
@@ -193,10 +199,16 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC WorkflowService.ResumeWorkflow
-      (error 'rpc-error
-             :message "ResumeWorkflow not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-resume-workflow-request
+                             workflow-id node-id
+                             :workflow-data workflow-data
+                             :metadata metadata))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.workflow.WorkflowService/ResumeWorkflow"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-resume-workflow-response response-bytes)))))
 
 ;;;; Additional Workflow Management
 

@@ -57,10 +57,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC RouterService.SendMessage
-      (error 'rpc-error
-             :message "SendEnvelope not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-send-message-request envelope))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.router.RouterService/SendMessage"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-send-message-response response-bytes)))))
 
 (defgeneric open-stream (client agent-id handler-fn)
   (:documentation "Open bidirectional streaming connection for message delivery.
@@ -100,11 +103,18 @@ chosen gRPC library's streaming API."))
 
 (defmethod open-stream ((client router-client) agent-id handler-fn)
   (ensure-connected client)
-  ;; Stub: In real implementation, this would call gRPC RouterService.OpenStream
-  ;; and set up bidirectional streaming with the handler-fn callback
-  (error 'rpc-error
-         :message "OpenStream not implemented - requires gRPC integration"
-         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
+  (let ((request-bytes (encode-stream-request agent-id)))
+    (grpc-server-stream
+     (client-channel client)
+     "/sw4rm.router.RouterService/StreamIncoming"
+     request-bytes
+     (lambda (response-bytes)
+       (if response-bytes
+           (let ((envelope (decode-stream-item response-bytes)))
+             (when envelope
+               (funcall handler-fn envelope)))
+           ;; Stream ended — notify handler with NIL
+           (funcall handler-fn nil))))))
 
 (defgeneric route-info (client agent-id)
   (:documentation "Get routing information and diagnostics for an agent.
@@ -159,8 +169,7 @@ Returns:
 Signals:
   RPC-ERROR: If close fails."))
 
-(defmethod close-stream (stream)
-  "Default stub implementation."
-  (error 'rpc-error
-         :message "CloseStream not implemented - requires gRPC integration"
-         :status-code "UNIMPLEMENTED" :details "Stub implementation"))
+(defmethod close-stream ((handle stream-handle))
+  "Cancel an active server stream via its handle."
+  (cancel-stream handle)
+  t)

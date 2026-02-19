@@ -54,10 +54,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC ReasoningProxy.CheckParallelism
-      (error 'rpc-error
-             :message "Evaluate not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-parallelism-check-request scope-a scope-b))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.reasoning.ReasoningProxy/CheckParallelism"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-parallelism-check-response response-bytes)))))
 
 (defgeneric parallel-evaluate (client negotiation-id proposal-a proposal-b
                                        &optional intensity)
@@ -97,10 +100,14 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC ReasoningProxy.EvaluateDebate
-      (error 'rpc-error
-             :message "ParallelEvaluate not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-debate-evaluate-request
+                             negotiation-id proposal-a proposal-b intensity))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.reasoning.ReasoningProxy/EvaluateDebate"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-debate-evaluate-response response-bytes)))))
 
 (defgeneric summarize (client session-id segments &key max-tokens mode)
   (:documentation "Summarize text segments using AI.
@@ -147,7 +154,12 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC ReasoningProxy.Summarize
-      (error 'rpc-error
-             :message "Summarize not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-summarize-request
+                             session-id segments
+                             :max-tokens max-tokens :mode mode))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.reasoning.ReasoningProxy/Summarize"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-summarize-response response-bytes)))))

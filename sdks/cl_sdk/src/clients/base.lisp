@@ -72,13 +72,15 @@ Returns:
   The client instance for chaining."))
 
 (defmethod connect ((client base-client))
-  "Default implementation creates a channel placeholder.
+  "Create a gRPC channel to the service address.
 
-In a real implementation, this would use cl-grpc or similar to establish
-an actual gRPC channel."
+When libgrpc is available, creates a real grpc-channel instance.
+Falls back to a string placeholder when libgrpc is not loaded."
   (unless (client-channel client)
     (setf (client-channel client)
-          (format nil "grpc-channel://~A" (client-address client))))
+          (if *grpc-available*
+              (make-grpc-channel (client-address client))
+              (format nil "grpc-channel://~A" (client-address client)))))
   client)
 
 (defgeneric disconnect (client)
@@ -94,7 +96,10 @@ Returns:
   The client instance for chaining."))
 
 (defmethod disconnect ((client base-client))
-  "Default implementation clears the channel placeholder."
+  "Destroy the gRPC channel (if real) and clear the slot."
+  (let ((ch (client-channel client)))
+    (when (and ch (typep ch 'grpc-channel))
+      (destroy-grpc-channel ch)))
   (setf (client-channel client) nil)
   client)
 

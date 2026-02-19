@@ -57,10 +57,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC RegistryService.RegisterAgent
-      (error 'rpc-error
-             :message "RegisterAgent not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-register-agent-request agent-descriptor))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.registry.RegistryService/RegisterAgent"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-register-agent-response response-bytes)))))
 
 (defgeneric deregister-agent (client agent-id &optional reason)
   (:documentation "Deregister an agent from the registry.
@@ -86,10 +89,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC RegistryService.DeregisterAgent
-      (error 'rpc-error
-             :message "DeregisterAgent not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-deregister-agent-request agent-id reason))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.registry.RegistryService/DeregisterAgent"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-deregister-agent-response response-bytes)))))
 
 (defgeneric heartbeat (client agent-id state &optional health-metrics)
   (:documentation "Send a heartbeat to maintain agent registration.
@@ -118,10 +124,26 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC RegistryService.Heartbeat
-      (error 'rpc-error
-             :message "Heartbeat not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((state-int (if (integerp state) state
+                            ;; Map keyword states to AgentState enum values
+                            (case state
+                              (:idle    2)   ; RUNNABLE
+                              (:busy    4)   ; RUNNING
+                              (:offline 11)  ; SHUTTING_DOWN
+                              (t 0))))       ; UNSPECIFIED
+             (health-alist (if (and health-metrics (listp health-metrics))
+                               (mapcar (lambda (pair)
+                                         (cons (princ-to-string (car pair))
+                                               (princ-to-string (cdr pair))))
+                                       health-metrics)
+                               nil))
+             (request-bytes (encode-heartbeat-request agent-id state-int health-alist))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.registry.RegistryService/Heartbeat"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-heartbeat-response response-bytes)))))
 
 (defgeneric discover-agents (client &key capability communication-class)
   (:documentation "Discover agents in the registry by criteria.

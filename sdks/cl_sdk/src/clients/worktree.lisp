@@ -55,10 +55,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC WorktreeService.Bind
-      (error 'rpc-error
-             :message "Bind not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-bind-request agent-id repo-id worktree-id))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.worktree.WorktreeService/Bind"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-bind-response response-bytes)))))
 
 (defgeneric unbind (client agent-id)
   (:documentation "Unbind an agent from its worktree (Any -> :unbound).
@@ -83,10 +86,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC WorktreeService.Unbind
-      (error 'rpc-error
-             :message "Unbind not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-unbind-request agent-id))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.worktree.WorktreeService/Unbind"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-unbind-response response-bytes)))))
 
 (defgeneric switch-request (client agent-id target-worktree-id &key requires-hitl)
   (:documentation "Request a worktree switch (:bound-home -> :switch-pending).
@@ -115,10 +121,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC WorktreeService.RequestSwitch
-      (error 'rpc-error
-             :message "SwitchRequest not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-switch-request agent-id target-worktree-id requires-hitl))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.worktree.WorktreeService/RequestSwitch"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-worktree-status-response response-bytes)))))
 
 (defgeneric approve-switch (client agent-id target-worktree-id ttl-ms)
   (:documentation "Approve a pending worktree switch (:switch-pending -> :bound-non-home).
@@ -145,10 +154,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC WorktreeService.ApproveSwitch
-      (error 'rpc-error
-             :message "ApproveSwitch not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-switch-approve agent-id target-worktree-id ttl-ms))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.worktree.WorktreeService/ApproveSwitch"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-worktree-status-response response-bytes)))))
 
 (defgeneric reject-switch (client agent-id &optional reason)
   (:documentation "Reject a pending worktree switch (:switch-pending -> :bound-home).
@@ -174,10 +186,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC WorktreeService.RejectSwitch
-      (error 'rpc-error
-             :message "RejectSwitch not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-switch-reject agent-id reason))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.worktree.WorktreeService/RejectSwitch"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-worktree-status-response response-bytes)))))
 
 (defgeneric status (client agent-id)
   (:documentation "Get the current worktree binding status for an agent.
@@ -208,7 +223,10 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC WorktreeService.Status
-      (error 'rpc-error
-             :message "Status not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-worktree-status-request agent-id))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.worktree.WorktreeService/Status"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-worktree-status-response response-bytes)))))

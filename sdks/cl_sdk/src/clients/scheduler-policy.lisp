@@ -54,10 +54,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC SchedulerPolicyService.GetNegotiationPolicy
-      (error 'rpc-error
-             :message "GetNegotiationPolicy not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-get-negotiation-policy-request))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.scheduler.SchedulerPolicyService/GetNegotiationPolicy"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-get-negotiation-policy-response response-bytes)))))
 
 (defgeneric set-negotiation-policy (client policy)
   (:documentation "Set the global negotiation policy.
@@ -92,10 +95,17 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC SchedulerPolicyService.SetNegotiationPolicy
-      (error 'rpc-error
-             :message "SetNegotiationPolicy not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((policy-bytes (if (typep policy '(simple-array (unsigned-byte 8) (*)))
+                               policy
+                               ;; If plist, treat as opaque bytes placeholder
+                               (make-array 0 :element-type '(unsigned-byte 8))))
+             (request-bytes (encode-set-negotiation-policy-request policy-bytes))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.scheduler.SchedulerPolicyService/SetNegotiationPolicy"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-set-negotiation-policy-response response-bytes)))))
 
 (defgeneric set-policy-profiles (client profiles)
   (:documentation "Set available policy profiles.
@@ -134,10 +144,17 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC SchedulerPolicyService.SetPolicyProfiles
-      (error 'rpc-error
-             :message "SetPolicyProfiles not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      ;; PolicyProfile submessages are complex (from policy.proto).
+      ;; Pass through as raw bytes for now; full codec when policy.proto is stable.
+      (let* ((request-bytes (if (typep profiles '(simple-array (unsigned-byte 8) (*)))
+                                profiles
+                                (make-array 0 :element-type '(unsigned-byte 8))))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.scheduler.SchedulerPolicyService/SetPolicyProfiles"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-set-negotiation-policy-response response-bytes)))))
 
 (defgeneric list-policy-profiles (client)
   (:documentation "List all available policy profiles.
@@ -163,10 +180,14 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC SchedulerPolicyService.ListPolicyProfiles
-      (error 'rpc-error
-             :message "ListPolicyProfiles not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (make-array 0 :element-type '(unsigned-byte 8)))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.scheduler.SchedulerPolicyService/ListPolicyProfiles"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        ;; Returns raw bytes; full PolicyProfile decode when policy.proto codec lands
+        (decode-get-negotiation-policy-response response-bytes)))))
 
 (defgeneric get-effective-policy (client negotiation-id)
   (:documentation "Get the effective policy for a specific negotiation.
@@ -195,10 +216,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC SchedulerPolicyService.GetEffectivePolicy
-      (error 'rpc-error
-             :message "GetEffectivePolicy not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-get-effective-policy-request negotiation-id))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.scheduler.SchedulerPolicyService/GetEffectivePolicy"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-get-effective-policy-response response-bytes)))))
 
 (defgeneric submit-evaluation (client negotiation-id report)
   (:documentation "Submit an evaluation report for a negotiation round.
@@ -236,10 +260,16 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC SchedulerPolicyService.SubmitEvaluation
-      (error 'rpc-error
-             :message "SubmitEvaluation not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((report-bytes (if (typep report '(simple-array (unsigned-byte 8) (*)))
+                               report
+                               (make-array 0 :element-type '(unsigned-byte 8))))
+             (request-bytes (encode-submit-evaluation-request negotiation-id report-bytes))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.scheduler.SchedulerPolicyService/SubmitEvaluation"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-submit-evaluation-response response-bytes)))))
 
 (defgeneric hitl-action (client negotiation-id action &optional rationale)
   (:documentation "Record a human-in-the-loop action for a negotiation.
@@ -269,7 +299,10 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC SchedulerPolicyService.HitlAction
-      (error 'rpc-error
-             :message "HitlAction not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-hitl-action-request negotiation-id action rationale))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.scheduler.SchedulerPolicyService/HitlAction"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-hitl-action-response response-bytes)))))

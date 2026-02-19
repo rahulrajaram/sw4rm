@@ -309,6 +309,29 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:record-peer-overloaded
    #:emit-overloaded-response)
 
+  ;; Transport — gRPC channel and call API
+  (:export
+   #:*grpc-available*
+   #:grpc-channel
+   #:make-grpc-channel
+   #:destroy-grpc-channel
+   #:grpc-unary-call
+   #:grpc-server-stream
+   #:stream-handle
+   #:cancel-stream)
+
+  ;; Codec — protobuf wire-format primitives (reusable by haake codecs)
+  (:export
+   #:encode-varint
+   #:decode-varint
+   #:encode-field-varint
+   #:encode-field-string
+   #:encode-field-bytes
+   #:encode-field-submessage
+   #:encode-field-bool
+   #:encode-envelope
+   #:decode-envelope)
+
   ;; Handoff client (SW4-004/SW4-005 local surface)
   (:export
    #:handoff-client

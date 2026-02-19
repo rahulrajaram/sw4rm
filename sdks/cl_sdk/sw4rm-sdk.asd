@@ -14,7 +14,10 @@
                #:jonathan           ; Fast JSON parsing/encoding
                #:cl-ppcre           ; Regular expressions
                #:split-sequence     ; String/sequence splitting
-               #:cl-json)           ; JSON encoding/decoding
+               #:cl-json            ; JSON encoding/decoding
+               #:cffi               ; Foreign function interface (libgrpc)
+               #:cffi-libffi        ; Struct-by-value support for CFFI
+               #:babel)             ; String/octets encoding
   :serial t
   :components ((:module "src"
                 :serial t
@@ -35,9 +38,16 @@
                              (:file "interceptors")
                              (:file "negotiation-events")
                              (:file "policy-store")))
+               (:module "transport"
+                :pathname "src/transport"
+                :depends-on ("src")
+                :serial t
+                :components ((:file "grpc-ffi")
+                             (:file "protobuf-codec")
+                             (:file "grpc-transport")))
                (:module "clients"
                 :pathname "src/clients"
-                :depends-on ("src")
+                :depends-on ("src" "transport")
                 :serial t
                 :components ((:file "base")
                              (:file "router")
@@ -64,7 +74,9 @@
   :depends-on (#:sw4rm-sdk
                #:fiveam)
   :components ((:module "test"
-                :components ((:file "suite"))))
+                :serial t
+                :components ((:file "suite")
+                             (:file "transport-test"))))
   :perform (test-op (o c)
              (let* ((suite-package (or (find-package :sw4rm-test)
                                        (error "SW4RM test package missing")))

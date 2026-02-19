@@ -59,13 +59,22 @@ Example:
 
 (defmethod create-session ((client negotiation-client) negotiation-id correlation-id
                            topic participants &key (intensity 0) debate-timeout-seconds)
+  (declare (ignore debate-timeout-seconds))
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC NegotiationService.Open
-      (error 'rpc-error
-             :message "CreateSession not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-negotiation-open
+                             (list :negotiation-id negotiation-id
+                                   :correlation-id correlation-id
+                                   :topic topic
+                                   :participants participants
+                                   :intensity intensity)))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.negotiation.NegotiationService/Open"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-empty-response response-bytes)))))
 
 (defgeneric submit-proposal (client negotiation-id from-agent content-type payload)
   (:documentation "Submit an initial proposal to a negotiation.
@@ -97,10 +106,17 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC NegotiationService.Propose
-      (error 'rpc-error
-             :message "SubmitProposal not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-proposal
+                             (list :negotiation-id negotiation-id
+                                   :from-agent from-agent
+                                   :content-type content-type
+                                   :payload payload)))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.negotiation.NegotiationService/Propose"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-empty-response response-bytes)))))
 
 (defgeneric vote (client negotiation-id from-agent confidence-score &optional notes)
   (:documentation "Submit an evaluation of the current proposal.
@@ -128,13 +144,20 @@ Example:
 
 (defmethod vote ((client negotiation-client) negotiation-id from-agent
                  confidence-score &optional (notes ""))
+  (declare (ignore confidence-score)) ;; double encoding not yet supported
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC NegotiationService.Evaluate
-      (error 'rpc-error
-             :message "Vote not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-evaluation
+                             (list :negotiation-id negotiation-id
+                                   :from-agent from-agent
+                                   :notes notes)))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.negotiation.NegotiationService/Evaluate"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-empty-response response-bytes)))))
 
 (defgeneric get-session (client negotiation-id)
   (:documentation "Retrieve the current state of a negotiation session.
@@ -206,10 +229,17 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC NegotiationService.Counter
-      (error 'rpc-error
-             :message "CounterProposal not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-counter-proposal
+                             (list :negotiation-id negotiation-id
+                                   :from-agent from-agent
+                                   :content-type content-type
+                                   :payload payload)))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.negotiation.NegotiationService/Counter"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-empty-response response-bytes)))))
 
 (defgeneric decide (client negotiation-id decided-by content-type result)
   (:documentation "Make a final decision to conclude the negotiation.
@@ -240,10 +270,17 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC NegotiationService.Decide
-      (error 'rpc-error
-             :message "Decide not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-decision
+                             (list :negotiation-id negotiation-id
+                                   :decided-by decided-by
+                                   :content-type content-type
+                                   :result result)))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.negotiation.NegotiationService/Decide"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-empty-response response-bytes)))))
 
 (defgeneric abort-negotiation (client negotiation-id &optional reason)
   (:documentation "Abort an ongoing negotiation.
@@ -272,7 +309,10 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC NegotiationService.Abort
-      (error 'rpc-error
-             :message "AbortNegotiation not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-abort-request negotiation-id reason))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.negotiation.NegotiationService/Abort"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-empty-response response-bytes)))))
