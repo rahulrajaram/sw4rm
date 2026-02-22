@@ -1,12 +1,18 @@
-version: '3.8'
-
 services:
   registry:
+    image: ${SW4RM_REFERENCE_REGISTRY_IMAGE:-ghcr.io/example-org/sw4rm-reference-registry:0.6.0}
     build:
-      context: ../../..
-      dockerfile: examples/reference-services/python/docker/Dockerfile.registry
+      context: ../../../..
+      dockerfile: sdks/py_sdk/reference-services/docker/Dockerfile.registry
+    environment:
+      REFERENCE_SERVICE_DB_DIR: /var/lib/sw4rm
+      REFERENCE_METRICS_ENABLED: "1"
+      REFERENCE_METRICS_PORT: "9100"
     ports:
       - "50052:50052"
+      - "9100:9100"
+    volumes:
+      - registry-data:/var/lib/sw4rm
     networks:
       - sw4rm-python
     healthcheck:
@@ -16,11 +22,19 @@ services:
       retries: 3
 
   router:
+    image: ${SW4RM_REFERENCE_ROUTER_IMAGE:-ghcr.io/example-org/sw4rm-reference-router:0.6.0}
     build:
-      context: ../../..
-      dockerfile: examples/reference-services/python/docker/Dockerfile.router
+      context: ../../../..
+      dockerfile: sdks/py_sdk/reference-services/docker/Dockerfile.router
+    environment:
+      REFERENCE_SERVICE_DB_DIR: /var/lib/sw4rm
+      REFERENCE_METRICS_ENABLED: "1"
+      REFERENCE_METRICS_PORT: "9101"
     ports:
       - "50051:50051"
+      - "9101:9101"
+    volumes:
+      - router-data:/var/lib/sw4rm
     networks:
       - sw4rm-python
     healthcheck:
@@ -30,11 +44,19 @@ services:
       retries: 3
 
   scheduler:
+    image: ${SW4RM_REFERENCE_SCHEDULER_IMAGE:-ghcr.io/example-org/sw4rm-reference-scheduler:0.6.0}
     build:
-      context: ../../..
-      dockerfile: examples/reference-services/python/docker/Dockerfile.scheduler
+      context: ../../../..
+      dockerfile: sdks/py_sdk/reference-services/docker/Dockerfile.scheduler
+    environment:
+      REFERENCE_SERVICE_DB_DIR: /var/lib/sw4rm
+      REFERENCE_METRICS_ENABLED: "1"
+      REFERENCE_METRICS_PORT: "9102"
     ports:
       - "50053:50053"
+      - "9102:9102"
+    volumes:
+      - scheduler-data:/var/lib/sw4rm
     networks:
       - sw4rm-python
     healthcheck:
@@ -46,3 +68,8 @@ services:
 networks:
   sw4rm-python:
     driver: bridge
+
+volumes:
+  registry-data:
+  router-data:
+  scheduler-data:

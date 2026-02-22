@@ -94,10 +94,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC ConnectorService.ListProviders
-      (error 'rpc-error
-             :message "ListProviders not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-list-providers-request))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.connector.ConnectorService/ListProviders"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-list-providers-response response-bytes)))))
 
 (defgeneric get-provider (client provider-id)
   (:documentation "Get details for a specific tool provider.

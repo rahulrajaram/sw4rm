@@ -14,6 +14,11 @@
     :initarg :raw-channel
     :accessor grpc-channel-raw
     :documentation "Pointer to grpc_channel*.")
+   (credentials
+    :initarg :credentials
+    :initform nil
+    :accessor grpc-channel-credentials
+    :documentation "Pointer to ssl credentials (secure channels) or NIL (insecure).")
    (completion-queue
     :initarg :completion-queue
     :accessor grpc-channel-cq
@@ -29,23 +34,44 @@
     :documentation "NIL after destroy-grpc-channel."))
   (:documentation "High-level wrapper around a gRPC channel + completion queue."))
 
-(defun make-grpc-channel (target)
+(defun %normalize-grpc-target (target)
+  "Normalize TARGET for libgrpc. Accepts bare host:port or http(s) URLs."
+  (cond
+    ((and (>= (length target) 7)
+          (string-equal target "http://" :end1 7 :end2 7))
+     (subseq target 7))
+    ((and (>= (length target) 8)
+          (string-equal target "https://" :end1 8 :end2 8))
+     (subseq target 8))
+    (t target)))
+
+(defun make-grpc-channel (target &key tls)
   "Create a gRPC channel to TARGET (e.g. \"localhost:50051\").
-Initialises the gRPC library if needed."
+Initialises the gRPC library if needed.
+
+Pass :tls with root-certificate contents, a path string, or T for defaults."
   (ensure-grpc-available)
   (grpc-init)
-  (let* ((ch (grpc-channel-create target))
-         (cq (grpc-cq-create)))
-    (make-instance 'grpc-channel
-                   :raw-channel ch
-                   :completion-queue cq
-                   :target target)))
+  (let ((grpc-target (%normalize-grpc-target target)))
+  (multiple-value-bind (channel credentials)
+      (if tls
+          (grpc-channel-create grpc-target :tls tls)
+          (grpc-channel-create grpc-target))
+      (make-instance 'grpc-channel
+                     :raw-channel channel
+                     :credentials credentials
+                     :completion-queue (grpc-cq-create)
+                     :target target))))
 
 (defun destroy-grpc-channel (channel)
   "Destroy a gRPC channel and its completion queue."
-  (when (and channel (grpc-channel-alive-p channel))
+  (when (and (typep channel 'grpc-channel)
+             (grpc-channel-alive-p channel))
     (grpc-cq-destroy (grpc-channel-cq channel))
     (grpc-channel-destroy (grpc-channel-raw channel))
+    (when (grpc-channel-credentials channel)
+      (%grpc-channel-credentials-release (grpc-channel-credentials channel))
+      (setf (grpc-channel-credentials channel) nil))
     (setf (grpc-channel-alive-p channel) nil)))
 
 ;;; -----------------------------------------------------------------------
@@ -110,11 +136,22 @@ METADATA: ignored for now (reserved for future use)
 Returns: response octet vector.
 Signals: rpc-timeout, rpc-unavailable, or rpc-error on failure."
   (declare (ignore metadata))
-  (unless (and channel (grpc-channel-alive-p channel))
-    (error 'rpc-error
-           :message "Channel is not alive"
-           :status-code "UNAVAILABLE"
-           :details "destroy-grpc-channel was already called"))
+  (cond
+    ((null channel)
+     (error 'rpc-error
+            :message "Channel is not connected"
+            :status-code "UNAVAILABLE"
+            :details "Call ensure-connected before invoking RPC"))
+    ((not (typep channel 'grpc-channel))
+     (error 'rpc-error
+            :message "gRPC transport backend unavailable"
+            :status-code "UNIMPLEMENTED"
+            :details method))
+    ((not (grpc-channel-alive-p channel))
+     (error 'rpc-error
+            :message "Channel is not alive"
+            :status-code "UNAVAILABLE"
+            :details "destroy-grpc-channel was already called")))
   (multiple-value-bind (response-bytes status-code)
       (%grpc-unary-call-raw
        (grpc-channel-raw channel)
@@ -164,11 +201,22 @@ DEADLINE-MS: timeout (0 = infinite)
 
 Returns: stream-handle that can be passed to cancel-stream."
   (ensure-grpc-available)
-  (unless (and channel (grpc-channel-alive-p channel))
-    (error 'rpc-error
-           :message "Channel is not alive"
-           :status-code "UNAVAILABLE"
-           :details "Channel not connected"))
+  (cond
+    ((null channel)
+     (error 'rpc-error
+            :message "Channel is not connected"
+            :status-code "UNAVAILABLE"
+            :details "Call ensure-connected before invoking RPC"))
+    ((not (typep channel 'grpc-channel))
+     (error 'rpc-error
+            :message "gRPC transport backend unavailable"
+            :status-code "UNIMPLEMENTED"
+            :details method))
+    ((not (grpc-channel-alive-p channel))
+     (error 'rpc-error
+            :message "Channel is not alive"
+            :status-code "UNAVAILABLE"
+            :details "Channel not connected")))
 
   (let* ((raw-ch (grpc-channel-raw channel))
          (cq (grpc-cq-create))  ;; separate CQ for the stream

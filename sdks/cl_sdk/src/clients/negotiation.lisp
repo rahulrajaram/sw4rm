@@ -144,13 +144,13 @@ Example:
 
 (defmethod vote ((client negotiation-client) negotiation-id from-agent
                  confidence-score &optional (notes ""))
-  (declare (ignore confidence-score)) ;; double encoding not yet supported
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
       (let* ((request-bytes (encode-evaluation
                              (list :negotiation-id negotiation-id
                                    :from-agent from-agent
+                                   :confidence-score confidence-score
                                    :notes notes)))
              (response-bytes (grpc-unary-call
                               (client-channel client)
@@ -192,10 +192,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC NegotiationService.GetSession
-      (error 'rpc-error
-             :message "GetSession not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-get-session-request negotiation-id))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.negotiation.NegotiationService/GetSession"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-get-session-response response-bytes)))))
 
 ;;;; Helper Methods (from Python SDK)
 

@@ -97,8 +97,7 @@ Example:
     (with-deadline ((client-timeout-ms client))
       (let* ((policy-bytes (if (typep policy '(simple-array (unsigned-byte 8) (*)))
                                policy
-                               ;; If plist, treat as opaque bytes placeholder
-                               (make-array 0 :element-type '(unsigned-byte 8))))
+                               (encode-negotiation-policy policy)))
              (request-bytes (encode-set-negotiation-policy-request policy-bytes))
              (response-bytes (grpc-unary-call
                               (client-channel client)
@@ -144,17 +143,15 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; PolicyProfile submessages are complex (from policy.proto).
-      ;; Pass through as raw bytes for now; full codec when policy.proto is stable.
       (let* ((request-bytes (if (typep profiles '(simple-array (unsigned-byte 8) (*)))
                                 profiles
-                                (make-array 0 :element-type '(unsigned-byte 8))))
+                                (encode-set-policy-profiles-request profiles)))
              (response-bytes (grpc-unary-call
                               (client-channel client)
                               "/sw4rm.scheduler.SchedulerPolicyService/SetPolicyProfiles"
                               request-bytes
                               :deadline-ms (client-timeout-ms client))))
-        (decode-set-negotiation-policy-response response-bytes)))))
+        (decode-set-policy-profiles-response response-bytes)))))
 
 (defgeneric list-policy-profiles (client)
   (:documentation "List all available policy profiles.
@@ -186,8 +183,7 @@ Example:
                               "/sw4rm.scheduler.SchedulerPolicyService/ListPolicyProfiles"
                               request-bytes
                               :deadline-ms (client-timeout-ms client))))
-        ;; Returns raw bytes; full PolicyProfile decode when policy.proto codec lands
-        (decode-get-negotiation-policy-response response-bytes)))))
+        (decode-list-policy-profiles-response response-bytes)))))
 
 (defgeneric get-effective-policy (client negotiation-id)
   (:documentation "Get the effective policy for a specific negotiation.
@@ -262,7 +258,8 @@ Example:
     (with-deadline ((client-timeout-ms client))
       (let* ((report-bytes (if (typep report '(simple-array (unsigned-byte 8) (*)))
                                report
-                               (make-array 0 :element-type '(unsigned-byte 8))))
+                               (encode-policy-evaluation-report report))
+                 )
              (request-bytes (encode-submit-evaluation-request negotiation-id report-bytes))
              (response-bytes (grpc-unary-call
                               (client-channel client)

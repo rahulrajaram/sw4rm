@@ -115,10 +115,20 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC LoggingService.Query
-      (error 'rpc-error
-             :message "QueryLogs not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-query-logs-request
+                              :correlation-id correlation-id
+                              :agent-id agent-id
+                              :level level
+                              :start-time start-time
+                              :end-time end-time
+                              :tags tags
+                              :limit limit))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.logging.LoggingService/QueryLogs"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-query-logs-response response-bytes)))))
 
 ;;;; Convenience Logging Methods
 

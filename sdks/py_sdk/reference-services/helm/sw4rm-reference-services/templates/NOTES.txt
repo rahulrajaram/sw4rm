@@ -1,0 +1,14 @@
+SW4RM Python Reference Services
+===============================
+
+Installed release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+Services:
+  - Registry: {{ include "sw4rm-reference-services.fullname" . }}-registry (50052/TCP)
+  - Router: {{ include "sw4rm-reference-services.fullname" . }}-router (50051/TCP)
+  - Scheduler: {{ include "sw4rm-reference-services.fullname" . }}-scheduler (50053/TCP)
+
+Use:
+  kubectl get pods -n {{ .Release.Namespace }}
+  kubectl get svc -n {{ .Release.Namespace }}

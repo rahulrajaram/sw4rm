@@ -70,6 +70,7 @@ Example JSON output:
 - Context-aware tracing using contextvars
 - `@traced` decorator for automatic span creation
 - Integration with structured logging
+- Envelope-sidecar propagation for cross-service tracing continuity
 
 ### Usage
 
@@ -104,6 +105,16 @@ def process_message(msg):
 @tracing.traced()
 async def handle_request(request):
     await process_async_operation()
+
+# Router client trace propagation
+from sw4rm.interceptors import TracingClientInterceptor
+
+trace = tracing.create_trace(metadata={"operation": "send_router_message"})
+with tracing.with_trace_context(trace):
+    interceptor = TracingClientInterceptor()
+    # The interceptor injects trace headers on outbound gRPC metadata.
+    # RouterClient adds trace context to envelope metadata as `_trace_context`
+    # then strips it before protobuf serialization.
 ```
 
 ### Trace Context Structure
@@ -360,6 +371,8 @@ python -m sw4rm.examples.cross_cutting_example
 
 - `/home/rahul/Documents/sigagent/sdks/py_sdk/sw4rm/logging.py` - Structured logging
 - `/home/rahul/Documents/sigagent/sdks/py_sdk/sw4rm/tracing.py` - Distributed tracing
+- `/home/rahul/Documents/sigagent/sdks/py_sdk/sw4rm/interceptors.py` - Tracing client interceptor
+- `/home/rahul/Documents/sigagent/sdks/py_sdk/sw4rm/clients/router.py` - Envelope trace propagation and cleanup
 - `/home/rahul/Documents/sigagent/sdks/py_sdk/sw4rm/config.py` - Configuration management (enhanced)
 - `/home/rahul/Documents/sigagent/sdks/py_sdk/sw4rm/feature_flags.py` - Feature flags
 - `/home/rahul/Documents/sigagent/sdks/py_sdk/tests/test_cross_cutting.py` - Comprehensive tests

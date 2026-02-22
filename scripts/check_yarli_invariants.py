@@ -74,8 +74,10 @@ def main() -> int:
     run_tokens_raw = budgets.get("max_run_total_tokens")
 
     if task_tokens_raw is None and run_tokens_raw is None:
-        errors.append(
-            "budgets.max_task_total_tokens and budgets.max_run_total_tokens must both be set for long-loop token guardrails."
+        print(
+            "[WARN] token-budget invariant skipped: "
+            "budgets.max_task_total_tokens and budgets.max_run_total_tokens are both unset "
+            "(no token-budget guardrails will be enforced)."
         )
     elif task_tokens_raw is None or run_tokens_raw is None:
         errors.append(

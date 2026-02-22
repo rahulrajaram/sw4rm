@@ -114,10 +114,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC HitlService.Respond
-      (error 'rpc-error
-             :message "Respond not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-hitl-response-request decision-id selected-option notes))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.hitl.HitlService/Respond"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-hitl-response-response response-bytes)))))
 
 (defgeneric get-pending (client &optional operator-id)
   (:documentation "Get pending HITL invocations awaiting human decision.
@@ -153,10 +156,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC HitlService.GetPending
-      (error 'rpc-error
-             :message "GetPending not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-hitl-pending-request operator-id))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.hitl.HitlService/GetPending"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-hitl-pending-response response-bytes)))))
 
 (defgeneric get-decision-status (client decision-id)
   (:documentation "Get the status of a HITL decision.
@@ -190,7 +196,10 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC HitlService.GetStatus
-      (error 'rpc-error
-             :message "GetDecisionStatus not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-hitl-decision-status-request decision-id))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.hitl.HitlService/GetDecisionStatus"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-hitl-decision-status-response response-bytes)))))

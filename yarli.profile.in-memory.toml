@@ -8,11 +8,11 @@
 # Backend for run/task/event persistence.
 # - "in-memory": ephemeral; write commands are blocked unless allow_in_memory_writes=true.
 # - "postgres": durable production-style mode.
-backend = "postgres"
+backend = "in-memory"
 
 # Explicit ephemeral override.
 # Keep false for durable-by-default safety; set true only for local throwaway usage.
-allow_in_memory_writes = false
+allow_in_memory_writes = true
 
 # Safety policy mode: observe | restricted | execute | breakglass
 safe_mode = "execute"
@@ -22,7 +22,7 @@ safe_mode = "execute"
 
 [postgres]
 # Required when core.backend = "postgres".
-database_url = "postgresql:///yarli?user=rahul"
+# database_url = "postgres://postgres:postgres@localhost:5432/yarli"
 
 [cli]
 backend = "custom"

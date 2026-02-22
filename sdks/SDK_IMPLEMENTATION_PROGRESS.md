@@ -73,6 +73,28 @@ Status values:
 
 - No remaining SW4-004/SW4-005 conformance-suite parity gaps across Python/JS/Rust/Common Lisp.
 
+## Recent CL Transport Closure Evidence
+
+- `I61` now implements previously `UNIMPLEMENTED` Common Lisp SDK method surfaces with matching gRPC transport calls and codec tests:
+  - Scheduler: `cancel-task`, `get-task-status` (client + codec + tests).
+  - Negotiation: `get-session` (client + codec + tests).
+  - HITL: `respond`, `get-pending`, `get-decision-status` (client + codec + tests).
+  - Logging: `query-logs` (client + codec + tests).
+  - Connector: `list-providers` (client + codec + tests).
+  - Activity: `deregister-activity`, `get-artifact` (client + codec + tests).
+  - Tool: `list-tools` (client + codec + tests).
+
+Evidence files:
+- `sdks/cl_sdk/src/clients/scheduler.lisp`
+- `sdks/cl_sdk/src/clients/negotiation.lisp`
+- `sdks/cl_sdk/src/clients/hitl.lisp`
+- `sdks/cl_sdk/src/clients/logging.lisp`
+- `sdks/cl_sdk/src/clients/connector.lisp`
+- `sdks/cl_sdk/src/clients/activity.lisp`
+- `sdks/cl_sdk/src/clients/tool.lisp`
+- `sdks/cl_sdk/src/transport/protobuf-codec.lisp`
+- `sdks/cl_sdk/test/run-codec-tests.lisp`
+
 ## Phase 6 Closure Summary (I49)
 
 - Phase 6 (`I39`-`I49`) is closed with full tranche-chain evidence recorded under `artifacts/verification/`.
@@ -92,6 +114,28 @@ Status values:
 - Bootstrap validation coverage: `sdks/py_sdk/tests/test_inter_swarm_testbed_bootstrap.py`
 - Runbook: `documentation/production/inter-swarm-transport-testbed.md`
 
+## Phase 9 Transport Continuation
+
+- `I62`: CL deferred codec closure for policy/workflow deep decode completed in `sdks/cl_sdk/src/transport/protobuf-codec.lisp` (including parser-corrected deep codec forms) and client coverage in `sdks/cl_sdk/src/clients/scheduler-policy.lisp`.
+- `I63`: Cross-SDK/spec drift audit and parity fixes completed, including CL transport placeholder-channel error normalization, CL endpoint/config parity updates, and refreshed parity audit evidence.
+- `I64`: Full matrix verification + dispatch closure completed with two consecutive clean passes over `py-test`, `conformance`, `conformance-005`, `proto-check`, `docs-lint`, `docs-build`, `test-js`, `test-rust`, and `test-lisp`.
+
+- Evidence files for `I62` verification:
+  - `sdks/cl_sdk/src/transport/protobuf-codec.lisp`
+  - `sdks/cl_sdk/src/clients/scheduler-policy.lisp`
+  - `sdks/cl_sdk/test/run-codec-tests.lisp`
+  - `.yarli/evidence/i62-verify-b-codec-load-20260222T010730Z.log`
+
+- Evidence files for `I63` verification:
+  - `tests/test_reports/sdk_parity_audit.md`
+  - `sdks/cl_sdk/src/transport/grpc-transport.lisp`
+  - `sdks/cl_sdk/src/config.lisp`
+
+- Evidence files for `I64` verification:
+  - `artifacts/verification/i64-verify-a-full-matrix-20260222T011542Z.log`
+  - `artifacts/verification/i64-verify-b-full-matrix-20260222T011649Z.log`
+ 
+
 ---
 
-Last updated: 2026-02-15 (I52)
+Last updated: 2026-02-22 (I64)

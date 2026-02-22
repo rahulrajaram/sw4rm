@@ -1,6 +1,7 @@
 """Unit tests for RouterClient."""
 import pytest
 from unittest.mock import MagicMock, patch
+from sw4rm import tracing
 
 
 class TestRouterClientConstruction:
@@ -80,6 +81,56 @@ class TestRouterClientSendMessage:
         # Assert
         mock_pb2.SendMessageRequest.assert_called_once_with(msg=mock_envelope_msg)
         mock_stub.SendMessage.assert_called_once_with(mock_request)
+        assert result == mock_response
+
+    def test_send_message_strips_envelope_trace_context(self):
+        """Test send_message removes envelope trace metadata before protobuf serialization."""
+        mock_channel = MagicMock()
+        mock_stub = MagicMock()
+        mock_pb2 = MagicMock()
+        mock_request = MagicMock()
+        mock_envelope_msg = MagicMock()
+        mock_response = MagicMock()
+
+        mock_pb2.SendMessageRequest.return_value = mock_request
+        mock_stub.SendMessage.return_value = mock_response
+
+        envelope_dict = {
+            "producer_id": "agent-1",
+            "message_type": 2,  # DATA enum value
+            "_trace_context": {
+                "trace_id": "incoming-trace",
+                "span_id": "incoming-span",
+            },
+        }
+
+        from sw4rm.clients.router import RouterClient
+        client = RouterClient(mock_channel)
+        client._stub = mock_stub
+        client._pb2 = mock_pb2
+
+        root_trace = tracing.TraceContext(
+            trace_id="incoming-trace",
+            span_id="incoming-span",
+        )
+        child_trace = tracing.TraceContext(
+            trace_id="incoming-trace",
+            span_id="send-child",
+            parent_span_id="incoming-span",
+        )
+
+        with patch("sw4rm.clients.router.tracing.get_current_trace", return_value=root_trace), patch(
+            "sw4rm.clients.router.tracing.create_child_span", return_value=child_trace
+        ), patch("sw4rm.clients.router.tracing.trace_context_to_metadata", return_value={"x-sw4rm-trace-id": "incoming-trace"}), patch(
+            "sw4rm.protos.common_pb2.Envelope", return_value=mock_envelope_msg
+        ):
+            result = client.send_message(envelope_dict)
+
+        mock_pb2.SendMessageRequest.assert_called_once_with(msg=mock_envelope_msg)
+        call_kwargs = mock_pb2.Envelope.call_args.kwargs
+        assert "_trace_context" not in call_kwargs
+        send_call_kwargs = mock_stub.SendMessage.call_args.kwargs
+        assert ("x-sw4rm-trace-id", "incoming-trace") in send_call_kwargs["metadata"]
         assert result == mock_response
 
     def test_send_message_with_stub_none_raises_runtime_error(self):

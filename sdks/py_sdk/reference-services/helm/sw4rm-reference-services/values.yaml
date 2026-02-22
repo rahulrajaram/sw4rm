@@ -1,0 +1,89 @@
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+
+global:
+  dbMountPath: /var/lib/sw4rm
+  imagePullSecrets: []
+  env: []
+
+services:
+  registry:
+    enabled: true
+    replicas: 1
+    port: 50052
+    metrics_port: 9100
+    image:
+      repository: sw4rm/reference-registry
+      tag: "0.6.0"
+      pullPolicy: IfNotPresent
+    resources: {}
+    env:
+      - name: REFERENCE_SERVICE_DB_DIR
+        value: /var/lib/sw4rm/registry
+      - name: REFERENCE_REGISTRY_HOST
+        value: "0.0.0.0"
+      - name: REFERENCE_REGISTRY_PORT
+        value: "50052"
+      - name: REFERENCE_METRICS_ENABLED
+        value: "1"
+      - name: REFERENCE_METRICS_HOST
+        value: "0.0.0.0"
+      - name: REFERENCE_METRICS_PORT
+        value: "9100"
+    service:
+      type: ""
+
+  router:
+    enabled: true
+    replicas: 1
+    port: 50051
+    metrics_port: 9101
+    image:
+      repository: sw4rm/reference-router
+      tag: "0.6.0"
+      pullPolicy: IfNotPresent
+    resources: {}
+    env:
+      - name: REFERENCE_SERVICE_DB_DIR
+        value: /var/lib/sw4rm/router
+      - name: REFERENCE_ROUTER_HOST
+        value: "0.0.0.0"
+      - name: REFERENCE_ROUTER_PORT
+        value: "50051"
+      - name: REFERENCE_METRICS_ENABLED
+        value: "1"
+      - name: REFERENCE_METRICS_HOST
+        value: "0.0.0.0"
+      - name: REFERENCE_METRICS_PORT
+        value: "9101"
+    service:
+      type: ""
+
+  scheduler:
+    enabled: true
+    replicas: 1
+    port: 50053
+    metrics_port: 9102
+    image:
+      repository: sw4rm/reference-scheduler
+      tag: "0.6.0"
+      pullPolicy: IfNotPresent
+    resources: {}
+    env:
+      - name: REFERENCE_SERVICE_DB_DIR
+        value: /var/lib/sw4rm/scheduler
+      - name: REFERENCE_SCHEDULER_HOST
+        value: "0.0.0.0"
+      - name: REFERENCE_SCHEDULER_PORT
+        value: "50053"
+      - name: REFERENCE_METRICS_ENABLED
+        value: "1"
+      - name: REFERENCE_METRICS_HOST
+        value: "0.0.0.0"
+      - name: REFERENCE_METRICS_PORT
+        value: "9102"
+    service:
+      type: ""

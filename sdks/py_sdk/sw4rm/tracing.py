@@ -28,11 +28,32 @@ The correlation_id is propagated across the entire trace for log correlation.
 
 from __future__ import annotations
 
+import json
 import functools
 import uuid
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, Callable, Mapping, Optional, TypeVar
+
+try:
+    from opentelemetry.context import get_current as _otel_get_context
+    from opentelemetry.propagate import extract as _otel_extract, inject as _otel_inject
+    from opentelemetry.trace import (
+        NonRecordingSpan,
+        SpanContext,
+        SpanKind,
+        TraceFlags,
+        TraceState,
+        get_current_span,
+        get_tracer,
+        set_span_in_context,
+    )
+    from opentelemetry.trace.span import INVALID_SPAN
+    from opentelemetry.util.types import AttributeValue
+
+    _HAS_OTEL = True
+except Exception:  # pragma: no cover - optional OpenTelemetry dependency
+    _HAS_OTEL = False
 
 # Import for correlation ID integration
 try:
@@ -44,6 +65,214 @@ except ImportError:
 _current_trace: ContextVar[Optional["TraceContext"]] = ContextVar(
     "current_trace", default=None
 )
+
+TRACE_PARENT_HEADER = "traceparent"
+TRACE_STATE_HEADER = "tracestate"
+SW4RM_TRACE_ID_HEADER = "x-sw4rm-trace-id"
+SW4RM_SPAN_ID_HEADER = "x-sw4rm-span-id"
+SW4RM_PARENT_SPAN_ID_HEADER = "x-sw4rm-parent-span-id"
+SW4RM_CORRELATION_ID_HEADER = "x-sw4rm-correlation-id"
+TRACE_ENVELOPE_KEY = "_trace_context"
+
+
+def _normalize_metadata(metadata: Any) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    if metadata is None:
+        return normalized
+    for item in metadata:
+        key = str(getattr(item, "key", item[0] if isinstance(item, tuple) else "")).lower()
+        value = str(getattr(item, "value", item[1] if isinstance(item, tuple) else ""))
+        normalized[key] = value
+    return normalized
+
+
+def _trace_id_to_hex(value: int) -> str:
+    if value <= 0:
+        return uuid.uuid4().hex
+    return f"{value:032x}"
+
+
+def _span_id_to_hex(value: int) -> str:
+    if value <= 0:
+        return uuid.uuid4().hex[:16]
+    return f"{value:016x}"
+
+
+def _build_opentelemetry_context(trace: "TraceContext") -> dict[str, str]:
+    if not _HAS_OTEL:
+        return {}
+    span_context = SpanContext(
+        trace_id=int(trace.trace_id, 16),
+        span_id=int(trace.span_id, 16),
+        is_remote=False,
+        trace_flags=TraceFlags(TraceFlags.SAMPLED),
+        trace_state=TraceState(),
+    )
+    carrier: dict[str, str] = {}
+    _otel_inject(carrier, context=set_span_in_context(NonRecordingSpan(span_context)))
+    return carrier
+
+
+def _serialize_custom_trace_context(trace: "TraceContext") -> dict[str, str]:
+    headers: dict[str, str] = {
+        SW4RM_TRACE_ID_HEADER: trace.trace_id,
+        SW4RM_SPAN_ID_HEADER: trace.span_id,
+        SW4RM_CORRELATION_ID_HEADER: trace.correlation_id or trace.trace_id,
+    }
+    if trace.parent_span_id:
+        headers[SW4RM_PARENT_SPAN_ID_HEADER] = trace.parent_span_id
+    return headers
+
+
+def trace_context_to_metadata(trace: Optional["TraceContext"]) -> dict[str, str]:
+    """Serialize trace context into metadata headers suitable for gRPC propagation."""
+    if trace is None:
+        return {}
+
+    headers: dict[str, str] = {}
+    try:
+        if _HAS_OTEL:
+            headers.update(_build_opentelemetry_context(trace))
+    except Exception:
+        headers = {}
+
+    # Always include SW4RM-specific headers as a portable fallback.
+    fallback = _serialize_custom_trace_context(trace)
+    for key, value in fallback.items():
+        headers[key] = value
+
+    # Use W3C parent/child semantics even when OTEL is unavailable.
+    headers[TRACE_PARENT_HEADER] = f"00-{trace.trace_id}-{trace.span_id}-01"
+    return headers
+
+
+def trace_context_to_envelope_metadata(trace: Optional["TraceContext"]) -> dict[str, Any]:
+    """Serialize trace context into a sidecar envelope payload field."""
+    if trace is None:
+        return {}
+
+    metadata: dict[str, Any] = {
+        "trace_id": trace.trace_id,
+        "span_id": trace.span_id,
+        "correlation_id": trace.correlation_id,
+    }
+    if trace.parent_span_id:
+        metadata["parent_span_id"] = trace.parent_span_id
+    if trace.metadata:
+        metadata["metadata"] = dict(trace.metadata)
+    return metadata
+
+
+def add_trace_context_to_envelope(
+    envelope: Mapping[str, Any],
+    trace: Optional["TraceContext"],
+) -> dict[str, Any]:
+    """Return a copy of *envelope* with trace metadata inserted."""
+    payload = dict(envelope)
+    if trace is not None:
+        payload[TRACE_ENVELOPE_KEY] = trace_context_to_envelope_metadata(trace)
+    return payload
+
+
+def strip_trace_context_from_envelope(envelope: Mapping[str, Any]) -> tuple[dict[str, Any], Optional["TraceContext"]]:
+    """Return envelope payload without trace metadata and parsed trace context."""
+    payload = dict(envelope)
+    trace = trace_context_from_envelope_metadata(payload.pop(TRACE_ENVELOPE_KEY, None))
+    return payload, trace
+
+
+def trace_context_from_metadata(metadata: Any) -> Optional["TraceContext"]:
+    """Parse trace context from normalized metadata mapping.
+
+    Supported forms:
+
+    1. W3C / OpenTelemetry headers (preferred): ``traceparent`` / ``tracestate``
+    2. SW4RM fallback headers:
+       ``x-sw4rm-trace-id`` / ``x-sw4rm-span-id`` / optional parent + correlation
+    """
+    if metadata is None:
+        return None
+
+    normalized = _normalize_metadata(metadata)
+    if not normalized:
+        return None
+
+    otel_trace = _trace_context_from_opentelemetry_metadata(normalized)
+    if otel_trace is not None:
+        return otel_trace
+
+    trace_id = normalized.get(SW4RM_TRACE_ID_HEADER)
+    span_id = normalized.get(SW4RM_SPAN_ID_HEADER)
+    if not trace_id or not span_id:
+        return None
+
+    parent_span_id = normalized.get(SW4RM_PARENT_SPAN_ID_HEADER)
+    correlation_id = normalized.get(SW4RM_CORRELATION_ID_HEADER)
+    return TraceContext(
+        trace_id=trace_id,
+        span_id=span_id,
+        parent_span_id=parent_span_id if parent_span_id else None,
+        correlation_id=correlation_id,
+    )
+
+
+def trace_context_from_envelope_metadata(envelope: Any) -> Optional["TraceContext"]:
+    """Extract trace context from SW4RM envelope metadata payload."""
+    if envelope is None:
+        return None
+
+    payload = None
+    if isinstance(envelope, Mapping):
+        payload = envelope.get(TRACE_ENVELOPE_KEY)
+    elif hasattr(envelope, "get") and callable(envelope.get):
+        try:
+            payload = envelope.get(TRACE_ENVELOPE_KEY)  # type: ignore[assignment]
+        except Exception:
+            payload = None
+    elif hasattr(envelope, TRACE_ENVELOPE_KEY):
+        payload = getattr(envelope, TRACE_ENVELOPE_KEY)
+
+    if payload is None:
+        return None
+
+    if isinstance(payload, TraceContext):
+        return payload
+
+    if isinstance(payload, str):
+        try:
+            parsed = json.loads(payload)
+        except Exception:
+            return None
+        payload = parsed
+
+    if not isinstance(payload, Mapping):
+        return None
+
+    try:
+        return TraceContext.from_dict(dict(payload))
+    except Exception:
+        return None
+
+
+def _trace_context_from_opentelemetry_metadata(metadata: dict[str, str]) -> Optional["TraceContext"]:
+    if not _HAS_OTEL:
+        return None
+    context = _otel_extract(metadata)
+    span = get_current_span(context)
+    if span is None or span == INVALID_SPAN:
+        return None
+    span_context = span.get_span_context()
+    if not span_context.is_valid:
+        return None
+    return TraceContext(
+        trace_id=_trace_id_to_hex(int(span_context.trace_id)),
+        span_id=_span_id_to_hex(int(span_context.span_id)),
+        parent_span_id=None,
+        correlation_id=metadata.get("x-correlation-id") or metadata.get("correlation-id")
+        or metadata.get("x-request-id")
+        or None,
+        metadata={},
+    )
 
 
 @dataclass

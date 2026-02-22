@@ -211,6 +211,33 @@ def test_trace_context_serialization():
     assert reconstructed.metadata == original.metadata
 
 
+def test_trace_context_envelope_metadata_roundtrip():
+    """Test converting trace context to and from envelope metadata."""
+    trace = tracing.TraceContext(
+        trace_id="trace-001",
+        span_id="span-001",
+        parent_span_id="parent-001",
+        correlation_id="corr-001",
+        metadata={"operation": "trace-test"},
+    )
+
+    envelope_metadata = tracing.trace_context_to_envelope_metadata(trace)
+    envelope = {"producer_id": "agent-1", "_trace_context": envelope_metadata}
+    envelope_payload = tracing.trace_context_from_envelope_metadata(envelope)
+    assert envelope_payload is not None
+    assert envelope_payload.trace_id == "trace-001"
+    assert envelope_payload.span_id == "span-001"
+    assert envelope_payload.parent_span_id == "parent-001"
+    assert envelope_payload.correlation_id == "corr-001"
+
+    outbound, restored = tracing.strip_trace_context_from_envelope(envelope)
+    assert "_trace_context" not in outbound
+    assert restored is not None
+    assert restored.trace_id == "trace-001"
+    assert restored.span_id == "span-001"
+    assert restored.parent_span_id == "parent-001"
+
+
 def test_get_and_set_current_trace():
     """Test getting and setting current trace context."""
     # Initially no trace

@@ -9,37 +9,37 @@
 (defstruct endpoints
   "Service endpoint addresses for SW4RM infrastructure.
 
-All endpoints are strings in 'host:port' format (e.g., 'localhost:50051').
+All endpoints are strings in 'http://host:port' format (e.g., 'http://localhost:50051').
 Implementations SHOULD honor environment variable overrides for deployment flexibility."
   (router
-   (format nil "~A:~D" *default-host* +default-router-port+)
+   (format nil "http://~A:~D" *default-host* +default-router-port+)
    :type string)
   (registry
-   (format nil "~A:~D" *default-host* +default-registry-port+)
+   (format nil "http://~A:~D" *default-host* +default-registry-port+)
    :type string)
   (scheduler
-   (format nil "~A:~D" *default-host* +default-scheduler-port+)
+   (format nil "http://~A:~D" *default-host* +default-scheduler-port+)
    :type string)
   (hitl
-   (format nil "~A:~D" *default-host* +default-hitl-port+)
+   (format nil "http://~A:~D" *default-host* +default-hitl-port+)
    :type string)
   (worktree
-   (format nil "~A:~D" *default-host* +default-worktree-port+)
+   (format nil "http://~A:~D" *default-host* +default-worktree-port+)
    :type string)
   (tool
-   (format nil "~A:~D" *default-host* +default-tool-port+)
+   (format nil "http://~A:~D" *default-host* +default-tool-port+)
    :type string)
   (connector
-   (format nil "~A:~D" *default-host* +default-connector-port+)
+   (format nil "http://~A:~D" *default-host* +default-connector-port+)
    :type string)
   (negotiation
-   (format nil "~A:~D" *default-host* +default-negotiation-port+)
+   (format nil "http://~A:~D" *default-host* +default-negotiation-port+)
    :type string)
   (reasoning
-   (format nil "~A:~D" *default-host* +default-reasoning-port+)
+   (format nil "http://~A:~D" *default-host* +default-reasoning-port+)
    :type string)
   (logging
-   (format nil "~A:~D" *default-host* +default-logging-port+)
+   (format nil "http://~A:~D" *default-host* +default-logging-port+)
    :type string))
 
 ;;;; Agent Configuration
@@ -62,7 +62,7 @@ such as timeouts and retry policies."
    nil
    :type (or null string))
   (version
-   "0.5.0"
+   "0.1.0"
    :type string)
   (capabilities
    nil
@@ -78,7 +78,19 @@ such as timeouts and retry policies."
    :type integer)                 ; Maximum number of retry attempts for failed operations
   (heartbeat-interval-ms
    *default-heartbeat-interval-ms*
-   :type integer))                ; Interval between heartbeat messages in milliseconds
+   :type integer)                 ; Interval between heartbeat messages in milliseconds
+  (communication-class
+   2
+   :type integer)                 ; 0=unspecified, 1=privileged, 2=standard, 3=bulk
+  (modalities-supported
+   '("application/json")
+   :type list)                    ; Supported modalities/content-types
+  (public-key
+   nil
+   :type (or null (simple-array (unsigned-byte 8) (*))))
+  (metadata
+   nil
+   :type list))                   ; Optional key/value metadata alist
 
 ;;;; Configuration Constructors
 ;;;
@@ -103,25 +115,25 @@ Returns:
   ENDPOINTS structure with defaults overridden by environment variables."
   (make-endpoints
    :router (or (uiop:getenv "SW4RM_ROUTER_ADDR")
-               (format nil "~A:~D" *default-host* +default-router-port+))
+               (format nil "http://~A:~D" *default-host* +default-router-port+))
    :registry (or (uiop:getenv "SW4RM_REGISTRY_ADDR")
-                 (format nil "~A:~D" *default-host* +default-registry-port+))
+                 (format nil "http://~A:~D" *default-host* +default-registry-port+))
    :scheduler (or (uiop:getenv "SW4RM_SCHEDULER_ADDR")
-                  (format nil "~A:~D" *default-host* +default-scheduler-port+))
+                  (format nil "http://~A:~D" *default-host* +default-scheduler-port+))
    :hitl (or (uiop:getenv "SW4RM_HITL_ADDR")
-             (format nil "~A:~D" *default-host* +default-hitl-port+))
+             (format nil "http://~A:~D" *default-host* +default-hitl-port+))
    :worktree (or (uiop:getenv "SW4RM_WORKTREE_ADDR")
-                 (format nil "~A:~D" *default-host* +default-worktree-port+))
+                 (format nil "http://~A:~D" *default-host* +default-worktree-port+))
    :tool (or (uiop:getenv "SW4RM_TOOL_ADDR")
-             (format nil "~A:~D" *default-host* +default-tool-port+))
+             (format nil "http://~A:~D" *default-host* +default-tool-port+))
    :connector (or (uiop:getenv "SW4RM_CONNECTOR_ADDR")
-                  (format nil "~A:~D" *default-host* +default-connector-port+))
+                  (format nil "http://~A:~D" *default-host* +default-connector-port+))
    :negotiation (or (uiop:getenv "SW4RM_NEGOTIATION_ADDR")
-                    (format nil "~A:~D" *default-host* +default-negotiation-port+))
+                    (format nil "http://~A:~D" *default-host* +default-negotiation-port+))
    :reasoning (or (uiop:getenv "SW4RM_REASONING_ADDR")
-                  (format nil "~A:~D" *default-host* +default-reasoning-port+))
+                  (format nil "http://~A:~D" *default-host* +default-reasoning-port+))
    :logging (or (uiop:getenv "SW4RM_LOGGING_ADDR")
-                (format nil "~A:~D" *default-host* +default-logging-port+))))
+                (format nil "http://~A:~D" *default-host* +default-logging-port+))))
 
 (defun load-config-from-env ()
   "Load agent configuration from environment variables.
@@ -130,7 +142,10 @@ Environment variables:
   AGENT_ID               - Agent identifier (default: 'agent-1')
   AGENT_NAME             - Agent display name (default: 'Agent')
   AGENT_DESCRIPTION      - Agent description
-  AGENT_VERSION          - Agent version (default: '0.5.0')
+  AGENT_VERSION          - Agent version (default: '0.1.0')
+  AGENT_CAPABILITIES     - Comma-separated capability list
+  AGENT_COMMUNICATION_CLASS - Integer communication class (0..3)
+  AGENT_MODALITIES_SUPPORTED - Comma-separated modalities list
   SW4RM_TIMEOUT_MS       - Default timeout in milliseconds
   SW4RM_RETRY_MAX_ATTEMPTS - Maximum retry attempts
   SW4RM_HEARTBEAT_INTERVAL_MS - Heartbeat interval in milliseconds
@@ -143,7 +158,13 @@ Returns:
    :agent-id (or (uiop:getenv "AGENT_ID") "agent-1")
    :name (or (uiop:getenv "AGENT_NAME") "Agent")
    :description (uiop:getenv "AGENT_DESCRIPTION")
-   :version (or (uiop:getenv "AGENT_VERSION") "0.5.0")
+   :version (or (uiop:getenv "AGENT_VERSION") "0.1.0")
+   :capabilities (if-let ((raw (uiop:getenv "AGENT_CAPABILITIES")))
+                  (loop for part in (uiop:split-string raw :separator ",")
+                        for trimmed = (string-trim '(#\Space #\Tab) part)
+                        unless (string= trimmed "")
+                        collect trimmed)
+                  nil)
    :endpoints (make-default-endpoints)
    :timeout-ms (if-let ((val (uiop:getenv "SW4RM_TIMEOUT_MS")))
                  (parse-integer val :junk-allowed t)
@@ -153,4 +174,13 @@ Returns:
                          *default-retry-max-attempts*)
    :heartbeat-interval-ms (if-let ((val (uiop:getenv "SW4RM_HEARTBEAT_INTERVAL_MS")))
                             (parse-integer val :junk-allowed t)
-                            *default-heartbeat-interval-ms*)))
+                            *default-heartbeat-interval-ms*)
+   :communication-class (if-let ((val (uiop:getenv "AGENT_COMMUNICATION_CLASS")))
+                          (parse-integer val :junk-allowed t)
+                          2)
+   :modalities-supported (if-let ((raw (uiop:getenv "AGENT_MODALITIES_SUPPORTED")))
+                          (loop for part in (uiop:split-string raw :separator ",")
+                                for trimmed = (string-trim '(#\Space #\Tab) part)
+                                unless (string= trimmed "")
+                                collect trimmed)
+                          '("application/json"))))

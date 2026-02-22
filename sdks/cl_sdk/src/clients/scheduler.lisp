@@ -39,7 +39,9 @@ Args:
   content-type: MIME type of params (default: \"application/json\").
 
 Returns:
-  Task submission response plist with :accepted boolean and :position.
+  Task submission response plist with:
+    :accepted (boolean) - Whether the task was accepted by the scheduler.
+    :reason (string) - Scheduler reason/details for the acceptance decision.
 
 Signals:
   RPC-ERROR: If submission fails.
@@ -96,10 +98,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC SchedulerService.CancelTask
-      (error 'rpc-error
-             :message "CancelTask not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-cancel-task-request agent-id task-id reason))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.scheduler.SchedulerService/CancelTask"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-cancel-task-response response-bytes)))))
 
 (defgeneric get-task-status (client agent-id task-id)
   (:documentation "Retrieve the current status of a task.
@@ -135,10 +140,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC SchedulerService.GetTaskStatus
-      (error 'rpc-error
-             :message "GetTaskStatus not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-get-task-status-request agent-id task-id))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.scheduler.SchedulerService/GetTaskStatus"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-task-status-response response-bytes)))))
 
 (defgeneric preempt-agent (client agent-id task-id &optional reason)
   (:documentation "Request preemption of a running task.
@@ -153,7 +161,7 @@ Args:
   reason: Optional reason for preemption (default: \"\").
 
 Returns:
-  Preemption response plist with :preempted boolean.
+  Preemption response plist with :enqueued boolean.
 
 Signals:
   RPC-ERROR: If preemption request fails.
@@ -222,14 +230,14 @@ Args:
   task-ids: List of task IDs to remove.
 
 Returns:
-  Purge response plist with :count (number of tasks purged).
+  Purge response plist with :purged (number of tasks purged).
 
 Signals:
   RPC-ERROR: If purge fails.
 
 Example:
   (purge-activity client \"agent-1\" '(\"task-123\" \"task-124\"))
-  => (:count 2)"))
+  => (:purged 2)"))
 
 (defmethod purge-activity ((client scheduler-client) agent-id task-ids)
   (ensure-connected client)

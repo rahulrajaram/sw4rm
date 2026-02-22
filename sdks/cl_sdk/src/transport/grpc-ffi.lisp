@@ -109,6 +109,10 @@
   (current    :uint32)
   (pad        :uint8 :count 28))
 
+(cffi:defcstruct grpc-ssl-pem-key-cert-pair
+  (private-key :string)
+  (cert-chain :string))
+
 ;; grpc_op — 40-byte struct per operation
 ;; Due to the complex union layout, we allocate raw memory and fill
 ;; fields at known byte offsets.  The offsets below assume grpc >= 1.50
@@ -149,6 +153,30 @@
   (args   :pointer)     ;; grpc_channel_args* or NULL
   (reserved :pointer))
 
+(cffi:defcfun ("grpc_ssl_credentials_create" %grpc-ssl-credentials-create)
+    :pointer
+  (pem-root-certs :string)
+  (pem-key-cert-pair :pointer)
+  (reserved :pointer))
+
+(cffi:defcfun ("grpc_channel_credentials_release" %grpc-channel-credentials-release)
+    :void
+  (credentials :pointer))
+
+(cffi:defcfun ("grpc_ssl_channel_create" %grpc-ssl-channel-create)
+    :pointer
+  (credentials :pointer)
+  (target :string)
+  (args   :pointer)
+  (reserved :pointer))
+
+(cffi:defcfun ("grpc_secure_channel_create" %grpc-secure-channel-create)
+    :pointer
+  (credentials :pointer)
+  (target :string)
+  (args   :pointer)
+  (reserved :pointer))
+
 (cffi:defcfun ("grpc_channel_destroy" %grpc-channel-destroy) :void
   (channel :pointer))
 
@@ -157,10 +185,75 @@
   (channel :pointer)
   (try-to-connect :int32))
 
-(defun grpc-channel-create (target)
-  "Create an insecure gRPC channel to TARGET (e.g. \"localhost:50051\")."
+(defun grpc-channel-create-supported-p ()
+  "True if the runtime has secure-channel constructor support." 
+  (not (null (or (ignore-errors (cffi:foreign-symbol-pointer "grpc_ssl_channel_create"))
+                 (ignore-errors (cffi:foreign-symbol-pointer "grpc_secure_channel_create"))))))
+
+(defun grpc-channel-create-secure-fn ()
+  "Return the secure-channel constructor function for this runtime, or NIL."
+  (cond
+    ((ignore-errors
+       (and (cffi:foreign-symbol-pointer "grpc_ssl_channel_create")
+            #'%grpc-ssl-channel-create)))
+    ((ignore-errors
+       (and (cffi:foreign-symbol-pointer "grpc_secure_channel_create")
+            #'%grpc-secure-channel-create)))
+    (t nil)))
+
+(defun grpc-channel-tls-root-certs (tls)
+  "Normalize TLS input into PEM text suitable for grpc_ssl_credentials_create.
+
+If TLS is T, NIL is returned to use system default roots.
+If TLS is a pathname or path string, file contents are read.
+Otherwise, TLS must be a PEM string."
+  (cond
+    ((eq tls t) nil)
+    ((null tls) nil)
+    ((pathnamep tls)
+     (with-open-file (stream tls :direction :input :external-format :utf-8)
+       (let ((contents (make-string (file-length stream))))
+         (read-sequence contents stream)
+         contents)))
+    ((and (stringp tls)
+          (> (length tls) 0)
+          (probe-file tls))
+     (with-open-file (stream tls :direction :input :external-format :utf-8)
+       (let ((contents (make-string (file-length stream))))
+         (read-sequence contents stream)
+         contents)))
+    ((stringp tls) tls)
+    (t (error "Invalid :tls value for make-grpc-channel: ~S" tls))))
+
+(defun grpc-channel-create (target &key tls)
+  "Create a gRPC channel to TARGET.
+
+When TLS is NIL, creates an insecure channel.
+When TLS is truthy, creates a secure channel using the supplied root certificate
+string, returning CHANNEL and CREDENTIALS as two values.
+"
   (ensure-grpc-available)
-  (%grpc-insecure-channel-create target (cffi:null-pointer) (cffi:null-pointer)))
+  (if (not tls)
+      (let ((channel (%grpc-insecure-channel-create target (cffi:null-pointer) (cffi:null-pointer))))
+        (if (cffi:null-pointer-p channel)
+            (error "Insecure channel creation failed: channel creation returned NULL")
+            (values channel nil)))
+      (let ((root-certs (grpc-channel-tls-root-certs tls))
+            (creator (grpc-channel-create-secure-fn))
+            (credentials nil))
+        (unless creator
+          (error "TLS channel support is unavailable: grpc_ssl_channel_create/grpc_secure_channel_create symbols were not found."))
+        (setf credentials (%grpc-ssl-credentials-create root-certs (cffi:null-pointer)
+                                                       (cffi:null-pointer)))
+        (when (or (null credentials) (cffi:null-pointer-p credentials))
+          (error "TLS channel creation failed: credentials creation returned NULL"))
+        (let ((channel (funcall creator credentials target (cffi:null-pointer)
+                               (cffi:null-pointer))))
+          (if (or (null channel) (cffi:null-pointer-p channel))
+              (progn
+                (%grpc-channel-credentials-release credentials)
+                (error "TLS channel creation failed: channel creation returned NULL"))
+              (values channel credentials))))))
 
 (defun grpc-channel-destroy (channel)
   "Destroy a gRPC channel."

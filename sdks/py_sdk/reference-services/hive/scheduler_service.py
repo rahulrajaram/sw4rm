@@ -19,12 +19,12 @@ Minimal, stateless Scheduler Service for the Python reference stack.
 
 import json
 import os
-import shlex
 import subprocess
-import threading
 from concurrent import futures
 from typing import Optional
 import traceback
+import time
+import threading
 
 import grpc
 import shutil
@@ -44,62 +44,71 @@ except Exception:
 
     scheduler_pb2 = None
     scheduler_pb2_grpc = None
+from pathlib import Path
+from collections import Counter
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+from state_store import SchedulerStateStore
+from reference_auth_middleware import build_auth_interceptors
+from reference_logging import configure_reference_service_logging, request_logging_context
+from health_service import add_reference_health_service
+from reference_config import (
+    ReferenceServiceConfig,
+    ReferenceServiceConfigWatcher,
+    load_reference_service_config,
+    start_reference_service_config_watcher,
+)
+from graceful_shutdown import (
+    ReferenceServiceShutdownCoordinator,
+)
+
+_DEFAULT_DB_DIR = os.getenv(
+    "REFERENCE_SERVICE_DB_DIR",
+    str(Path.cwd() / ".reference_services_state"),
+)
+_CONFIG_WATCHER: Optional[ReferenceServiceConfigWatcher] = None
 
 from sw4rm.clients.registry import RegistryClient
 from sw4rm.clients.router import RouterClient
 from sw4rm.envelope import build_envelope
-from pathlib import Path
-import threading
-import time
-import socket
-from collections import Counter
 
 # Track whether we've established a session in this process
 _SESSION_READY: bool = False
 
-# --- simple colored logging helpers ---
-def _supports_color() -> bool:
-    try:
-        import sys as _sys
-        return _sys.stdout.isatty() and os.getenv("NO_COLOR") is None
-    except Exception:
-        return False
 
-_COLOR_RESET = "\033[0m"
-_COLOR = "\033[33m"  # yellow for scheduler
-_GREEN = "\033[32m"
-_RED = "\033[31m"
+def _default_db_path(env_var: str, filename: str) -> str:
+    explicit = os.getenv(env_var)
+    if explicit:
+        return explicit
+    return str(Path(_DEFAULT_DB_DIR) / filename)
 
-def _tag() -> str:
-    return f"{_COLOR}[scheduler]{_COLOR_RESET}" if _supports_color() else "[scheduler]"
+
+def _active_config() -> "ReferenceServiceConfig":
+    if _CONFIG_WATCHER is not None:
+        return _CONFIG_WATCHER.config
+    return load_reference_service_config("scheduler")
+
 
 def _log(msg: str) -> None:
-    print(f"{_tag()} {msg}")
+    logging.info(msg)
 
 def _log_success(msg: str) -> None:
-    if _supports_color():
-        print(f"{_tag()} {_GREEN}{msg}{_COLOR_RESET}")
-    else:
-        print(f"{_tag()} {msg}")
+    logging.info(msg)
 
 def _log_error(msg: str) -> None:
-    if _supports_color():
-        print(f"{_tag()} {_RED}{msg}{_COLOR_RESET}")
-    else:
-        print(f"{_tag()} {msg}")
+    logging.error(msg)
 
 
 def _router_channel() -> grpc.Channel:
-    host = os.getenv("ROUTER_HOST", "localhost")
-    port = int(os.getenv("ROUTER_PORT", "50051"))
+    cfg = _active_config()
+    host = cfg.router_host or os.getenv("ROUTER_HOST", "localhost")
+    port = int(cfg.router_port or int(os.getenv("ROUTER_PORT", "50051")))
     return grpc.insecure_channel(f"{host}:{port}")
 
 
 def _registry_channel() -> grpc.Channel:
-    host = os.getenv("REGISTRY_HOST", "localhost")
-    port = int(os.getenv("REGISTRY_PORT", "50052"))
+    cfg = _active_config()
+    host = cfg.registry_host or os.getenv("REGISTRY_HOST", "localhost")
+    port = int(cfg.registry_port or int(os.getenv("REGISTRY_PORT", "50052")))
     return grpc.insecure_channel(f"{host}:{port}")
 
 
@@ -247,7 +256,7 @@ def run_claude_stream_json(prompt: str) -> tuple[Optional[dict], str]:
             bufsize=1,
         )
     except FileNotFoundError:
-        print("claude CLI not found on PATH. Please install and authenticate it.")
+        _log_error("claude CLI not found on PATH. Please install and authenticate it.")
         return None, ""
 
     # Accumulate textual content from stream events
@@ -344,14 +353,14 @@ def run_claude_stream_json(prompt: str) -> tuple[Optional[dict], str]:
                             if isinstance(t, str):
                                 text_buf.append(t)
 
-    proc.wait()
-    # no stream log to close
-    full_text = "".join(text_buf).strip()
-    if not full_text:
-        if raw_lines_sample:
-            _log("No reconstructed text; raw stream sample:")
-            for ln in raw_lines_sample:
-                print(ln)
+        proc.wait()
+        # no stream log to close
+        full_text = "".join(text_buf).strip()
+        if not full_text:
+            if raw_lines_sample:
+                _log("No reconstructed text; raw stream sample:")
+                for ln in raw_lines_sample:
+                    _log(ln)
         # Write summary to transcript
         _transcript_append({
             "event": "llm_stream_summary",
@@ -376,8 +385,8 @@ def run_claude_stream_json(prompt: str) -> tuple[Optional[dict], str]:
     # Fallback: extract first JSON object from the text
     obj = _extract_first_json_object(full_text)
     if obj is None:
-        _log("Fallback JSON object extraction failed. Text excerpt (first 400 chars):")
-        print(full_text[:400])
+                            _log("Fallback JSON object extraction failed. Text excerpt (first 400 chars):")
+                            _log(full_text[:400])
     # Record summary for troubleshooting
     _transcript_append({
         "event": "llm_stream_summary",
@@ -446,111 +455,208 @@ class SchedulerServiceImpl:
     Provides task scheduling, preemption, and activity buffer management.
     """
 
-    def __init__(self):
-        self.tasks: dict[str, dict] = {}  # task_id -> task info
-        self.activity: dict[str, list] = {}  # agent_id -> activity entries
+    def __init__(
+        self,
+        db_path: Optional[str] = None,
+        shutdown_manager: Optional[ReferenceServiceShutdownCoordinator] = None,
+        config_watcher: Optional[ReferenceServiceConfigWatcher] = None,
+    ):
+        self._config_watcher = config_watcher
+        base_config = (
+            config_watcher.config
+            if config_watcher is not None
+            else load_reference_service_config("scheduler")
+        )
+        self.db_path = db_path or base_config.scheduler_db_path
+        self.state = SchedulerStateStore(self.db_path)
+        self.tasks: dict[str, dict] = {}
+        self.activity: dict[str, list] = {}
+        self._shutdown_manager = (
+            shutdown_manager
+            or ReferenceServiceShutdownCoordinator(
+                "scheduler-service",
+                grace_period_seconds=base_config.shutdown_grace_seconds,
+            )
+        )
+        self._restore_state()
         self.lock = threading.RLock()
         logging.info("Scheduler service initialized")
 
+    def _restore_state(self) -> None:
+        tasks, activity = self.state.load_state()
+        self.tasks = tasks
+
+        self.activity = {}
+        for agent_id, entries in activity.items():
+            self.activity[agent_id] = [
+                self._activity_from_record(record) for record in entries
+            ]
+
+    @staticmethod
+    def _activity_from_record(record: dict) -> "scheduler_pb2.ActivityEntry":
+        return scheduler_pb2.ActivityEntry(
+            task_id=record.get("task_id", ""),
+            repo_id=record.get("repo_id", ""),
+            worktree_id=record.get("worktree_id", ""),
+            branch=record.get("branch", ""),
+            description=record.get("description", ""),
+            timestamp=record.get("timestamp", ""),
+        )
+
     def SubmitTask(self, request, context):
         """Submit a task for scheduling."""
-        with self.lock:
-            task_id = request.task_id or f"task-{len(self.tasks)}"
-            self.tasks[task_id] = {
-                "agent_id": request.agent_id,
-                "task_id": task_id,
-                "priority": request.priority,
-                "scope": request.scope,
-                "content_type": request.content_type,
-                "params": request.params,
-                "status": "pending",
-                "submitted_at": time.time(),
-            }
+        if self._shutdown_manager.is_draining:
+            return scheduler_pb2.SubmitTaskResponse(
+                accepted=False,
+                reason="Scheduler service is shutting down",
+            )
 
-            # Record activity
-            if request.agent_id not in self.activity:
-                self.activity[request.agent_id] = []
-            self.activity[request.agent_id].append(
-                scheduler_pb2.ActivityEntry(
+        with self._shutdown_manager.track_request("SubmitTask"):
+            with self.lock:
+                task_id = request.task_id or f"task-{len(self.tasks)}"
+                task_record = {
+                    "agent_id": request.agent_id,
+                    "task_id": task_id,
+                    "priority": request.priority,
+                    "scope": request.scope,
+                    "content_type": request.content_type,
+                    "params": request.params,
+                    "status": "pending",
+                    "submitted_at": time.time(),
+                }
+                self.tasks[task_id] = task_record
+                self.state.save_task(task_id, task_record)
+
+                # Record activity
+                if request.agent_id not in self.activity:
+                    self.activity[request.agent_id] = []
+                activity_entry = scheduler_pb2.ActivityEntry(
                     task_id=task_id,
                     description=f"Task submitted: {request.scope or 'default'}",
                     timestamp=time.strftime('%Y-%m-%dT%H:%M:%SZ'),
                 )
-            )
+                self.activity[request.agent_id].append(activity_entry)
+                self.state.append_activity(request.agent_id, {
+                    "task_id": task_id,
+                    "repo_id": "",
+                    "worktree_id": "",
+                    "branch": "",
+                    "description": activity_entry.description,
+                    "timestamp": activity_entry.timestamp,
+                })
 
-            logging.info(f"Task {task_id} submitted for agent {request.agent_id}")
-            return scheduler_pb2.SubmitTaskResponse(
-                accepted=True,
-                reason=f"Task {task_id} accepted",
-            )
+                logging.info(f"Task {task_id} submitted for agent {request.agent_id}")
+                return scheduler_pb2.SubmitTaskResponse(
+                    accepted=True,
+                    reason=f"Task {task_id} accepted",
+                )
 
     def RequestPreemption(self, request, context):
         """Request preemption of a running task."""
-        with self.lock:
-            task_id = request.task_id
-            if task_id in self.tasks:
-                self.tasks[task_id]["status"] = "preempted"
-                self.tasks[task_id]["preempt_reason"] = request.reason
-                logging.info(f"Task {task_id} marked for preemption: {request.reason}")
-                return scheduler_pb2.PreemptResponse(enqueued=True)
-            else:
-                logging.warning(f"Preemption requested for unknown task: {task_id}")
-                return scheduler_pb2.PreemptResponse(enqueued=False)
+        if self._shutdown_manager.is_draining:
+            return scheduler_pb2.PreemptResponse(enqueued=False)
+
+        with self._shutdown_manager.track_request("RequestPreemption"):
+            with self.lock:
+                task_id = request.task_id
+                if task_id in self.tasks:
+                    self.tasks[task_id]["status"] = "preempted"
+                    self.tasks[task_id]["preempt_reason"] = request.reason
+                    self.state.update_task_status(task_id, "preempted", request.reason)
+                    logging.info(f"Task {task_id} marked for preemption: {request.reason}")
+                    return scheduler_pb2.PreemptResponse(enqueued=True)
+                else:
+                    logging.warning(f"Preemption requested for unknown task: {task_id}")
+                    return scheduler_pb2.PreemptResponse(enqueued=False)
 
     def ShutdownAgent(self, request, context):
         """Request graceful shutdown of an agent."""
-        agent_id = request.agent_id
-        grace_seconds = request.grace_period.seconds if request.grace_period else 30
-        logging.info(f"Shutdown requested for agent {agent_id} (grace: {grace_seconds}s)")
+        if self._shutdown_manager.is_draining:
+            return scheduler_pb2.ShutdownAgentResponse(ok=False)
 
-        # In a real implementation, this would signal the agent
-        # For now, just acknowledge the request
-        return scheduler_pb2.ShutdownAgentResponse(ok=True)
+        with self._shutdown_manager.track_request("ShutdownAgent"):
+            agent_id = request.agent_id
+            grace_seconds = request.grace_period.seconds if request.grace_period else 30
+            logging.info(f"Shutdown requested for agent {agent_id} (grace: {grace_seconds}s)")
+
+            # In a real implementation, this would signal the agent
+            # For now, just acknowledge the request
+            return scheduler_pb2.ShutdownAgentResponse(ok=True)
+
 
     def PollActivityBuffer(self, request, context):
         """Poll activity buffer for an agent."""
-        with self.lock:
-            entries = self.activity.get(request.agent_id, [])
-            logging.debug(f"Polled {len(entries)} entries for agent {request.agent_id}")
-            return scheduler_pb2.PollActivityBufferResponse(entries=entries)
+        if self._shutdown_manager.is_draining:
+            return scheduler_pb2.PollActivityBufferResponse(entries=[])
+        with self._shutdown_manager.track_request("PollActivityBuffer"):
+            with self.lock:
+                entries = self.activity.get(request.agent_id, [])
+                logging.debug(f"Polled {len(entries)} entries for agent {request.agent_id}")
+                return scheduler_pb2.PollActivityBufferResponse(entries=entries)
 
     def PurgeActivity(self, request, context):
         """Purge activity entries for an agent."""
-        with self.lock:
-            agent_id = request.agent_id
-            task_ids = set(request.task_ids)
+        if self._shutdown_manager.is_draining:
+            return scheduler_pb2.PurgeActivityResponse(purged=0)
 
-            if agent_id not in self.activity:
-                return scheduler_pb2.PurgeActivityResponse(purged=0)
+        with self._shutdown_manager.track_request("PurgeActivity"):
+            with self.lock:
+                agent_id = request.agent_id
+                task_ids = set(request.task_ids)
 
-            original_count = len(self.activity[agent_id])
-            if task_ids:
-                # Purge specific tasks
-                self.activity[agent_id] = [
-                    e for e in self.activity[agent_id]
-                    if e.task_id not in task_ids
-                ]
-            else:
-                # Purge all
-                self.activity[agent_id] = []
+                if agent_id not in self.activity:
+                    return scheduler_pb2.PurgeActivityResponse(purged=0)
 
-            purged = original_count - len(self.activity[agent_id])
-            logging.info(f"Purged {purged} entries for agent {agent_id}")
-            return scheduler_pb2.PurgeActivityResponse(purged=purged)
+                purged = self.state.clear_activity(agent_id, task_ids)
+                if task_ids:
+                    self.activity[agent_id] = [
+                        e for e in self.activity[agent_id]
+                        if e.task_id not in task_ids
+                    ]
+                else:
+                    self.activity[agent_id] = []
+                logging.info(f"Purged {purged} entries for agent {agent_id}")
+                return scheduler_pb2.PurgeActivityResponse(purged=purged)
 
 
 def main() -> int:
     # Bind gRPC server with scheduler service
-    port = int(os.getenv("SCHEDULER_PORT", "50053"))
-    grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+    config_watcher = start_reference_service_config_watcher("scheduler")
+    config = config_watcher.config
+    global _CONFIG_WATCHER
+    _CONFIG_WATCHER = config_watcher
+    configure_reference_service_logging(
+        service_name="scheduler-service",
+        level=os.getenv("REFERENCE_LOG_LEVEL", "INFO"),
+    )
+    port = int(config.scheduler_port)
+    scheduler_shutdown_manager = ReferenceServiceShutdownCoordinator(
+        "scheduler-service",
+        grace_period_seconds=config.shutdown_grace_seconds,
+    )
+    grpc_server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=4),
+        interceptors=list(build_auth_interceptors(service_name="scheduler")),
+    )
 
     # Register SchedulerService if protos available
     if scheduler_pb2_grpc is not None:
-        scheduler_impl = SchedulerServiceImpl()
+        scheduler_impl = SchedulerServiceImpl(
+            db_path=config.scheduler_db_path,
+            shutdown_manager=scheduler_shutdown_manager,
+            config_watcher=config_watcher,
+        )
         scheduler_pb2_grpc.add_SchedulerServiceServicer_to_server(
             scheduler_impl, grpc_server
         )
         logging.info(f"Scheduler gRPC service registered on port {port}")
+    try:
+        scheduler_service_name = scheduler_pb2.DESCRIPTOR.services_by_name[
+            "SchedulerService"
+        ].full_name
+    except Exception:
+        scheduler_service_name = "sw4rm.scheduler.SchedulerService"
+    add_reference_health_service(grpc_server, service_names=(scheduler_service_name,))
 
     grpc_server.add_insecure_port(f"0.0.0.0:{port}")
     grpc_server.start()
@@ -595,64 +701,69 @@ def main() -> int:
                         "done": False,
                     }
 
-                # Endpoint mediation/relay removed in simplified flow
-                # Handle agent reports first (NOTIFICATION)
-                if ct == "application/vnd.sw4rm.agent.report+json;v=1":
-                    try:
-                        rep = json.loads(payload.decode("utf-8", errors="replace"))
-                    except Exception:
-                        rep = {"stage": "?", "status": "error", "logs": "<invalid json>"}
-                    from_id = getattr(msg, "producer_id", "")
-                    corr = getattr(msg, "correlation_id", "")
-                    stage = rep.get("stage")
-                    status = rep.get("status")
-                    files = rep.get("files")
-                    files_n = len(files) if isinstance(files, list) else None
-                    extra = ''
-                    try:
-                        if from_id == 'backend' and stage == 'run_probe' and isinstance(rep.get('port'), (int, float, str)):
-                            extra = f" port={rep.get('port')}"
-                    except Exception:
-                        pass
-                    # Highlight failures
-                    if status == "ok":
-                        _log(f"report from {from_id} corr={corr} stage={stage} status={status} files={files_n}{extra}")
-                    else:
-                        _log_error(f"report from {from_id} corr={corr} stage={stage} status={status} files={files_n}{extra}")
-                    _transcript_append({
-                        "event": "report",
-                        "from": from_id,
-                        "corr": corr,
-                        "stage": stage,
-                        "status": status,
-                        "files": files_n,
-                    })
-                    # Update session state and drive next commands
-                    sess = sessions.get(corr)
-                    if isinstance(sess, dict) and not sess.get("done"):
-                        role = from_id if from_id in ("frontend", "backend") else None
-                        if stage == "generate" and role:
-                            sess["generate_ok"][role] = (status == "ok")
-                            if all(sess["generate_ok"].values()):
-                                # Auto-run if commands present from unified plan
-                                cmds = sess.get("run_cmds") if isinstance(sess, dict) else None
-                                if isinstance(cmds, dict):
-                                    back_cmd_s = (cmds.get("backend") or "")
-                                    front_cmd_s = (cmds.get("frontend") or "")
-                                    if back_cmd_s and front_cmd_s:
-                                        cmd_ct = "application/vnd.sw4rm.scheduler.command+json;v=1"
-                                        back_cmd = json.dumps({"schema_version": 1, "to": "backend", "stage": "run", "params": {"cmd": back_cmd_s}}).encode("utf-8")
-                                        front_cmd = json.dumps({"schema_version": 1, "to": "frontend", "stage": "run", "params": {"cmd": front_cmd_s}}).encode("utf-8")
-                                        _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, back_cmd, corr)
-                                        _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, front_cmd, corr)
-                                        _log(f"dispatched run to frontend/backend corr={corr} (from LLM plan)")
-                        elif stage == "run" and role:
-                            sess["run_ok"][role] = (status == "ok")
-                            if all(sess["run_ok"].values()):
-                                sess["done"] = True
-                                _transcript_append({"event": "success_run", "corr": corr})
-                                _log_success(f"completed session: both agents running (corr={corr})")
-                    continue
+                with request_logging_context(
+                    request=msg,
+                    method_name="StreamIncoming",
+                    fallback_correlation_id=corr,
+                ):
+                    # Endpoint mediation/relay removed in simplified flow
+                    # Handle agent reports first (NOTIFICATION)
+                    if ct == "application/vnd.sw4rm.agent.report+json;v=1":
+                        try:
+                            rep = json.loads(payload.decode("utf-8", errors="replace"))
+                        except Exception:
+                            rep = {"stage": "?", "status": "error", "logs": "<invalid json>"}
+                        from_id = getattr(msg, "producer_id", "")
+                        corr = getattr(msg, "correlation_id", "")
+                        stage = rep.get("stage")
+                        status = rep.get("status")
+                        files = rep.get("files")
+                        files_n = len(files) if isinstance(files, list) else None
+                        extra = ''
+                        try:
+                            if from_id == 'backend' and stage == 'run_probe' and isinstance(rep.get('port'), (int, float, str)):
+                                extra = f" port={rep.get('port')}"
+                        except Exception:
+                            pass
+                        # Highlight failures
+                        if status == "ok":
+                            _log(f"report from {from_id} corr={corr} stage={stage} status={status} files={files_n}{extra}")
+                        else:
+                            _log_error(f"report from {from_id} corr={corr} stage={stage} status={status} files={files_n}{extra}")
+                        _transcript_append({
+                            "event": "report",
+                            "from": from_id,
+                            "corr": corr,
+                            "stage": stage,
+                            "status": status,
+                            "files": files_n,
+                        })
+                        # Update session state and drive next commands
+                        sess = sessions.get(corr)
+                        if isinstance(sess, dict) and not sess.get("done"):
+                            role = from_id if from_id in ("frontend", "backend") else None
+                            if stage == "generate" and role:
+                                sess["generate_ok"][role] = (status == "ok")
+                                if all(sess["generate_ok"].values()):
+                                    # Auto-run if commands present from unified plan
+                                    cmds = sess.get("run_cmds") if isinstance(sess, dict) else None
+                                    if isinstance(cmds, dict):
+                                        back_cmd_s = (cmds.get("backend") or "")
+                                        front_cmd_s = (cmds.get("frontend") or "")
+                                        if back_cmd_s and front_cmd_s:
+                                            cmd_ct = "application/vnd.sw4rm.scheduler.command+json;v=1"
+                                            back_cmd = json.dumps({"schema_version": 1, "to": "backend", "stage": "run", "params": {"cmd": back_cmd_s}}).encode("utf-8")
+                                            front_cmd = json.dumps({"schema_version": 1, "to": "frontend", "stage": "run", "params": {"cmd": front_cmd_s}}).encode("utf-8")
+                                            _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, back_cmd, corr)
+                                            _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, front_cmd, corr)
+                                            _log(f"dispatched run to frontend/backend corr={corr} (from LLM plan)")
+                            elif stage == "run" and role:
+                                sess["run_ok"][role] = (status == "ok")
+                                if all(sess["run_ok"].values()):
+                                    sess["done"] = True
+                                    _transcript_append({"event": "success_run", "corr": corr})
+                                    _log_success(f"completed session: both agents running (corr={corr})")
+                        continue
 
                 # Operator control: allow external run trigger (stage=run), and unified prompt (stage=plan/prompt)
                 if ct == "application/vnd.sw4rm.scheduler.command+json;v=1":
@@ -718,14 +829,14 @@ def main() -> int:
                         if not isinstance(seed, str) or not seed.strip():
                             _log("scheduler CONTROL prompt missing seed/prompt text; ignoring")
                             continue
-                        print(f"[scheduler] received prompt ({len(seed)} bytes)")
+                        _log(f"[scheduler] received prompt ({len(seed)} bytes)")
                         _transcript_append({"event": "seed", "len": len(seed)})
                         # Use same flow as legacy seed
                         result, full_text = run_claude_stream_json(seed)
                         if not isinstance(result, dict):
-                            print("[scheduler] invalid result from claude: not a dict. Excerpt of text:")
+                            _log_error("[scheduler] invalid result from claude: not a dict. Excerpt of text:")
                             if full_text:
-                                print(full_text[:400])
+                                _log(full_text[:400])
                             continue
                         raw_front = result.get("frontend")
                         raw_back = result.get("backend")
@@ -776,15 +887,15 @@ def main() -> int:
                     seed = seed_obj.get("seed", "")
                 except Exception:
                     seed = payload.decode("utf-8", errors="replace")
-                print(f"[scheduler] received seed ({len(seed)} bytes)")
+                _log(f"[scheduler] received seed ({len(seed)} bytes)")
                 _transcript_append({"event": "seed", "len": len(seed)})
 
                 # Always use Claude CLI stream-json
                 result, full_text = run_claude_stream_json(seed)
                 if not isinstance(result, dict):
-                    print("[scheduler] invalid result from claude: not a dict. Excerpt of text:")
+                    _log_error("[scheduler] invalid result from claude: not a dict. Excerpt of text:")
                     if full_text:
-                        print(full_text[:400])
+                        _log(full_text[:400])
                     continue
                 # Normalize planner schema: accept string prompts and fill defaults
                 raw_front = result.get("frontend")
@@ -792,9 +903,9 @@ def main() -> int:
                 plan_front = _normalize_agent_plan("frontend", raw_front)
                 plan_back = _normalize_agent_plan("backend", raw_back)
                 if not isinstance(plan_front, dict) or not isinstance(plan_back, dict):
-                    print("[scheduler] planner result missing required prompt(s) for frontend/backend. Got keys:", list(result.keys()))
+                    _log_error(f"[scheduler] planner result missing required prompt(s) for frontend/backend. Got keys: {list(result.keys())}")
                     try:
-                        print(json.dumps(result)[:400])
+                        _log(json.dumps(result)[:400])
                     except Exception:
                         pass
                     continue
@@ -846,17 +957,37 @@ def main() -> int:
                 _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, cmd_back, corr)
                 _transcript_append({"event": "command", "corr": corr, "to": "frontend", "stage": "generate"})
                 _transcript_append({"event": "command", "corr": corr, "to": "backend", "stage": "generate"})
-                print("[scheduler] dispatched generate commands to frontend/backend agents")
+                _log("[scheduler] dispatched generate commands to frontend/backend agents")
             except Exception as e:
-                print(f"[scheduler] stream error: {e}")
+                _log_error(f"[scheduler] stream error: {e}")
 
     t = threading.Thread(target=handle_stream, daemon=True)
     t.start()
 
+    def signal_handler(signum, frame):
+        logging.info(f"Received signal {signum}, shutting down...")
+        scheduler_shutdown_manager.stop_server(
+            grpc_server,
+            logger=logging.getLogger("scheduler.service"),
+            pre_stop_hook=lambda: logging.info("Scheduler service entering graceful drain mode"),
+        )
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
     try:
         grpc_server.wait_for_termination()
     except KeyboardInterrupt:
-        pass
+        logging.info("Shutting down...")
+        scheduler_shutdown_manager.stop_server(
+            grpc_server,
+            logger=logging.getLogger("scheduler.service"),
+            pre_stop_hook=lambda: logging.info("Scheduler service entering graceful drain mode"),
+        )
+    finally:
+        config_watcher.close()
+        if _CONFIG_WATCHER is config_watcher:
+            _CONFIG_WATCHER = None
     return 0
 
 

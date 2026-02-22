@@ -7,14 +7,16 @@ COPY sdks/py_sdk /app/sdks/py_sdk
 RUN pip install --no-cache-dir -e /app/sdks/py_sdk
 
 # Copy service files and install service requirements
-COPY examples/reference-services/python/requirements.txt ./requirements.txt
+COPY sdks/py_sdk/reference-services/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy scheduler service implementation
-COPY examples/reference-services/python/hive/scheduler_service.py ./scheduler_service.py
+COPY sdks/py_sdk/reference-services/hive/state_store.py ./state_store.py
+COPY sdks/py_sdk/reference-services/hive/scheduler_service.py ./scheduler_service.py
 
 # Expose scheduler port
 EXPOSE 50053
+EXPOSE 9102
 
 # Run the scheduler service
 CMD ["python", "scheduler_service.py"]

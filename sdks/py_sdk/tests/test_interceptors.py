@@ -1,5 +1,11 @@
 import grpc  # type: ignore
-from sw4rm.interceptors import CorrelationIdClientInterceptor, channel_with_interceptors
+from unittest.mock import patch
+from sw4rm import tracing
+from sw4rm.interceptors import (
+    CorrelationIdClientInterceptor,
+    TracingClientInterceptor,
+    channel_with_interceptors,
+)
 
 
 class DummyDetails(grpc.ClientCallDetails):  # type: ignore
@@ -28,3 +34,36 @@ def test_channel_with_interceptors_base_channel():
     # Without proper grpc interceptor subclasses, returns base channel
     ch = channel_with_interceptors('localhost:9')
     assert ch is not None
+
+
+def test_tracing_client_interceptor_adds_trace_metadata():
+    current_trace = tracing.TraceContext(trace_id="trace-id", span_id="span-id")
+    details = DummyDetails()
+
+    with patch("sw4rm.interceptors.tracing.get_current_trace", return_value=current_trace), patch(
+        "sw4rm.interceptors.tracing.trace_context_to_metadata",
+        return_value={"x-sw4rm-trace-id": "trace-id", "x-sw4rm-span-id": "span-id"},
+    ):
+        ic = TracingClientInterceptor()
+
+        def cont(details_arg, _request):
+            md = dict(details_arg.metadata)
+            assert md["foo"] == "bar"
+            assert md["x-sw4rm-trace-id"] == "trace-id"
+            assert md["x-sw4rm-span-id"] == "span-id"
+            return "ok"
+
+        assert ic.intercept_unary_unary(cont, details, b"payload") == "ok"
+
+
+def test_tracing_client_interceptor_without_current_trace():
+    details = DummyDetails()
+    with patch("sw4rm.interceptors.tracing.get_current_trace", return_value=None):
+        ic = TracingClientInterceptor()
+
+        def cont(details_arg, _request):
+            return dict(details_arg.metadata)
+
+        assert ic.intercept_unary_unary(cont, details, b"payload") == {
+            "foo": "bar",
+        }

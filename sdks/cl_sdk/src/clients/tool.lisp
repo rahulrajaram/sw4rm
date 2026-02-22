@@ -183,7 +183,10 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC ToolService.ListTools
-      (error 'rpc-error
-             :message "ListTools not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-list-tools-request provider-id))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.tool.ToolService/ListTools"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-list-tools-response response-bytes)))))

@@ -89,10 +89,13 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC ActivityService.RemoveArtifact
-      (error 'rpc-error
-             :message "DeregisterActivity not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-deregister-activity-request artifact-id))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.activity.ActivityService/RemoveArtifact"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-deregister-activity-response response-bytes)))))
 
 (defgeneric list-activities (client negotiation-id &optional kind)
   (:documentation "List artifacts for a negotiation session.
@@ -165,7 +168,10 @@ Example:
   (ensure-connected client)
   (with-retry ((client-retry-max-attempts client))
     (with-deadline ((client-timeout-ms client))
-      ;; Stub: In real implementation, this would call gRPC ActivityService.GetArtifact
-      (error 'rpc-error
-             :message "GetArtifact not implemented - requires gRPC integration"
-             :status-code "UNIMPLEMENTED" :details "Stub implementation"))))
+      (let* ((request-bytes (encode-get-artifact-request artifact-id))
+             (response-bytes (grpc-unary-call
+                              (client-channel client)
+                              "/sw4rm.activity.ActivityService/GetArtifact"
+                              request-bytes
+                              :deadline-ms (client-timeout-ms client))))
+        (decode-get-artifact-response response-bytes)))))

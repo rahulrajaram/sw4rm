@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Iterable, Tuple
+from typing import Any
+
+from . import tracing
 
 
 def _grpc_required():
@@ -28,6 +30,30 @@ class CorrelationIdClientInterceptor:  # type: ignore[misc]
             metadata.append(("x-correlation-id", self._correlation_id))
         if self._user_agent:
             metadata.append(("user-agent", self._user_agent))
+        return _ClientCallDetails(
+            method=client_call_details.method,
+            timeout=client_call_details.timeout,
+            metadata=tuple(metadata),
+            credentials=client_call_details.credentials,
+            wait_for_ready=getattr(client_call_details, "wait_for_ready", None),
+            compression=getattr(client_call_details, "compression", None),
+        )
+
+    def intercept_unary_unary(self, continuation, client_call_details, request):  # type: ignore
+        return continuation(self._append_metadata(client_call_details), request)
+
+
+class TracingClientInterceptor:  # type: ignore[misc]
+    """Injects distributed trace context into outgoing gRPC metadata."""
+
+    def _append_metadata(self, client_call_details: Any) -> Any:
+        metadata = [] if client_call_details.metadata is None else list(client_call_details.metadata)
+
+        current_trace = tracing.get_current_trace()
+        if current_trace is not None:
+            for key, value in tracing.trace_context_to_metadata(current_trace).items():
+                metadata.append((key, value))
+
         return _ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,
