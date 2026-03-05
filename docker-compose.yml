@@ -1,0 +1,87 @@
+# SW4RM Reference Services — Quick Start
+#
+# Usage:
+#   docker compose up --build -d
+#   docker compose logs -f
+#   docker compose down -v
+#
+# Services:
+#   Registry  — Agent discovery & heartbeat (port 50052, metrics 9100)
+#   Router    — Message routing & delivery  (port 50051, metrics 9101)
+#   Scheduler — Task scheduling & preemption (port 50053, metrics 9102)
+
+services:
+  registry:
+    build:
+      context: .
+      dockerfile: sdks/py_sdk/reference-services/docker/Dockerfile.registry
+    environment:
+      REFERENCE_SERVICE_DB_DIR: /var/lib/sw4rm
+      REFERENCE_METRICS_ENABLED: "1"
+      REFERENCE_METRICS_PORT: "9100"
+    ports:
+      - "50052:50052"
+      - "9100:9100"
+    volumes:
+      - registry-data:/var/lib/sw4rm
+    networks:
+      - sw4rm
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; ch = grpc.insecure_channel('localhost:50052'); grpc.channel_ready_future(ch).result(timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  router:
+    build:
+      context: .
+      dockerfile: sdks/py_sdk/reference-services/docker/Dockerfile.router
+    environment:
+      REFERENCE_SERVICE_DB_DIR: /var/lib/sw4rm
+      REFERENCE_METRICS_ENABLED: "1"
+      REFERENCE_METRICS_PORT: "9101"
+    ports:
+      - "50051:50051"
+      - "9101:9101"
+    volumes:
+      - router-data:/var/lib/sw4rm
+    networks:
+      - sw4rm
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; ch = grpc.insecure_channel('localhost:50051'); grpc.channel_ready_future(ch).result(timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: sdks/py_sdk/reference-services/docker/Dockerfile.scheduler
+    environment:
+      REFERENCE_SERVICE_DB_DIR: /var/lib/sw4rm
+      REFERENCE_METRICS_ENABLED: "1"
+      REFERENCE_METRICS_PORT: "9102"
+    ports:
+      - "50053:50053"
+      - "9102:9102"
+    volumes:
+      - scheduler-data:/var/lib/sw4rm
+    networks:
+      - sw4rm
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; ch = grpc.insecure_channel('localhost:50053'); grpc.channel_ready_future(ch).result(timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  sw4rm:
+    driver: bridge
+
+volumes:
+  registry-data:
+  router-data:
+  scheduler-data:

@@ -1,0 +1,201 @@
+// A2A Protocol — SW4RM Gateway Subset
+//
+// This is a minimal subset of the A2A protocol sufficient for
+// SW4RM agents to be discoverable and operable via A2A clients.
+// See: https://a2a-protocol.org/latest/specification/
+
+syntax = "proto3";
+
+package a2a;
+
+option java_package = "org.a2aproject.a2a";
+option go_package = "github.com/a2aproject/a2a/go/a2a";
+
+// --- Enums ---
+
+enum TaskState {
+  TASK_STATE_UNSPECIFIED = 0;
+  SUBMITTED = 1;
+  WORKING = 2;
+  INPUT_REQUIRED = 3;
+  COMPLETED = 4;
+  FAILED = 5;
+  CANCELED = 6;
+  AUTH_REQUIRED = 7;
+}
+
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  USER = 1;
+  AGENT = 2;
+}
+
+// --- Core Messages ---
+
+message Part {
+  oneof content {
+    TextPart text = 1;
+    FilePart file = 2;
+    DataPart data = 3;
+  }
+}
+
+message TextPart {
+  string text = 1;
+}
+
+message FilePart {
+  oneof file_content {
+    string uri = 1;
+    bytes bytes = 2;
+  }
+  string name = 3;
+  string mime_type = 4;
+}
+
+message DataPart {
+  bytes json_data = 1;  // JSON-encoded structured data
+}
+
+message Message {
+  Role role = 1;
+  repeated Part parts = 2;
+  string message_id = 3;
+  string context_id = 4;
+  string task_id = 5;
+  map<string, string> metadata = 6;
+}
+
+message TaskStatus {
+  TaskState state = 1;
+  Message message = 2;
+  string timestamp = 3;
+}
+
+message Artifact {
+  string artifact_id = 1;
+  string name = 2;
+  string description = 3;
+  repeated Part parts = 4;
+  map<string, string> metadata = 5;
+}
+
+message Task {
+  string id = 1;
+  string context_id = 2;
+  TaskStatus status = 3;
+  repeated Artifact artifacts = 4;
+  repeated Message history = 5;
+  map<string, string> metadata = 6;
+}
+
+// --- Agent Card (returned as JSON, but defined here for type safety) ---
+
+message AgentSkill {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string tags = 4;
+  repeated string examples = 5;
+}
+
+message AgentCapabilities {
+  bool streaming = 1;
+  bool push_notifications = 2;
+  bool state_transition_history = 3;
+}
+
+message AgentCard {
+  string name = 1;
+  string description = 2;
+  string url = 3;
+  string version = 4;
+  string protocol_version = 5;
+  AgentCapabilities capabilities = 6;
+  repeated AgentSkill skills = 7;
+  repeated string supported_content_types = 8;
+}
+
+// --- Requests/Responses ---
+
+message SendMessageRequest {
+  Message message = 1;
+  MessageSendConfiguration configuration = 2;
+}
+
+message MessageSendConfiguration {
+  repeated string accepted_output_modes = 1;
+  bool blocking = 2;
+  int64 timeout_seconds = 3;
+}
+
+message SendMessageResponse {
+  oneof result {
+    Task task = 1;
+    Message message = 2;
+  }
+}
+
+message GetTaskRequest {
+  string task_id = 1;
+  int32 history_length = 2;
+}
+
+message GetTaskResponse {
+  Task task = 1;
+}
+
+message CancelTaskRequest {
+  string task_id = 1;
+}
+
+message CancelTaskResponse {
+  Task task = 1;
+}
+
+message GetAgentCardRequest {}
+
+message GetAgentCardResponse {
+  AgentCard agent_card = 1;
+}
+
+message TaskStatusUpdateEvent {
+  string task_id = 1;
+  TaskStatus status = 2;
+  bool final = 3;
+}
+
+message TaskArtifactUpdateEvent {
+  string task_id = 1;
+  Artifact artifact = 2;
+}
+
+message SubscribeToTaskRequest {
+  string task_id = 1;
+}
+
+message TaskEvent {
+  oneof event {
+    TaskStatusUpdateEvent status_update = 1;
+    TaskArtifactUpdateEvent artifact_update = 2;
+  }
+}
+
+// --- Service ---
+
+service A2AService {
+  // Send a message to the agent, creating or continuing a task
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+
+  // Get current state of a task
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse);
+
+  // Cancel a running task
+  rpc CancelTask(CancelTaskRequest) returns (CancelTaskResponse);
+
+  // Stream task updates
+  rpc SubscribeToTask(SubscribeToTaskRequest) returns (stream TaskEvent);
+
+  // Get the agent card (discovery)
+  rpc GetAgentCard(GetAgentCardRequest) returns (GetAgentCardResponse);
+}
