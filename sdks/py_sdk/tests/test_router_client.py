@@ -74,14 +74,18 @@ class TestRouterClientSendMessage:
         client._stub = mock_stub
         client._pb2 = mock_pb2
 
-        with patch('sw4rm.protos.common_pb2.Envelope', return_value=mock_envelope_msg):
-            # Act
-            result = client.send_message(envelope_dict)
+        try:
+            with patch('sw4rm.protos.common_pb2.Envelope', return_value=mock_envelope_msg):
+                # Act
+                result = client.send_message(envelope_dict)
 
-        # Assert
-        mock_pb2.SendMessageRequest.assert_called_once_with(msg=mock_envelope_msg)
-        mock_stub.SendMessage.assert_called_once_with(mock_request)
-        assert result == mock_response
+            # Assert
+            mock_pb2.SendMessageRequest.assert_called_once_with(msg=mock_envelope_msg)
+            assert mock_stub.SendMessage.call_count == 1
+            assert mock_stub.SendMessage.call_args[0][0] == mock_request
+            assert result == mock_response
+        finally:
+            tracing.set_current_trace(None)
 
     def test_send_message_strips_envelope_trace_context(self):
         """Test send_message removes envelope trace metadata before protobuf serialization."""
@@ -119,19 +123,22 @@ class TestRouterClientSendMessage:
             parent_span_id="incoming-span",
         )
 
-        with patch("sw4rm.clients.router.tracing.get_current_trace", return_value=root_trace), patch(
-            "sw4rm.clients.router.tracing.create_child_span", return_value=child_trace
-        ), patch("sw4rm.clients.router.tracing.trace_context_to_metadata", return_value={"x-sw4rm-trace-id": "incoming-trace"}), patch(
-            "sw4rm.protos.common_pb2.Envelope", return_value=mock_envelope_msg
-        ):
-            result = client.send_message(envelope_dict)
+        try:
+            with patch("sw4rm.clients.router.tracing.get_current_trace", return_value=root_trace), patch(
+                "sw4rm.clients.router.tracing.create_child_span", return_value=child_trace
+            ), patch("sw4rm.clients.router.tracing.trace_context_to_metadata", return_value={"x-sw4rm-trace-id": "incoming-trace"}), patch(
+                "sw4rm.protos.common_pb2.Envelope", return_value=mock_envelope_msg
+            ) as mock_common_envelope:
+                result = client.send_message(envelope_dict)
 
-        mock_pb2.SendMessageRequest.assert_called_once_with(msg=mock_envelope_msg)
-        call_kwargs = mock_pb2.Envelope.call_args.kwargs
-        assert "_trace_context" not in call_kwargs
-        send_call_kwargs = mock_stub.SendMessage.call_args.kwargs
-        assert ("x-sw4rm-trace-id", "incoming-trace") in send_call_kwargs["metadata"]
-        assert result == mock_response
+            mock_pb2.SendMessageRequest.assert_called_once_with(msg=mock_envelope_msg)
+            call_kwargs = mock_common_envelope.call_args.kwargs
+            assert "_trace_context" not in call_kwargs
+            send_call_kwargs = mock_stub.SendMessage.call_args.kwargs
+            assert ("x-sw4rm-trace-id", "incoming-trace") in send_call_kwargs["metadata"]
+            assert result == mock_response
+        finally:
+            tracing.set_current_trace(None)
 
     def test_send_message_with_stub_none_raises_runtime_error(self):
         """Test send_message raises RuntimeError when stub is None."""
@@ -241,13 +248,16 @@ class TestRouterClientIntegration:
 
         envelope_dict = {"producer_id": "agent-1", "message_type": 2}  # DATA enum value
 
-        with patch('sw4rm.protos.common_pb2.Envelope', return_value=mock_envelope_msg):
-            # Act
-            client.send_message(envelope_dict)
-            mock_stub.StreamIncoming.return_value = mock_stream
-            stream_result = client.stream_incoming(agent_id="agent-1")
+        try:
+            with patch('sw4rm.protos.common_pb2.Envelope', return_value=mock_envelope_msg):
+                # Act
+                client.send_message(envelope_dict)
+                mock_stub.StreamIncoming.return_value = mock_stream
+                stream_result = client.stream_incoming(agent_id="agent-1")
 
-        # Assert
-        assert mock_stub.SendMessage.call_count == 1
-        assert mock_stub.StreamIncoming.call_count == 1
-        assert stream_result == mock_stream
+            # Assert
+            assert mock_stub.SendMessage.call_count == 1
+            assert mock_stub.StreamIncoming.call_count == 1
+            assert stream_result == mock_stream
+        finally:
+            tracing.set_current_trace(None)

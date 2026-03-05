@@ -1,0 +1,29 @@
+name: Elixir CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: '26'
+          elixir-version: '1.16'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            sdks/ex_sdk/deps
+            sdks/ex_sdk/_build
+          key: mix-${{ hashFiles('sdks/ex_sdk/mix.lock') }}
+      - run: mix local.hex --force && mix local.rebar --force
+        working-directory: sdks/ex_sdk
+      - run: mix deps.get
+        working-directory: sdks/ex_sdk
+      - run: mix compile --warnings-as-errors
+        working-directory: sdks/ex_sdk
+      - run: mix format --check-formatted
+        working-directory: sdks/ex_sdk
+      - run: mix test
+        working-directory: sdks/ex_sdk
+      - run: mix run examples/reference_demo.exs
+        working-directory: sdks/ex_sdk

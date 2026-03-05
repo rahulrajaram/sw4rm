@@ -177,8 +177,17 @@ def add_trace_context_to_envelope(
 def strip_trace_context_from_envelope(envelope: Mapping[str, Any]) -> tuple[dict[str, Any], Optional["TraceContext"]]:
     """Return envelope payload without trace metadata and parsed trace context."""
     payload = dict(envelope)
-    trace = trace_context_from_envelope_metadata(payload.pop(TRACE_ENVELOPE_KEY, None))
-    return payload, trace
+    raw = payload.pop(TRACE_ENVELOPE_KEY, None)
+    if raw is None:
+        return payload, None
+    if isinstance(raw, TraceContext):
+        return payload, raw
+    if isinstance(raw, Mapping):
+        try:
+            return payload, TraceContext.from_dict(dict(raw))
+        except Exception:
+            return payload, None
+    return payload, None
 
 
 def trace_context_from_metadata(metadata: Any) -> Optional["TraceContext"]:

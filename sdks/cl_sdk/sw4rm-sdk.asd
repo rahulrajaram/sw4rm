@@ -5,8 +5,7 @@
   :version "0.5.0"
   :author "SW4RM Team"
   :license "Apache-2.0"
-  :depends-on (#:cl-protobufs.asdf   ; Protocol buffer support (Quicklisp system name)
-               #:alexandria         ; Common utilities
+  :depends-on (#:alexandria         ; Common utilities
                #:bordeaux-threads   ; Thread portability
                #:local-time         ; Time handling
                #:ironclad           ; Cryptographic operations

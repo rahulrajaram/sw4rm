@@ -1,0 +1,14 @@
+# Dependencies
+/deps/
+
+# Build output
+/_build/
+
+# Generated on crash
+erl_crash.dump
+
+# Mix archives
+/.fetch
+
+# Dialyzer PLTs
+/priv/plts/
