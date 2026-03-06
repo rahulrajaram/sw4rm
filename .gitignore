@@ -38,6 +38,10 @@ CLAUDE.md
 # Brainstorming documents (not part of source)
 IDEAS.md
 VISION.md
+IMPLEMENTATION_PLAN.md
+PROMPT.md
+RALPH_PROMPT.md
+ralph.yml
 
 # Generated protobuf stubs
 sdks/py_sdk/sw4rm/protos/*.py
