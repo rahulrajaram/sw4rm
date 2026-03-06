@@ -124,8 +124,8 @@ rtr = RouterClient(rtr_ch)
 
 # Register agents
 try:
-    reg.register_agent({"agent_id": "smoke-agent-a", "capabilities": ["test"]})
-    reg.register_agent({"agent_id": "smoke-agent-b", "capabilities": ["test"]})
+    reg.register({"agent_id": "smoke-agent-a", "capabilities": ["test"]})
+    reg.register({"agent_id": "smoke-agent-b", "capabilities": ["test"]})
     check("Register 2 agents", True)
 except Exception as e:
     check("Register 2 agents", False, str(e))
@@ -137,6 +137,8 @@ try:
         "consumer_id": "smoke-agent-b",
         "message_type": 2,
         "payload": b"smoke-test-payload",
+        "content_type": "application/octet-stream",
+        "correlation_id": "smoke-test-001",
     }
     rtr.send_message(envelope)
     check("Send message A -> B", True)
@@ -153,8 +155,8 @@ except Exception as e:
 
 # Deregister
 try:
-    reg.deregister_agent(agent_id="smoke-agent-a")
-    reg.deregister_agent(agent_id="smoke-agent-b")
+    reg.deregister(agent_id="smoke-agent-a")
+    reg.deregister(agent_id="smoke-agent-b")
     check("Deregister agents", True)
 except Exception as e:
     check("Deregister agents", False, str(e))
@@ -176,6 +178,30 @@ if [[ $SMOKE_EXIT -ne 0 ]]; then
   fail "Smoke checks"
 else
   pass "Smoke checks"
+fi
+
+# --- Step 3: A2A Gateway checks (Docker mode only) ---
+if [[ "$MODE" == "docker" ]]; then
+  echo ""
+  echo "--- Step 3: A2A Gateway checks ---"
+
+  # Check .well-known/agent.json
+  AGENT_CARD=$(curl -sf http://localhost:8080/.well-known/agent.json 2>/dev/null || echo "")
+  if [[ -n "$AGENT_CARD" ]] && echo "$AGENT_CARD" | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'name' in d" 2>/dev/null; then
+    pass "GET /.well-known/agent.json returns valid Agent Card"
+  else
+    fail "GET /.well-known/agent.json — missing or invalid"
+  fi
+
+  # JSON-RPC GetAgentCard
+  RPC_RESP=$(curl -sf -X POST http://localhost:8080/ \
+    -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","method":"GetAgentCard","params":{},"id":1}' 2>/dev/null || echo "")
+  if [[ -n "$RPC_RESP" ]] && echo "$RPC_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'result' in d" 2>/dev/null; then
+    pass "JSON-RPC GetAgentCard returns result"
+  else
+    fail "JSON-RPC GetAgentCard — missing or invalid response"
+  fi
 fi
 
 echo ""

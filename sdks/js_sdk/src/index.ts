@@ -133,3 +133,6 @@ export * from './secrets/resolver.js'
 export * from './secrets/backends/file.js'
 export * from './secrets/backends/keyring.js'
 export * from './secrets/factory.js'
+
+// LLM client abstraction
+export * from './llm/index.js'

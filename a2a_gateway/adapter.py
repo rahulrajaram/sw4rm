@@ -13,8 +13,10 @@ Mapping:
 """
 
 import json
+import sqlite3
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 from a2a_gateway.agent_card import agent_descriptor_to_card, make_gateway_card
@@ -108,6 +110,210 @@ class TaskStore:
         if context_id:
             tasks = [t for t in tasks if t["context_id"] == context_id]
         return tasks[:limit]
+
+
+# --- SQLite Task Store ---
+
+def _loads_json(value: str | None) -> Any:
+    if not value:
+        return None
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return None
+
+
+def _dumps_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True)
+
+
+class SqliteTaskStore:
+    """SQLite-backed store mapping A2A task IDs to SW4RM state.
+
+    Drop-in replacement for TaskStore with persistence across restarts.
+    Uses WAL mode and busy_timeout for concurrent access.
+    """
+
+    def __init__(self, db_path: str = "a2a_tasks.db"):
+        self._path = Path(db_path)
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        con = self._connect()
+        try:
+            con.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id TEXT PRIMARY KEY,
+                    context_id TEXT NOT NULL,
+                    target_agent_id TEXT NOT NULL,
+                    status_state TEXT NOT NULL,
+                    status_timestamp TEXT NOT NULL,
+                    status_message_json TEXT,
+                    artifacts_json TEXT NOT NULL DEFAULT '[]',
+                    history_json TEXT NOT NULL DEFAULT '[]',
+                    metadata_json TEXT NOT NULL DEFAULT '{}'
+                )
+                """
+            )
+            con.commit()
+        finally:
+            con.close()
+
+    def _connect(self) -> sqlite3.Connection:
+        con = sqlite3.connect(str(self._path))
+        con.execute("PRAGMA journal_mode=WAL;")
+        con.execute("PRAGMA synchronous=NORMAL;")
+        con.execute("PRAGMA busy_timeout=5000;")
+        return con
+
+    def _row_to_task(self, row: tuple) -> dict[str, Any]:
+        (
+            task_id, context_id, target_agent_id,
+            status_state, status_timestamp, status_message_json,
+            artifacts_json, history_json, metadata_json,
+        ) = row
+        return {
+            "id": task_id,
+            "context_id": context_id,
+            "target_agent_id": target_agent_id,
+            "status": {
+                "state": status_state,
+                "timestamp": status_timestamp,
+                "message": _loads_json(status_message_json),
+            },
+            "artifacts": json.loads(artifacts_json) if artifacts_json else [],
+            "history": json.loads(history_json) if history_json else [],
+            "metadata": json.loads(metadata_json) if metadata_json else {},
+        }
+
+    def create_task(
+        self,
+        target_agent_id: str,
+        message: dict[str, Any],
+        context_id: str | None = None,
+    ) -> dict[str, Any]:
+        task_id = str(uuid.uuid4())
+        ctx = context_id or str(uuid.uuid4())
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        metadata = {
+            "sw4rm.target_agent": target_agent_id,
+            "sw4rm.created_at": now,
+        }
+
+        con = self._connect()
+        try:
+            con.execute(
+                """
+                INSERT INTO tasks (
+                    id, context_id, target_agent_id,
+                    status_state, status_timestamp, status_message_json,
+                    artifacts_json, history_json, metadata_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    task_id, ctx, target_agent_id,
+                    TaskState.SUBMITTED, now, None,
+                    _dumps_json([]), _dumps_json([message]),
+                    _dumps_json(metadata),
+                ),
+            )
+            con.commit()
+        finally:
+            con.close()
+
+        return {
+            "id": task_id,
+            "context_id": ctx,
+            "target_agent_id": target_agent_id,
+            "status": {"state": TaskState.SUBMITTED, "timestamp": now, "message": None},
+            "artifacts": [],
+            "history": [message],
+            "metadata": metadata,
+        }
+
+    def get_task(self, task_id: str) -> dict[str, Any] | None:
+        con = self._connect()
+        try:
+            row = con.execute(
+                "SELECT id, context_id, target_agent_id, status_state, status_timestamp, "
+                "status_message_json, artifacts_json, history_json, metadata_json "
+                "FROM tasks WHERE id = ?",
+                (task_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return self._row_to_task(row)
+        finally:
+            con.close()
+
+    def update_state(
+        self,
+        task_id: str,
+        state: str,
+        message: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        msg_json = _dumps_json(message) if message else None
+        con = self._connect()
+        try:
+            cur = con.execute(
+                "UPDATE tasks SET status_state = ?, status_timestamp = ?, "
+                "status_message_json = ? WHERE id = ?",
+                (state, now, msg_json, task_id),
+            )
+            con.commit()
+            if cur.rowcount == 0:
+                return None
+        finally:
+            con.close()
+        return self.get_task(task_id)
+
+    def add_artifact(
+        self,
+        task_id: str,
+        artifact: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        con = self._connect()
+        try:
+            row = con.execute(
+                "SELECT artifacts_json FROM tasks WHERE id = ?", (task_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            artifacts = json.loads(row[0]) if row[0] else []
+            artifacts.append(artifact)
+            con.execute(
+                "UPDATE tasks SET artifacts_json = ? WHERE id = ?",
+                (_dumps_json(artifacts), task_id),
+            )
+            con.commit()
+        finally:
+            con.close()
+        return self.get_task(task_id)
+
+    def list_tasks(
+        self,
+        context_id: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        con = self._connect()
+        try:
+            if context_id:
+                rows = con.execute(
+                    "SELECT id, context_id, target_agent_id, status_state, status_timestamp, "
+                    "status_message_json, artifacts_json, history_json, metadata_json "
+                    "FROM tasks WHERE context_id = ? LIMIT ?",
+                    (context_id, limit),
+                ).fetchall()
+            else:
+                rows = con.execute(
+                    "SELECT id, context_id, target_agent_id, status_state, status_timestamp, "
+                    "status_message_json, artifacts_json, history_json, metadata_json "
+                    "FROM tasks LIMIT ?",
+                    (limit,),
+                ).fetchall()
+            return [self._row_to_task(r) for r in rows]
+        finally:
+            con.close()
 
 
 # --- Message <-> Envelope Translation ---
@@ -239,12 +445,13 @@ class A2AToSW4RMAdapter:
         router_client=None,
         scheduler_client=None,
         gateway_url: str = "http://localhost:50054",
+        task_store=None,
     ):
         self.registry = registry_client
         self.router = router_client
         self.scheduler = scheduler_client
         self.gateway_url = gateway_url
-        self.task_store = TaskStore()
+        self.task_store = task_store or TaskStore()
 
     def get_agent_card(
         self,
@@ -324,13 +531,13 @@ class A2AToSW4RMAdapter:
         # Optionally submit to scheduler for priority tracking
         if self.scheduler:
             try:
-                self.scheduler.submit_task({
-                    "agent_id": target_agent_id,
-                    "task_id": task_id,
-                    "priority": 0,
-                    "params": envelope.get("payload", b""),
-                    "content_type": "application/json",
-                })
+                self.scheduler.submit_task(
+                    agent_id=target_agent_id,
+                    task_id=task_id,
+                    priority=0,
+                    params=envelope.get("payload", b""),
+                    content_type="application/json",
+                )
             except Exception:
                 pass  # Scheduler integration is best-effort
 
@@ -350,11 +557,11 @@ class A2AToSW4RMAdapter:
 
         if self.scheduler and target:
             try:
-                self.scheduler.request_preemption({
-                    "agent_id": target,
-                    "task_id": task_id,
-                    "reason": "A2A CancelTask request",
-                })
+                self.scheduler.request_preemption(
+                    agent_id=target,
+                    task_id=task_id,
+                    reason="A2A CancelTask request",
+                )
             except Exception:
                 pass  # Best-effort
 

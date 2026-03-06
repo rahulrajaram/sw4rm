@@ -1,18 +1,20 @@
 """SW4RM LLM - LLM client abstraction for SW4RM agents.
 
 This module provides a unified interface for LLM interactions, supporting:
+- Groq API (API key from ~/.groq or GROQ_API_KEY)
+- Anthropic API (API key from ~/.anthropic or ANTHROPIC_API_KEY)
 - Claude Agent SDK (subscription-based authentication)
 - Mock client for testing
-
-The Claude Agent SDK client uses subscription authentication via
-~/.claude/.credentials.json, avoiding the need for explicit API keys.
 
 Usage:
     ```python
     from sw4rm.llm import create_llm_client
 
-    # Create client (auto-detects credentials)
+    # Create client via environment (LLM_CLIENT_TYPE=groq|anthropic|claude_sdk|mock)
     client = create_llm_client()
+
+    # Or explicitly
+    client = create_llm_client(client_type="groq")
 
     # Query the LLM
     response = await client.query(
@@ -50,12 +52,25 @@ from sw4rm.llm.client import (
 )
 from sw4rm.llm.factory import create_llm_client
 from sw4rm.llm.mock import MockLLMClient
+from sw4rm.llm.rate_limiter import (
+    RateLimiterConfig,
+    TokenBucket,
+    get_global_rate_limiter,
+    reset_global_rate_limiter,
+)
 
-# Lazy import for ClaudeSDKClient to avoid requiring claude-agent-sdk
+
+# Lazy imports for optional-dependency clients
 def __getattr__(name: str):
     if name == "ClaudeSDKClient":
         from sw4rm.llm.claude_sdk import ClaudeSDKClient
         return ClaudeSDKClient
+    if name == "GroqClient":
+        from sw4rm.llm.groq import GroqClient
+        return GroqClient
+    if name == "AnthropicClient":
+        from sw4rm.llm.anthropic import AnthropicClient
+        return AnthropicClient
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -74,6 +89,15 @@ __all__ = [
     "create_llm_client",
     # mock.py
     "MockLLMClient",
+    # rate_limiter.py
+    "RateLimiterConfig",
+    "TokenBucket",
+    "get_global_rate_limiter",
+    "reset_global_rate_limiter",
+    # groq.py (lazy loaded)
+    "GroqClient",
+    # anthropic.py (lazy loaded)
+    "AnthropicClient",
     # claude_sdk.py (lazy loaded)
     "ClaudeSDKClient",
 ]

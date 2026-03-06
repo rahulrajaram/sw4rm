@@ -1,17 +1,21 @@
 """Tests for A2A-to-SW4RM adapter."""
 import json
+import os
+
 import pytest
 from unittest.mock import MagicMock
 
 from a2a_gateway.agent_card import agent_descriptor_to_card, make_gateway_card
 from a2a_gateway.adapter import (
     A2AToSW4RMAdapter,
+    SqliteTaskStore,
     TaskState,
     TaskStore,
     a2a_message_to_sw4rm_envelope,
     sw4rm_envelope_to_a2a_message,
     sw4rm_agent_state_to_a2a_task_state,
 )
+from a2a_gateway.server import A2AHTTPHandler, _dispatch, make_http_handler
 
 
 class TestAgentCard:
@@ -29,7 +33,7 @@ class TestAgentCard:
         assert card["name"] == "Code Writer Agent"
         assert card["description"] == "Writes Python code"
         assert card["protocolVersion"] == "0.3"
-        assert card["capabilities"]["streaming"] is True
+        assert card["capabilities"]["streaming"] is False
         assert len(card["skills"]) == 2
         assert card["skills"][0]["tags"] == ["code-generation"]
 
@@ -54,7 +58,7 @@ class TestAgentCard:
 
         assert card["name"] == "SW4RM Gateway"
         assert "http://myhost:9999" in card["url"]
-        assert card["capabilities"]["streaming"] is True
+        assert card["capabilities"]["streaming"] is False
 
     def test_gateway_card_with_agents(self):
         agents = [
@@ -265,3 +269,146 @@ class TestAdapter:
 
         assert card["name"] == "SW4RM Gateway"
         assert "http://test:1234" in card["url"]
+
+
+class TestSqliteTaskStore:
+    """Tests for SQLite-backed task store."""
+
+    def _make_store(self, tmp_path):
+        db_path = os.path.join(tmp_path, "test_tasks.db")
+        return SqliteTaskStore(db_path=db_path), db_path
+
+    def test_create_and_get(self, tmp_path):
+        store, _ = self._make_store(tmp_path)
+        task = store.create_task("agent-1", {"role": "user", "parts": []})
+
+        assert task["id"]
+        assert task["status"]["state"] == TaskState.SUBMITTED
+        assert task["metadata"]["sw4rm.target_agent"] == "agent-1"
+
+        fetched = store.get_task(task["id"])
+        assert fetched["id"] == task["id"]
+        assert fetched["status"]["state"] == TaskState.SUBMITTED
+
+    def test_persistence_across_instances(self, tmp_path):
+        store1, db_path = self._make_store(tmp_path)
+        task = store1.create_task("agent-1", {"role": "user", "parts": []})
+        task_id = task["id"]
+
+        # Create a new store instance pointing to the same DB
+        store2 = SqliteTaskStore(db_path=db_path)
+        fetched = store2.get_task(task_id)
+        assert fetched is not None
+        assert fetched["id"] == task_id
+
+    def test_update_state(self, tmp_path):
+        store, _ = self._make_store(tmp_path)
+        task = store.create_task("agent-1", {"role": "user", "parts": []})
+
+        updated = store.update_state(task["id"], TaskState.WORKING)
+        assert updated["status"]["state"] == TaskState.WORKING
+
+        # Verify persistence
+        fetched = store.get_task(task["id"])
+        assert fetched["status"]["state"] == TaskState.WORKING
+
+    def test_update_state_nonexistent(self, tmp_path):
+        store, _ = self._make_store(tmp_path)
+        assert store.update_state("no-such-task", TaskState.WORKING) is None
+
+    def test_list_by_context(self, tmp_path):
+        store, _ = self._make_store(tmp_path)
+        store.create_task("a1", {"role": "user"}, context_id="ctx-1")
+        store.create_task("a2", {"role": "user"}, context_id="ctx-1")
+        store.create_task("a3", {"role": "user"}, context_id="ctx-2")
+
+        all_tasks = store.list_tasks()
+        assert len(all_tasks) == 3
+
+        ctx1_tasks = store.list_tasks(context_id="ctx-1")
+        assert len(ctx1_tasks) == 2
+
+    def test_add_artifact(self, tmp_path):
+        store, _ = self._make_store(tmp_path)
+        task = store.create_task("agent-1", {"role": "user", "parts": []})
+
+        artifact = {"artifact_id": "art-1", "name": "result.py"}
+        updated = store.add_artifact(task["id"], artifact)
+        assert len(updated["artifacts"]) == 1
+        assert updated["artifacts"][0]["artifact_id"] == "art-1"
+
+    def test_add_artifact_nonexistent(self, tmp_path):
+        store, _ = self._make_store(tmp_path)
+        assert store.add_artifact("no-such-task", {"id": "x"}) is None
+
+    def test_get_nonexistent(self, tmp_path):
+        store, _ = self._make_store(tmp_path)
+        assert store.get_task("nonexistent") is None
+
+
+class TestJSONRPC:
+    """Tests for JSON-RPC 2.0 dispatch logic."""
+
+    def _make_adapter(self):
+        return A2AToSW4RMAdapter(gateway_url="http://test:8080")
+
+    def test_get_agent_card(self):
+        adapter = self._make_adapter()
+        result = _dispatch(adapter, "GetAgentCard", {})
+        assert result["name"] == "SW4RM Gateway"
+
+    def test_send_message(self):
+        adapter = self._make_adapter()
+        params = {
+            "message": {
+                "role": "user",
+                "parts": [{"text": {"text": "hello"}}],
+                "metadata": {"sw4rm.target_agent": "agent-1"},
+            }
+        }
+        result = _dispatch(adapter, "SendMessage", params)
+        assert "task" in result
+        assert result["task"]["id"]
+
+    def test_send_message_missing_target(self):
+        adapter = self._make_adapter()
+        params = {"message": {"role": "user", "parts": []}}
+        result = _dispatch(adapter, "SendMessage", params)
+        assert "error" in result
+
+    def test_get_task(self):
+        adapter = self._make_adapter()
+        # Create a task first
+        msg = {
+            "role": "user",
+            "parts": [],
+            "metadata": {"sw4rm.target_agent": "a1"},
+        }
+        task = adapter.send_message(msg, target_agent_id="a1")
+
+        result = _dispatch(adapter, "GetTask", {"task_id": task["id"]})
+        assert "task" in result
+        assert result["task"]["id"] == task["id"]
+
+    def test_get_task_not_found(self):
+        adapter = self._make_adapter()
+        result = _dispatch(adapter, "GetTask", {"task_id": "no-such-id"})
+        assert "error" in result
+
+    def test_cancel_task(self):
+        adapter = self._make_adapter()
+        msg = {
+            "role": "user",
+            "parts": [],
+            "metadata": {"sw4rm.target_agent": "a1"},
+        }
+        task = adapter.send_message(msg, target_agent_id="a1")
+
+        result = _dispatch(adapter, "CancelTask", {"task_id": task["id"]})
+        assert "task" in result
+        assert result["task"]["status"]["state"] == TaskState.CANCELED
+
+    def test_method_not_found(self):
+        adapter = self._make_adapter()
+        result = _dispatch(adapter, "NonExistentMethod", {})
+        assert result is None

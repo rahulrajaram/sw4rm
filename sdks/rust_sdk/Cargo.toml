@@ -39,6 +39,12 @@ pin-project-lite = "0.2"
 tokio-stream = "0.1"
 mockall = { version = "0.12", optional = true }
 
+# LLM module dependencies
+once_cell = "1.19"
+reqwest = { version = "0.12", features = ["json", "stream"], optional = true }
+futures = "0.3"
+bytes = "1.0"
+
 # Audit module dependencies
 sha2 = "0.10"
 hex = "0.4"
@@ -53,13 +59,13 @@ protoc-bin-vendored = "3"
 tokio-test = "0.4"
 tempfile = "3.0"
 criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
-futures = "0.3"
 
 [features]
 default = ["proto"]
 proto = []
 testing = ["mockall"]
 keyring = ["dep:keyring"]
+llm = ["reqwest"]
 
 [[bench]]
 name = "performance_benchmarks"

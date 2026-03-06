@@ -38,3 +38,10 @@ jobs:
         run: |
           cargo test --all --locked --color=always
 
+      - name: Cargo test (llm feature)
+        working-directory: sdks/rust_sdk
+        env:
+          PROTO_DIR: ${{ github.workspace }}/protos
+        run: |
+          cargo test --features llm --locked --color=always
+

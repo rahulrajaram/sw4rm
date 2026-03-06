@@ -356,4 +356,66 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:cancelled-delegation-p
    #:cancellation-grace-expired-p
    #:forced-preemption-error-code
-   #:collect-forced-preemptions))
+   #:collect-forced-preemptions)
+
+  ;; LLM Clients — conditions, base class, providers, factory
+  (:export
+   ;; Conditions
+   #:llm-error
+   #:llm-authentication-error
+   #:llm-rate-limit-error
+   #:llm-timeout-error
+   #:llm-context-length-error
+
+   ;; Response helpers
+   #:make-llm-response
+   #:llm-response-content
+   #:llm-response-model
+   #:llm-response-usage
+
+   ;; Base class and generic function
+   #:llm-client
+   #:llm-client-default-model
+   #:llm-client-api-key
+   #:llm-query
+   #:estimate-tokens
+   #:load-key-from-file
+
+   ;; Rate limiter
+   #:token-bucket
+   #:make-rate-limiter
+   #:acquire
+   #:record-rate-limit
+   #:record-success
+   #:bucket-tokens
+   #:bucket-current-tpm
+   #:bucket-base-tpm
+   #:bucket-enabled-p
+   #:bucket-adaptive-p
+   #:*global-rate-limiter*
+   #:get-global-rate-limiter
+   #:reset-global-rate-limiter
+
+   ;; Groq client
+   #:groq-client
+   #:make-groq-client
+   #:+groq-default-model+
+   #:+groq-api-url+
+
+   ;; Anthropic client
+   #:anthropic-client
+   #:make-anthropic-client
+   #:+anthropic-default-model+
+   #:+anthropic-api-url+
+   #:+anthropic-api-version+
+
+   ;; Mock client
+   #:mock-llm-client
+   #:make-mock-llm-client
+   #:mock-client-responses
+   #:mock-client-call-count
+   #:mock-client-call-history
+   #:mock-client-reset
+
+   ;; Factory
+   #:create-llm-client))

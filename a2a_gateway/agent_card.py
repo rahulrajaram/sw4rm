@@ -56,7 +56,7 @@ def agent_descriptor_to_card(
         "version": GATEWAY_VERSION,
         "protocolVersion": A2A_PROTOCOL_VERSION,
         "capabilities": {
-            "streaming": True,  # SW4RM supports StreamIncoming
+            "streaming": False,  # SSE not yet implemented
             "pushNotifications": False,  # Not yet implemented
             "stateTransitionHistory": True,  # Activity buffer provides this
         },
@@ -105,7 +105,7 @@ def make_gateway_card(
         "version": GATEWAY_VERSION,
         "protocolVersion": A2A_PROTOCOL_VERSION,
         "capabilities": {
-            "streaming": True,
+            "streaming": False,  # SSE not yet implemented
             "pushNotifications": False,
             "stateTransitionHistory": True,
         },

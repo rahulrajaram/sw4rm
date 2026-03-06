@@ -3,59 +3,87 @@
 [![Python CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-python.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-python.yml)
 [![Rust CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-rust.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-rust.yml)
 [![JS CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-js.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-js.yml)
+[![Elixir CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-elixir.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-elixir.yml)
 [![Common Lisp CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-lisp.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-lisp.yml)
 
-SW4RM is an open agentic protocol for building message-driven agents with guaranteed delivery, persistent state, and rich observability. This repository provides four SDKs that implement the protocol — Python, Rust, JavaScript, and Common Lisp — including clients, lightweight runtimes, and helpers for ACK lifecycle, worktree/state handling, and more.
+SW4RM is an open coordination protocol for agent swarms. It provides guaranteed message delivery, persistent scheduling, multi-agent negotiation, crash-safe handoffs, and rich observability -- the runtime layer that sits between your agents and lets them work together reliably.
+
+This repository contains five SDKs (Python, Rust, JavaScript, Elixir, Common Lisp), three reference services (Registry, Router, Scheduler), an A2A protocol gateway, and a Docker Compose stack that brings everything up in one command.
+
+## Try It in 2 Minutes
+
+```bash
+git clone https://github.com/rahulrajaram/sw4rm.git && cd sw4rm
+
+# Start the full stack (Registry, Router, Scheduler, A2A Gateway)
+docker compose up --build -d
+
+# Verify the A2A gateway is running
+curl http://localhost:8080/.well-known/agent.json
+
+# Run the quickstart demo (registers agents, sends messages, heartbeats)
+./quickstart.sh --local
+```
+
+Or use the JSON-RPC interface:
+
+```bash
+curl -X POST http://localhost:8080/ \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","method":"GetAgentCard","params":{},"id":1}'
+```
 
 ## SDKs
 
-| SDK | Directory | README |
-|-----|-----------|--------|
-| Python | [`sdks/py_sdk`](sdks/py_sdk) | [`sdks/py_sdk/README.md`](sdks/py_sdk/README.md) |
-| Rust | [`sdks/rust_sdk`](sdks/rust_sdk) | [`sdks/rust_sdk/README.md`](sdks/rust_sdk/README.md) |
-| JavaScript/TypeScript | [`sdks/js_sdk`](sdks/js_sdk) | [`sdks/js_sdk/README.md`](sdks/js_sdk/README.md) |
-| Common Lisp | [`sdks/cl_sdk`](sdks/cl_sdk) | [`sdks/cl_sdk/README.md`](sdks/cl_sdk/README.md) |
+| SDK | Directory | Tests | README |
+|-----|-----------|-------|--------|
+| Python | [`sdks/py_sdk`](sdks/py_sdk) | 770 | [`README`](sdks/py_sdk/README.md) |
+| Rust | [`sdks/rust_sdk`](sdks/rust_sdk) | 329 | [`README`](sdks/rust_sdk/README.md) |
+| JavaScript/TypeScript | [`sdks/js_sdk`](sdks/js_sdk) | 410 | [`README`](sdks/js_sdk/README.md) |
+| Elixir | [`sdks/ex_sdk`](sdks/ex_sdk) | 331 | [`README`](sdks/ex_sdk/README.md) |
+| Common Lisp | [`sdks/cl_sdk`](sdks/cl_sdk) | 87+333 | [`README`](sdks/cl_sdk/README.md) |
 
-## CI Workflows
+All SDKs implement the same protocol (17 proto3 service definitions) and follow the same layered architecture adapted to language idioms.
 
-| Workflow | What it does |
+## A2A Gateway
+
+The [`a2a_gateway/`](a2a_gateway/) module exposes any SW4RM agent swarm via the [A2A (Agent-to-Agent) protocol](https://a2a-protocol.org/). External A2A clients see standard Agent Cards and JSON-RPC 2.0; internally, SW4RM handles scheduling, negotiation, and crash recovery.
+
+| Endpoint | Description |
 |----------|-------------|
-| Python CI | Python 3.12, installs `.[dev]`, runs `scripts/smoke_protos.py`, then `pytest -q sdks/py_sdk/tests` |
-| Rust CI | Installs `protoc`, runs `cargo test --all --locked` in `sdks/rust_sdk` |
-| JS CI | Node 20, runs `npm ci && npm run build && npm test` in `sdks/js_sdk` |
-| Common Lisp CI | SBCL + Quicklisp, loads `:sw4rm-sdk`, runs FiveAM test suite in `sdks/cl_sdk` |
+| `GET /.well-known/agent.json` | A2A Agent Card for the gateway |
+| `POST /` (JSON-RPC) `SendMessage` | Route a message to a SW4RM agent |
+| `POST /` (JSON-RPC) `GetTask` | Query task state |
+| `POST /` (JSON-RPC) `CancelTask` | Cancel via Scheduler preemption |
+| `POST /` (JSON-RPC) `GetAgentCard` | Get agent card by ID |
 
-### Reproduce locally
+See [`a2a_gateway/README.md`](a2a_gateway/README.md) for details.
 
-- **Python**: `python -m pip install -e ".[dev]" && pytest -q sdks/py_sdk/tests`
-- **Rust**: `cd sdks/rust_sdk && cargo test --all --locked`
-- **JS**: `cd sdks/js_sdk && npm ci && npm run build && npm test`
-- **Common Lisp**: `cd sdks/cl_sdk && sbcl --load ~/quicklisp/setup.lisp --eval '(push (truename ".") asdf:*central-registry*)' --eval '(ql:quickload :sw4rm-sdk)' --eval '(load "test/suite.lisp")' --eval '(fiveam:run! (quote sw4rm-test::sw4rm-suite))'`
+## Core Features
+
+- **Guaranteed Delivery**: Router with persistent message queues, ACK lifecycle (received/read/fulfilled/rejected/failed/timed_out), and automatic reconciliation
+- **Scheduling and Preemption**: Priority-based task scheduling with cooperative preemption, urgent lane semantics, and activity buffer persistence
+- **Multi-Agent Negotiation**: Proposal/vote/decision protocol with configurable quorum policies, confidence-weighted vote aggregation, and timeout profiles
+- **Crash-Safe Handoffs**: Structured agent-to-agent work transfer with context serialization, capability matching, and full audit trail
+- **Worktree Isolation**: Policy-driven worktree binding with persistent state across restarts
+- **A2A Interoperability**: Gateway translates between A2A protocol and SW4RM, with `.well-known/agent.json` discovery
+- **Five SDKs**: Python, Rust, JavaScript/TypeScript, Elixir, Common Lisp -- all wire-compatible
 
 ## Installation
 
 ### Python
 
-Prerequisites: Python >= 3.9. Optionally create a virtual environment first.
-
 ```bash
-# Dev install (with codegen)
-python -m pip install -e ".[dev]"
-
-# Runtime-only install
-python -m pip install .
-
-# Generate protobuf stubs (requires grpcio-tools)
-make protos
+pip install sw4rm-sdk
+# or from source:
+pip install -e ".[dev]"
 ```
 
 ### Rust
 
-Add to your `Cargo.toml`:
-
 ```toml
 [dependencies]
-sw4rm-sdk = "0.5.0"
+sw4rm-sdk = "0.6.0"
 tokio = { version = "1.0", features = ["full"] }
 ```
 
@@ -65,31 +93,25 @@ tokio = { version = "1.0", features = ["full"] }
 npm install @sw4rm/js-sdk
 ```
 
+### Elixir
+
+```elixir
+# mix.exs
+defp deps do
+  [{:sw4rm, "~> 0.6.0"}]
+end
+```
+
 ### Common Lisp
 
 Requires [SBCL](http://www.sbcl.org/) and [Quicklisp](https://www.quicklisp.org/).
 
 ```lisp
-;; Ensure sdks/cl_sdk/ is on your ASDF load path, e.g.:
-;; (push (truename "sdks/cl_sdk/") asdf:*central-registry*)
-
+(push (truename "sdks/cl_sdk/") asdf:*central-registry*)
 (ql:quickload :sw4rm-sdk)
 ```
 
-## Core Features
-
-- **Persistent Activity Buffer**: Track messages across restarts with reconciliation
-- **Worktree Management**: Policy-driven binding with persistent state
-- **ACK Lifecycle**: Automatic acknowledgment handling with router integration
-- **Message Processing**: Handler-based routing with built-in error handling
-- **Multiple Persistence**: JSON file and pluggable storage backends
-- **Production Ready**: Comprehensive error handling, logging, and state management
-
 ## Quick Start
-
-Looking for a local all-in-one stack? See the comprehensive getting started guide:
-
-- Getting Started Guide: [`documentation/quickstart/`](documentation/quickstart/index.md) with a 5-minute quick start section
 
 ### Python
 
@@ -97,63 +119,36 @@ Looking for a local all-in-one stack? See the comprehensive getting started guid
 import grpc
 from sw4rm.clients.registry import RegistryClient
 from sw4rm.clients.router import RouterClient
-from sw4rm.protos import common_pb2 as common
 
 # Connect to services
-router_ch = grpc.insecure_channel("localhost:50051")
 registry_ch = grpc.insecure_channel("localhost:50052")
+router_ch = grpc.insecure_channel("localhost:50051")
 registry = RegistryClient(registry_ch)
 router = RouterClient(router_ch)
 
 # Register agent
-response = registry.register({
+registry.register({
     "agent_id": "my-agent",
-    "name": "MyAgent",
-    "description": "Example agent",
+    "name": "My Agent",
     "capabilities": ["processing"],
-    "communication_class": common.CommunicationClass.STANDARD,
 })
-```
 
-### Advanced Python Agent with Persistence
-```python
-from sw4rm import constants as C
-from sw4rm.activity_buffer import PersistentActivityBuffer
-from sw4rm.worktree_state import PersistentWorktreeState
-from sw4rm.ack_integration import ACKLifecycleManager, MessageProcessor
+# Send message
+router.send_message({
+    "producer_id": "my-agent",
+    "consumer_id": "target-agent",
+    "message_type": 2,  # DATA
+    "payload": b"hello",
+    "content_type": "text/plain",
+    "correlation_id": "req-001",
+})
 
-# Initialize persistent components
-buffer = PersistentActivityBuffer(max_items=1000)
-worktree = PersistentWorktreeState()
-ack_manager = ACKLifecycleManager(router, buffer, "my-agent")
-processor = MessageProcessor(ack_manager)
-
-# Register message handlers
-def handle_data(envelope):
-    print(f"Processing: {envelope['message_id']}")
-    return "processed"
-
-processor.register_handler(C.DATA, handle_data)
-
-# Process incoming messages with automatic ACKs
-for item in router.stream_incoming("my-agent"):
-    # Extract envelope from stream item (protobuf -> dict)
-    envelope_msg = getattr(item, "msg", item)
-    envelope = {
-        "message_id": getattr(envelope_msg, "message_id", ""),
-        "message_type": getattr(envelope_msg, "message_type", 0),
-        "content_type": getattr(envelope_msg, "content_type", ""),
-        "payload": getattr(envelope_msg, "payload", b""),
-        "producer_id": getattr(envelope_msg, "producer_id", ""),
-        "correlation_id": getattr(envelope_msg, "correlation_id", ""),
-        "sequence_number": getattr(envelope_msg, "sequence_number", 0),
-    }
-    result = processor.process_message(envelope)
+# Heartbeat and deregister
+registry.heartbeat(agent_id="my-agent", state=1)
+registry.deregister(agent_id="my-agent")
 ```
 
 ### Rust
-
-Minimal echo agent (see [`sdks/rust_sdk/examples/echo_agent.rs`](sdks/rust_sdk/examples/echo_agent.rs) for the full example):
 
 ```rust
 use sw4rm_sdk::*;
@@ -187,15 +182,12 @@ async fn main() -> Result<()> {
 
 ### JavaScript / TypeScript
 
-Minimal echo agent (see [`sdks/js_sdk/examples/echoAgent.ts`](sdks/js_sdk/examples/echoAgent.ts) for the full example):
-
 ```typescript
-import { RegistryClient, RouterClient, buildEnvelope, MessageType, AgentState, CommunicationClass } from '@sw4rm/js-sdk';
+import { RegistryClient, RouterClient, buildEnvelope, MessageType, CommunicationClass } from '@sw4rm/js-sdk';
 
 const registry = new RegistryClient('localhost:50052');
 const router = new RouterClient({ address: 'localhost:50051' });
 
-// Register
 await registry.registerAgent({
   agent_id: 'echo-1',
   name: 'EchoAgent',
@@ -203,7 +195,6 @@ await registry.registerAgent({
   communication_class: CommunicationClass.STANDARD,
 });
 
-// Echo incoming messages
 const stream = router.streamIncoming('echo-1');
 for await (const item of stream) {
   const reply = buildEnvelope({
@@ -216,426 +207,176 @@ for await (const item of stream) {
 }
 ```
 
-### Common Lisp
+### Elixir
 
-Minimal echo agent (see [`sdks/cl_sdk/examples/echo-agent.lisp`](sdks/cl_sdk/examples/echo-agent.lisp) for the full example):
-
-```lisp
-(ql:quickload :sw4rm-sdk)
-(use-package :sw4rm-sdk)
-
-;; Configure
-(defvar *config*
-  (make-agent-config
-   :agent-id "echo-1"
-   :name "EchoAgent"
-   :capabilities '("echo")
-   :endpoints (make-default-endpoints)))
-
-;; Build and send an envelope
-(defvar *envelope*
-  (make-envelope
-   :producer-id (agent-config-agent-id *config*)
-   :message-type +data+
-   :content-type "application/json"
-   :payload (map 'vector #'char-code "{\"echo\":\"hello\"}")
-   :sequence-number 1))
-
-;; Error handling uses CL condition/restart system
-(with-sw4rm-error-handling ()
-  (let ((client (make-instance 'router-client
-                 :address (endpoints-router
-                           (agent-config-endpoints *config*)))))
-    (send-envelope client *envelope*)))
+```elixir
+# Register and send a message
+{:ok, channel} = GRPC.Stub.connect("localhost:50052")
+Sw4rm.Transport.Client.register(channel, %{agent_id: "my-agent", capabilities: ["echo"]})
 ```
 
-## API Reference
+See [`sdks/ex_sdk/examples/reference_demo.exs`](sdks/ex_sdk/examples/reference_demo.exs) for a full demo exercising all 12 SDK features.
 
-### Core Components
+## Reference Services
 
-#### PersistentActivityBuffer
-Tracks messages with persistent storage across restarts.
+Three reference service implementations run the SW4RM protocol:
 
-```python
-from sw4rm.activity_buffer import PersistentActivityBuffer
-from sw4rm.persistence import JSONFilePersistence
+| Service | Port | Metrics | Description |
+|---------|------|---------|-------------|
+| Registry | 50052 | 9100 | Agent discovery, heartbeat, deregistration |
+| Router | 50051 | 9101 | Message routing, delivery queues, streaming |
+| Scheduler | 50053 | 9102 | Task scheduling, preemption, activity buffer |
 
-# Initialize with custom persistence
-buffer = PersistentActivityBuffer(
-    max_items=1000,
-    persistence=JSONFilePersistence("my_activity.json")
-)
+Start locally:
 
-# Track messages
-record = buffer.record_outgoing(envelope)
-buffer.ack(ack_message)
-
-# Query state
-unacked = buffer.unacked()
-recent = buffer.recent(50)
-needs_retry = buffer.reconcile()
+```bash
+cd sdks/py_sdk/reference-services
+bash start_services.sh --local
 ```
 
-#### PersistentWorktreeState
-Manages worktree bindings with policy validation.
+Or via Docker:
 
-```python
-from sw4rm.worktree_state import PersistentWorktreeState
-
-# Minimal custom policy implementing the expected hooks
-class MyPolicy:
-    def __init__(self, allowed_repos=None):
-        self.allowed_repos = set(allowed_repos or [])
-
-    def before_bind(self, repo_id, worktree_id, current):
-        # Allow only specific repos
-        return (not self.allowed_repos) or (repo_id in self.allowed_repos)
-
-    def after_bind(self, binding):
-        print(f"Bound to {binding.repo_id}/{binding.worktree_id}")
-
-# Initialize with policy
-worktree = PersistentWorktreeState(
-    policy=MyPolicy(allowed_repos=["main-repo", "test-repo"])
-)
-
-# Manage bindings
-success = worktree.bind("main-repo", "feature-branch", {"version": "1.2.3"})
-current = worktree.current()
-status = worktree.status()
+```bash
+docker compose up --build -d
 ```
-
-#### ACKLifecycleManager
-Automatic acknowledgment handling with router integration.
-
-```python
-from sw4rm.ack_integration import ACKLifecycleManager
-from sw4rm import constants as C
-
-manager = ACKLifecycleManager(
-    router_client=router,
-    activity_buffer=buffer,
-    agent_id="my-agent",
-    auto_ack=True
-)
-
-# Send with automatic ACK tracking
-result = manager.send_message_with_ack(envelope)
-
-# Manual ACK sending
-manager.send_ack(message_id, stage=C.FULFILLED, note="Processed successfully")
-
-# Reconciliation
-stale_messages = manager.reconcile_acks()
-```
-
-#### MessageProcessor
-Handler-based message processing with automatic ACKs.
-
-```python
-from sw4rm.ack_integration import MessageProcessor
-from sw4rm import constants as C
-
-processor = MessageProcessor(ack_manager)
-
-# Register handlers
-def handle_data(envelope):
-    # Process DATA messages
-    return "success"
-
-def handle_control(envelope):
-    # Process CONTROL messages
-    command = json.loads(envelope['payload'])
-    return f"executed_{command['action']}"
-
-processor.register_handler(C.DATA, handle_data)
-processor.register_handler(C.CONTROL, handle_control)
-processor.set_default_handler(lambda env: "unknown_message")
-
-# Process with automatic ACK lifecycle
-result = processor.process_message(envelope)
-```
-
-### Client APIs
-
-#### RegistryClient
-```python
-from sw4rm.clients.registry import RegistryClient
-from sw4rm.protos import common_pb2 as common
-
-registry = RegistryClient(grpc_channel)
-
-# Register agent
-response = registry.register({
-    "agent_id": "my-agent",
-    "name": "My Agent",
-    "capabilities": ["processing", "analysis"],
-    "communication_class": common.CommunicationClass.STANDARD
-})
-
-# Send heartbeat
-registry.heartbeat("my-agent", state=common.AgentState.RUNNING)
-
-# Deregister
-registry.deregister("my-agent", reason="shutdown")
-```
-
-#### RouterClient
-```python
-from sw4rm.clients.router import RouterClient
-
-router = RouterClient(grpc_channel)
-
-# Send message
-response = router.send_message(envelope_dict)
-
-# Stream incoming messages
-for item in router.stream_incoming("my-agent"):
-    envelope = item.msg
-    # Process envelope...
-```
-
-### Utility Functions
-
-#### Envelope Building
-```python
-from sw4rm.envelope import build_envelope
-
-envelope = build_envelope(
-    producer_id="my-agent",
-    message_type=C.DATA,
-    content_type="application/json",
-    payload=json.dumps(data).encode(),
-    correlation_id="optional-correlation-id"
-)
-```
-
-#### ACK Building
-```python
-from sw4rm.acks import build_ack_envelope
-
-ack = build_ack_envelope(
-    producer_id="my-agent",
-    ack_for_message_id="original-msg-id",
-    ack_stage=C.FULFILLED,
-    note="Processing completed"
-)
-```
-
-### Constants
-```python
-from sw4rm import constants as C
-
-# Message types
-C.DATA                    # Data message
-C.CONTROL                 # Control message
-C.ACKNOWLEDGEMENT        # ACK message
-C.WORKTREE_CONTROL       # Worktree operation
-C.HEARTBEAT              # Heartbeat
-C.NOTIFICATION           # Notification
-C.HITL_INVOCATION        # HITL invocation
-C.NEGOTIATION            # Negotiation
-C.TOOL_CALL              # Tool call
-C.TOOL_RESULT            # Tool result
-C.TOOL_ERROR             # Tool error
-
-# ACK stages
-C.RECEIVED               # Message received
-C.READ                   # Message read/parsed
-C.FULFILLED              # Processing completed
-C.REJECTED               # Processing rejected
-C.FAILED                 # Processing failed
-C.TIMED_OUT              # Processing timed out
-
-# Error codes
-C.VALIDATION_ERROR       # Invalid message format
-C.PERMISSION_DENIED      # Unauthorized operation
-C.INTERNAL_ERROR         # Internal processing error
-C.ACK_TIMEOUT            # ACK not received in time
-C.AGENT_UNAVAILABLE      # Agent not reachable
-C.AGENT_SHUTDOWN         # Agent shutting down
-C.NO_ROUTE               # No route to target
-C.OVERSIZE_PAYLOAD       # Payload too large
-C.TOOL_TIMEOUT           # Tool call timed out
-C.FORCED_PREEMPTION      # Scheduler forced preemption
-C.TTL_EXPIRED            # Message TTL expired
-```
-
-## Message Semantics
-- Required fields: `message_id`, `producer_id`, `correlation_id`, `sequence_number`, `message_type`, `content_type`, `payload`.
-- Correlation: For negotiation flows, `correlation_id` equals the negotiation ID (per protocol spec).
-- Optional fields: `idempotency_token`, `repo_id`, `worktree_id`, `ttl_ms`, `content_length`, `hlc_timestamp`.
-- Envelope builder returns a dict matching proto fields; adapt to protobuf classes if stubs are present.
 
 ## Examples
 
-Each SDK ships its own examples under its directory:
+### Tutorials
+
+- **Code-Agent Tutorial**: 3-agent code review swarm (writer + reviewers + deployer) using negotiation and handoff -- [`code_agent_tutorial.py`](sdks/py_sdk/examples/code_agent_tutorial.py) | [`walkthrough`](sdks/py_sdk/examples/CODE_AGENT_TUTORIAL.md)
 
 ### Python
-- **Echo agent**: [`sdks/py_sdk/examples/echo_agent.py`](sdks/py_sdk/examples/echo_agent.py)
-- **Test client**: [`sdks/py_sdk/examples/test_client.py`](sdks/py_sdk/examples/test_client.py)
-- **Voting**: [`sdks/py_sdk/examples/voting_example.py`](sdks/py_sdk/examples/voting_example.py)
-- **Workflow orchestration**: [`sdks/py_sdk/examples/workflow_orchestration_example.py`](sdks/py_sdk/examples/workflow_orchestration_example.py)
-- **Negotiation debate**: [`sdks/py_sdk/examples/negotiation_debate_example.py`](sdks/py_sdk/examples/negotiation_debate_example.py)
-- **HITL escalation**: [`sdks/py_sdk/examples/hitl_escalation_example.py`](sdks/py_sdk/examples/hitl_escalation_example.py)
-- **Handoff**: [`sdks/py_sdk/examples/handoff_example.py`](sdks/py_sdk/examples/handoff_example.py)
-- **Tool streaming**: [`sdks/py_sdk/examples/tool_streaming_example.py`](sdks/py_sdk/examples/tool_streaming_example.py)
-- **Three-ID demo**: [`sdks/py_sdk/examples/three_id_demo.py`](sdks/py_sdk/examples/three_id_demo.py)
+
+- [`echo_agent.py`](sdks/py_sdk/examples/echo_agent.py) -- Minimal echo agent
+- [`voting_example.py`](sdks/py_sdk/examples/voting_example.py) -- Multi-reviewer voting
+- [`negotiation_debate_example.py`](sdks/py_sdk/examples/negotiation_debate_example.py) -- Negotiation room debate
+- [`handoff_example.py`](sdks/py_sdk/examples/handoff_example.py) -- Agent-to-agent handoff
+- [`hitl_escalation_example.py`](sdks/py_sdk/examples/hitl_escalation_example.py) -- Human-in-the-loop
+- [`workflow_orchestration_example.py`](sdks/py_sdk/examples/workflow_orchestration_example.py) -- Multi-step workflow
+- [`tool_streaming_example.py`](sdks/py_sdk/examples/tool_streaming_example.py) -- Tool call streaming
+- [`three_id_demo.py`](sdks/py_sdk/examples/three_id_demo.py) -- Three-ID correlation
 
 ### Rust
-- **Echo agent**: [`sdks/rust_sdk/examples/echo_agent.rs`](sdks/rust_sdk/examples/echo_agent.rs)
-- **Advanced agent**: [`sdks/rust_sdk/examples/advanced_agent.rs`](sdks/rust_sdk/examples/advanced_agent.rs)
-- **Handoff**: [`sdks/rust_sdk/examples/handoff.rs`](sdks/rust_sdk/examples/handoff.rs)
-- **Workflow**: [`sdks/rust_sdk/examples/workflow.rs`](sdks/rust_sdk/examples/workflow.rs)
-- **Negotiation room**: [`sdks/rust_sdk/examples/negotiation_room.rs`](sdks/rust_sdk/examples/negotiation_room.rs)
-- **Activity demo**: [`sdks/rust_sdk/examples/activity_demo.rs`](sdks/rust_sdk/examples/activity_demo.rs)
+
+- [`echo_agent.rs`](sdks/rust_sdk/examples/echo_agent.rs) -- Minimal echo agent
+- [`advanced_agent.rs`](sdks/rust_sdk/examples/advanced_agent.rs) -- Full-featured agent
+- [`handoff.rs`](sdks/rust_sdk/examples/handoff.rs) -- Agent handoff
+- [`workflow.rs`](sdks/rust_sdk/examples/workflow.rs) -- Workflow orchestration
+- [`negotiation_room.rs`](sdks/rust_sdk/examples/negotiation_room.rs) -- Negotiation room
+- [`activity_demo.rs`](sdks/rust_sdk/examples/activity_demo.rs) -- Activity buffer
 
 ### JavaScript / TypeScript
-- **Echo agent**: [`sdks/js_sdk/examples/echoAgent.ts`](sdks/js_sdk/examples/echoAgent.ts)
-- **Advanced agent**: [`sdks/js_sdk/examples/advancedAgent.ts`](sdks/js_sdk/examples/advancedAgent.ts)
-- **HITL escalation**: [`sdks/js_sdk/examples/hitlEscalation.ts`](sdks/js_sdk/examples/hitlEscalation.ts)
-- **Handoff**: [`sdks/js_sdk/examples/handoffExample.ts`](sdks/js_sdk/examples/handoffExample.ts)
-- **Workflow**: [`sdks/js_sdk/examples/workflowExample.ts`](sdks/js_sdk/examples/workflowExample.ts)
-- **Negotiation room**: [`sdks/js_sdk/examples/negotiationRoomExample.ts`](sdks/js_sdk/examples/negotiationRoomExample.ts)
+
+- [`echoAgent.ts`](sdks/js_sdk/examples/echoAgent.ts) -- Minimal echo agent
+- [`advancedAgent.ts`](sdks/js_sdk/examples/advancedAgent.ts) -- Full-featured agent
+- [`handoffExample.ts`](sdks/js_sdk/examples/handoffExample.ts) -- Agent handoff
+- [`workflowExample.ts`](sdks/js_sdk/examples/workflowExample.ts) -- Workflow orchestration
+- [`negotiationRoomExample.ts`](sdks/js_sdk/examples/negotiationRoomExample.ts) -- Negotiation room
+- [`hitlEscalation.ts`](sdks/js_sdk/examples/hitlEscalation.ts) -- Human-in-the-loop
+
+### Elixir
+
+- [`reference_demo.exs`](sdks/ex_sdk/examples/reference_demo.exs) -- Full SDK feature demo
+- [`basic_agent.exs`](sdks/ex_sdk/examples/basic_agent.exs) -- Minimal agent
+- [`negotiation_flow.exs`](sdks/ex_sdk/examples/negotiation_flow.exs) -- Negotiation flow
+- [`handoff.exs`](sdks/ex_sdk/examples/handoff.exs) -- Agent handoff
+- [`tool_execution.exs`](sdks/ex_sdk/examples/tool_execution.exs) -- Tool execution
 
 ### Common Lisp
-- **Echo agent**: [`sdks/cl_sdk/examples/echo-agent.lisp`](sdks/cl_sdk/examples/echo-agent.lisp)
-- **Negotiation voting**: [`sdks/cl_sdk/examples/negotiation-voting.lisp`](sdks/cl_sdk/examples/negotiation-voting.lisp)
-- **Secret management**: [`sdks/cl_sdk/examples/secret-management.lisp`](sdks/cl_sdk/examples/secret-management.lisp)
+
+- [`echo-agent.lisp`](sdks/cl_sdk/examples/echo-agent.lisp) -- Minimal echo agent
+- [`negotiation-voting.lisp`](sdks/cl_sdk/examples/negotiation-voting.lisp) -- Negotiation voting
+- [`secret-management.lisp`](sdks/cl_sdk/examples/secret-management.lisp) -- Secret management
+- [`tool-streaming.lisp`](sdks/cl_sdk/examples/tool-streaming.lisp) -- Tool streaming
+
+## Architecture
+
+All five SDKs follow the same layered architecture:
+
+```
++---------------------------+
+|   Integration Layer       |  ACK lifecycle, message processing, workflows
++---------------------------+
+|   Client Layer            |  Registry, Router, Scheduler, HITL, Negotiation,
+|                           |  Handoff, Tool, Worktree, Connector, Reasoning
++---------------------------+
+|   Protocol Layer          |  Proto3 wire format (17 service definitions)
++---------------------------+
+|   Runtime Layer           |  Activity buffer, worktree state, state machine
++---------------------------+
+```
+
+Each SDK adapts this to language idioms: Python uses classes and context managers, Rust uses async/await traits, JavaScript uses Promises and async iterators, Elixir uses GenServers and supervisors, and Common Lisp uses the condition/restart system.
+
+## CI Workflows
+
+| Workflow | What it does |
+|----------|-------------|
+| Python CI | Python 3.12, `pytest`, smoke tests |
+| Rust CI | `cargo test --all --locked` with `protoc` |
+| JS CI | Node 20, `npm ci && npm run build && npm test` |
+| Elixir CI | Elixir 1.16 / OTP 26, `mix test` + reference demo |
+| Common Lisp CI | SBCL + Quicklisp, FiveAM test suite |
+| Proto Check | Protocol file validation |
+| Version Guard | Cross-SDK version consistency |
+| Secrets Scan | Trufflehog credential scanning |
+
+### Reproduce locally
+
+```bash
+# All SDKs
+make test
+
+# Individual
+make test-python    # pytest -q sdks/py_sdk/tests
+make test-rust      # cd sdks/rust_sdk && cargo test --all --locked
+make test-js        # cd sdks/js_sdk && npm ci && npm run build && npm test
+make test-lisp      # cd sdks/cl_sdk && sbcl --load test/suite.lisp
+
+# Elixir (Docker, no local Elixir required)
+docker run --rm -v $(pwd):/app -w /app/sdks/ex_sdk elixir:1.16 \
+  bash -c "mix local.hex --force && mix local.rebar --force && mix deps.get && mix test"
+```
 
 ## Development
 
 ### Generate Protocol Buffers
+
 ```bash
-python -m pip install -e ".[dev]"
+pip install -e ".[dev]"
 make protos
 ```
 
-### Build Package
+### Smoke Test
+
 ```bash
-python -m pip install build twine
-python -m build
-python -m twine upload dist/*
+# Local mode (starts services, runs checks, cleans up)
+./scripts/smoke_test.sh
+
+# Docker mode (includes A2A gateway checks)
+./scripts/smoke_test.sh --docker
 ```
 
 ## Release
 
-Use the provided Makefile targets for a reproducible release process.
-
-- Prerequisites
-  - Install dev tooling: `python -m pip install -e ".[dev]"`
-  - Generate protobuf stubs: `make protos`
-
-- Build artifacts
-  - `make release` — generates stubs, verifies presence, builds wheel/sdist
-
-- Verify artifacts
-  - `make release-verify` — validates wheel/sdist metadata and runs `twine check`
-  - `make smoke-wheel` — reinstalls latest wheel into the repo venv and runs `sw4rm-doctor`
-
-- Optional: TestPyPI / PyPI
-  - `make publish-test` — upload to TestPyPI (requires credentials)
-  - `make publish` — upload to PyPI (requires credentials)
-
-- Tagging
-  - `make tag && make tag-push` — create and push an annotated git tag from `pyproject.toml` version
-
-Notes
-- Twine >= 5.x and pkginfo >= 1.10 are recommended to support modern `Metadata-Version` (e.g., 2.4).
-- See `docs/PROGRESS_REPORT.md` for a detailed Release Checklist.
-
-### Testing
-
-- Unified: `make test` (runs Python, Rust, JS, and Common Lisp tests)
-- Python only: `make test-python`
-- Rust only: `make test-rust` (requires `protoc`)
-- JS only: `make test-js` (Node >= 20)
-- Common Lisp only: `make test-lisp` (requires SBCL + Quicklisp)
+Publishing is tag-driven per language via GitHub Actions:
 
 ```bash
-# Run all SDK tests
-make test
+# Python → PyPI
+git tag py-v0.6.0 && git push origin py-v0.6.0
 
-# Run examples against local services
-# See documentation/quickstart/index.md for setup instructions
-python sdks/py_sdk/examples/echo_agent.py --router localhost:50051 --registry localhost:50052
-python sdks/py_sdk/examples/test_client.py --router localhost:50051 --registry localhost:50052
+# JavaScript → npm
+git tag npm-v0.6.0 && git push origin npm-v0.6.0
+
+# Rust → crates.io
+git tag rs-v0.6.0 && git push origin rs-v0.6.0
 ```
 
-## Architecture
+Requires environment secrets (`PYPI_API_TOKEN`, `NPM_TOKEN`, `CRATES_IO_TOKEN`) in the `production` GitHub Actions Environment.
 
-All four SDKs follow the same layered architecture:
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for versioning policy, commit hooks, and PR guidelines.
 
-1. **Protocol Layer**: Generated protobuf stubs / wire format
-2. **Client Layer**: Type-safe service clients (Registry, Router, Scheduler, HITL, Worktree, Tool, Connector, Negotiation, Reasoning, Logging)
-3. **Runtime Layer**: Core functionality (activity buffer, worktree state, state machine)
-4. **Integration Layer**: High-level APIs (ACK lifecycle, message processing, workflows)
-5. **Utility Layer**: Helpers (envelope builders, constants, error handling)
+## License
 
-Each SDK adapts this pattern to its language idioms — Python uses classes and context managers, Rust uses async/await traits, JS uses Promises and streams, and Common Lisp uses the condition/restart system.
-
-Protocol highlights
-- Cooperative preemption and urgent lane semantics defined by Scheduler and CommunicationClass (see spec).
-- HITL escalation reasons and Reasoning Engine participation are supported via dedicated services.
-- Activity buffer persists advisory task/message context and supports reconciliation.
-
-## Production Considerations
-
-### State Management
-- Activity buffer automatically prunes old records (configurable limit)
-- Worktree state persists binding information across restarts
-- All persistence uses atomic file writes for consistency
-
-### Error Handling
-- Network failures trigger automatic retries where appropriate
-- Invalid messages are rejected with proper ACKs
-- Persistence failures fall back to in-memory operation
-
-### Performance
-- Activity buffer uses efficient in-memory indexing
-- Persistence operations are batched and asynchronous
-- Message processing uses handler-based dispatch
-
-### Monitoring
-- Built-in logging for all major operations
-- Activity buffer provides reconciliation API
-- Worktree policies support custom validation hooks
-
-## Git Commit Hooks
-
-To enforce consistent commit messages across the repo:
-
-- Recommended setup:
-  - Set versioned hooks path once per clone: `git config core.hooksPath scripts/git-hooks`
-
-## Contributing
-
-- Versioning: Keep all four SDKs in lockstep with the protocol spec. The single source of truth is `documentation/protocol/spec.md` line `Version: X.Y.Z (...)`. Python (`pyproject.toml`), JS (`sdks/js_sdk/package.json`), Rust (`sdks/rust_sdk/Cargo.toml`), and Common Lisp (`sdks/cl_sdk/sw4rm-sdk.asd`) must equal the spec version.
-- Pre-commit hook: Local guard that blocks commits if versions aren't SemVer or out of sync; also requires a bump when protocol/protos or an SDK changes.
-  - Enable once per clone: `git config core.hooksPath .githooks && chmod +x .githooks/pre-commit`
-- Bump script: Updates spec + all SDKs together.
-  - `python scripts/bump_version.py X.Y.Z [--stage]`
-- PR checks: CI enforces the same rules and does preflight builds.
-  - Workflow: `.github/workflows/version-guard.yml`
-- Release tags: Publishing is tag-driven per language and runs in GitHub Actions.
-  - PyPI: `git tag py-vX.Y.Z && git push origin py-vX.Y.Z`
-  - npm: `git tag npm-vX.Y.Z && git push origin npm-vX.Y.Z`
-  - crates.io: `git tag rs-vX.Y.Z && git push origin rs-vX.Y.Z`
-  - Common Lisp releases are tracked via the spec version in `sw4rm-sdk.asd`; Quicklisp distribution is manual.
-- Release scripts: Create tags locally (publishing happens in Actions).
-  - One SDK: `python scripts/release.py [py|npm|rs] X.Y.Z --push`
-  - All SDKs: `python scripts/release_all.py X.Y.Z --push`
-- Secrets storage: Use a GitHub Actions Environment named `production` for publish tokens.
-  - Add environment secrets: `PYPI_API_TOKEN`, `NPM_TOKEN`, `CRATES_IO_TOKEN` under Settings > Environments > production.
-  - Release workflows target this environment: `.github/workflows/release-*.yml`.
-- Tag prefixes and SemVer:
-  - Tags must use `py-v`, `npm-v`, `rs-v` followed by `X.Y.Z` that matches all manifests and the spec.
-  - SemVer only (no suffixes). CI and hooks will fail on mismatch.
-
-  - Optionally install template and hooks via script: `./scripts/install_git_hooks.sh`
-- Hooks enforce:
-  - Subject: non-empty, <=50 chars, imperative, no trailing period
-  - Blank line after subject
-  - Body lines wrapped at 72 characters (links exempt)
-  - Pre-commit will block if `core.hooksPath` is misconfigured; bypass once with
-    `ALLOW_HOOKS_PATH_MISMATCH=1 git commit` or `git commit --no-verify`.
+[Apache License 2.0](LICENSE)

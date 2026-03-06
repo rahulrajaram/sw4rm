@@ -12,6 +12,7 @@ Reference Common Lisp SDK for the SW4RM Agentic Protocol. This is one of four SD
 - **Voting aggregation**: Confidence-weighted strategies for negotiation decisions
 - **Secret management**: Encrypted credential storage with audit logging
 - **State machine**: 12-state agent lifecycle matching the protocol spec
+- **LLM client layer**: Provider-agnostic Groq/Anthropic/mock clients with adaptive rate limiting
 
 ## Install
 
@@ -102,11 +103,151 @@ sbcl --load ~/quicklisp/setup.lisp \
      --eval '(fiveam:run! (quote sw4rm-test::sw4rm-suite))'
 ```
 
+## LLM Client
+
+The SDK includes a provider-agnostic LLM client layer with Groq, Anthropic, and mock backends.
+
+### Class Hierarchy
+
+```
+llm-client              ;; abstract base (CLOS class)
+  groq-client           ;; Groq API (OpenAI-compatible endpoint)
+  anthropic-client      ;; Anthropic Claude Messages API
+  mock-llm-client       ;; deterministic responses for testing
+```
+
+All concrete clients implement the `llm-query` generic function and return response plists of the form `(:content "..." :model "..." :usage (:input-tokens N :output-tokens N))`.
+
+### Factory Usage
+
+The `create-llm-client` factory resolves the backend from an explicit argument, the `LLM_CLIENT_TYPE` environment variable, or defaults to `"mock"`.
+
+```lisp
+;; Auto-detect from environment (defaults to Mock)
+(defvar *llm* (create-llm-client))
+
+;; Explicit Anthropic client with key
+(defvar *llm* (create-llm-client :client-type "anthropic"
+                                  :api-key "sk-ant-..."))
+
+;; Mock client for tests -- no credentials needed
+(defvar *llm* (create-llm-client :client-type "mock"))
+```
+
+### Credential Chain
+
+Each real client resolves API keys in the same order:
+
+1. `:api-key` constructor parameter
+2. Environment variable (`GROQ_API_KEY` or `ANTHROPIC_API_KEY`)
+3. Dotfile in home directory (`~/.groq` or `~/.anthropic`, first line)
+
+If none are found, `llm-authentication-error` is signaled at construction time.
+
+### Querying
+
+```lisp
+(let ((response (llm-query *llm* "Summarize the SW4RM protocol."
+                           :system-prompt "You are a helpful assistant."
+                           :max-tokens 1024
+                           :temperature 0.7)))
+  (format t "~A~%" (llm-response-content response))
+  (format t "Model: ~A~%" (llm-response-model response))
+  (format t "Tokens: ~A~%" (llm-response-usage response)))
+```
+
+The `:model` keyword overrides the client's default model for a single call.
+
+### Mock Client for Testing
+
+```lisp
+;; Cycle through canned responses
+(let ((client (make-mock-llm-client :responses '("alpha" "beta"))))
+  (llm-query client "first")   ;; => :content "alpha"
+  (llm-query client "second")  ;; => :content "beta"
+  (llm-query client "third")   ;; => :content "alpha"  (cycles)
+  (mock-client-call-count client)   ;; => 3
+  (mock-client-call-history client) ;; list of recorded call plists
+  (mock-client-reset client))       ;; reset counters
+
+;; Dynamic responses via generator function
+(let ((client (make-mock-llm-client
+                :response-generator (lambda (prompt)
+                                      (format nil "Echo: ~A" prompt)))))
+  (llm-response-content (llm-query client "ping")))
+  ;; => "Echo: ping"
+```
+
+### Rate Limiter
+
+All real clients share a global token-bucket rate limiter (`*global-rate-limiter*`). It refills tokens at a steady rate and adaptively throttles on 429 responses.
+
+```lisp
+;; Access or create the global limiter (default: 250,000 TPM)
+(get-global-rate-limiter)
+
+;; Create a custom limiter
+(make-rate-limiter :tokens-per-minute 100000
+                   :reduction-factor 0.7d0
+                   :recovery-factor 1.1d0
+                   :cooldown-seconds 30.0d0
+                   :successes-for-recovery 20
+                   :max-wait-seconds 120.0d0)
+
+;; Reset for test isolation
+(reset-global-rate-limiter)
+```
+
+The limiter is thread-safe (bordeaux-threads lock) and automatically wired into Groq and Anthropic clients at construction.
+
+### Condition Hierarchy
+
+All LLM conditions inherit from `sw4rm-error` and integrate with `with-sw4rm-error-handling`.
+
+| Condition | Signaled when |
+|---|---|
+| `llm-error` | Base condition for any LLM API failure |
+| `llm-authentication-error` | Invalid/missing API key, billing issues (401, 403) |
+| `llm-rate-limit-error` | Rate limit exceeded (HTTP 429) |
+| `llm-timeout-error` | Request or rate-limiter wait timed out (408, 504) |
+
+```lisp
+(handler-case
+    (llm-query *llm* "hello")
+  (llm-rate-limit-error (c)
+    (format t "Rate limited: ~A~%" (sw4rm-error-message c)))
+  (llm-authentication-error (c)
+    (format t "Auth failed: ~A~%" (sw4rm-error-message c)))
+  (llm-error (c)
+    (format t "LLM error: ~A~%" (sw4rm-error-message c))))
+```
+
+### Environment Variables
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `LLM_CLIENT_TYPE` | Factory backend (`"groq"`, `"anthropic"`, `"mock"`) | `"groq"` |
+| `LLM_DEFAULT_MODEL` | Override default model for factory | per-client default |
+| `GROQ_API_KEY` | Groq API key | none |
+| `GROQ_DEFAULT_MODEL` | Groq model override | `llama-3.3-70b-versatile` |
+| `ANTHROPIC_API_KEY` | Anthropic API key | none |
+| `ANTHROPIC_DEFAULT_MODEL` | Anthropic model override | `claude-sonnet-4-20250514` |
+
+### Running LLM Tests
+
+```bash
+cd sdks/cl_sdk
+sbcl --load test/run-llm-tests.lisp
+```
+
+The test suite uses the mock client exclusively and does not require API keys.
+
 ## Architecture
 
 The SDK follows the same layered pattern as the other SW4RM SDKs:
 
 - **`src/`** - Core modules (constants, envelope, state machine, activity buffer, worktree, voting, persistence, errors)
+- **`src/llm/`** - LLM client layer (base, factory, Groq, Anthropic, mock, rate limiter)
 - **`src/clients/`** - Service clients for all protocol RPCs
 - **`test/`** - FiveAM test suite
 - **`examples/`** - Runnable example scripts

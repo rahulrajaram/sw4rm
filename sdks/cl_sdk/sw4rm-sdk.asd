@@ -16,7 +16,8 @@
                #:cl-json            ; JSON encoding/decoding
                #:cffi               ; Foreign function interface (libgrpc)
                #:cffi-libffi        ; Struct-by-value support for CFFI
-               #:babel)             ; String/octets encoding
+               #:babel              ; String/octets encoding
+               #:drakma)            ; HTTP client (LLM API calls)
   :serial t
   :components ((:module "src"
                 :serial t
@@ -65,7 +66,17 @@
                              (:file "activity")
                              (:file "gateway")
                              (:file "handoff")
-                             (:file "workflow"))))
+                             (:file "workflow")))
+               (:module "llm"
+                :pathname "src/llm"
+                :depends-on ("src")
+                :serial t
+                :components ((:file "llm-client")
+                             (:file "rate-limiter")
+                             (:file "groq-client")
+                             (:file "anthropic-client")
+                             (:file "mock-client")
+                             (:file "factory"))))
   :in-order-to ((test-op (test-op #:sw4rm-sdk/tests))))
 
 (asdf:defsystem #:sw4rm-sdk/tests
@@ -75,7 +86,8 @@
   :components ((:module "test"
                 :serial t
                 :components ((:file "suite")
-                             (:file "transport-test"))))
+                             (:file "transport-test")
+                             (:file "llm-test"))))
   :perform (test-op (o c)
              (let* ((suite-package (or (find-package :sw4rm-test)
                                        (error "SW4RM test package missing")))

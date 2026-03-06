@@ -810,6 +810,144 @@ if flags.is_enabled("enable_caching"):
     pass
 ```
 
+## LLM Clients
+
+The SDK includes a provider-agnostic LLM client layer so agents can call language
+models without coupling to a specific vendor. All clients share a common async
+interface (`LLMClient`) with `query()` and `stream_query()` methods.
+
+### Installation
+
+LLM dependencies are optional extras. Install only what you need:
+
+```bash
+# Groq only
+pip install sw4rm-sdk[groq]
+
+# Anthropic only
+pip install sw4rm-sdk[anthropic]
+
+# Both providers
+pip install sw4rm-sdk[llm]
+```
+
+The mock client requires no extra dependencies and is always available.
+
+### Creating a Client
+
+Use the factory function to create clients:
+
+```python
+from sw4rm.llm import create_llm_client
+
+# Explicit provider
+client = create_llm_client(client_type="groq")
+client = create_llm_client(client_type="anthropic")
+client = create_llm_client(client_type="mock")
+
+# Auto-detect from LLM_CLIENT_TYPE env var (defaults to "claude_sdk")
+client = create_llm_client()
+```
+
+### Credential Resolution
+
+Each provider resolves credentials in the same order:
+
+1. `api_key` constructor parameter
+2. Environment variable (`GROQ_API_KEY` or `ANTHROPIC_API_KEY`)
+3. Dotfile in home directory (`~/.groq` or `~/.anthropic`, plain text, one line)
+
+If no credential is found, the client raises `LLMAuthenticationError` at
+construction time.
+
+### Basic Query
+
+All clients are async. `query()` returns an `LLMResponse` dataclass with
+`content`, `model`, and `usage` fields:
+
+```python
+import asyncio
+from sw4rm.llm import create_llm_client
+
+async def main():
+    client = create_llm_client(client_type="groq")
+
+    response = await client.query(
+        "Summarize the status of task T-100.",
+        system_prompt="You are a concise project status reporter.",
+        max_tokens=256,
+        temperature=0.3,
+    )
+    print(response.content)
+    print(response.usage)  # {"input_tokens": ..., "output_tokens": ...}
+
+asyncio.run(main())
+```
+
+### Streaming
+
+`stream_query()` yields text chunks as they arrive:
+
+```python
+async def stream_example():
+    client = create_llm_client(client_type="anthropic")
+
+    async for chunk in client.stream_query(
+        "Generate a detailed report.",
+        system_prompt="You are a report writer.",
+    ):
+        print(chunk, end="", flush=True)
+```
+
+### Rate Limiting
+
+A global token-bucket rate limiter is shared by all clients in the process.
+It is enabled by default and adapts automatically:
+
+- On a 429 response, the token budget is reduced (default factor: 0.7x).
+- After enough successful requests and a cooldown period, the budget recovers
+  (default factor: 1.1x).
+
+No code changes are required -- rate limiting is transparent to callers.
+
+### Mock Client for Testing
+
+The `MockLLMClient` is useful in tests. It supports canned responses, cycling
+response lists, and custom generator functions:
+
+```python
+from sw4rm.llm import MockLLMClient
+
+# Default: echoes the prompt
+client = MockLLMClient()
+
+# Cycle through fixed responses
+client = MockLLMClient(responses=["Yes", "No", "Maybe"])
+
+# Custom generator
+client = MockLLMClient(response_generator=lambda p: p.upper())
+
+# Inspect call history after test
+assert client.call_count == 0
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `LLM_CLIENT_TYPE` | `claude_sdk` | Provider for `create_llm_client()` when no explicit type is given |
+| `LLM_DEFAULT_MODEL` | `sonnet` | Default model passed to the client constructor |
+| `GROQ_API_KEY` | -- | Groq API key |
+| `GROQ_DEFAULT_MODEL` | `llama-3.3-70b-versatile` | Default model for the Groq client |
+| `ANTHROPIC_API_KEY` | -- | Anthropic API key |
+| `ANTHROPIC_DEFAULT_MODEL` | `claude-sonnet-4-20250514` | Default model for the Anthropic client |
+| `LLM_RATE_LIMIT_ENABLED` | `1` | Set to `0` to disable rate limiting |
+| `LLM_RATE_LIMIT_TOKENS_PER_MIN` | `250000` | Token bucket capacity (tokens per minute) |
+| `LLM_RATE_LIMIT_ADAPTIVE` | `1` | Set to `0` to disable adaptive throttling |
+| `LLM_RATE_LIMIT_REDUCTION_FACTOR` | `0.7` | Multiply budget by this on a 429 |
+| `LLM_RATE_LIMIT_RECOVERY_FACTOR` | `1.1` | Multiply budget by this on recovery |
+| `LLM_RATE_LIMIT_COOLDOWN_SECONDS` | `30` | Seconds to wait before attempting recovery |
+
 ## Troubleshooting
 
 ### Protobuf Stubs Not Generated

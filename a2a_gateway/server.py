@@ -1,19 +1,22 @@
-"""A2A Gateway gRPC Server — exposes SW4RM agents via A2A protocol.
+"""A2A Gateway Server — exposes SW4RM agents via A2A protocol.
 
 Usage:
-    python -m a2a-gateway.server [--port 50054] [--registry localhost:50052] [--router localhost:50051]
+    python -m a2a_gateway.server [--port 50054] [--http-port 8080] \
+        [--registry localhost:50052] [--router localhost:50051]
 
-This server implements the A2A gRPC service and translates all
-operations to SW4RM service calls via the adapter module.
+This server implements both:
+  - A gRPC servicer for A2A operations (port 50054)
+  - An HTTP server with .well-known/agent.json and JSON-RPC 2.0 (port 8080)
 """
 
 import argparse
 import json
 import logging
+import os
 import signal
-import sys
+import threading
 import time
-from concurrent import futures
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import grpc
 
@@ -22,10 +25,12 @@ from sw4rm.clients.registry import RegistryClient
 from sw4rm.clients.router import RouterClient
 from sw4rm.clients.scheduler import SchedulerClient
 
-from a2a_gateway.adapter import A2AToSW4RMAdapter, sw4rm_envelope_to_a2a_message
+from a2a_gateway.adapter import A2AToSW4RMAdapter
 
 logger = logging.getLogger("a2a-gateway")
 
+
+# --- gRPC Servicer ---
 
 class A2AServicer:
     """gRPC servicer implementing the A2A protocol via SW4RM adapter.
@@ -52,8 +57,6 @@ class A2AServicer:
         # Determine target agent from metadata or default routing
         target_agent = metadata.get("sw4rm.target_agent")
         if not target_agent:
-            # If no explicit target, use the first available agent
-            # or return an error
             context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
             context.set_details(
                 "Missing sw4rm.target_agent in message metadata. "
@@ -104,6 +107,155 @@ class A2AServicer:
         return {"task": task}
 
 
+# --- HTTP / JSON-RPC 2.0 Handler ---
+
+class A2AHTTPHandler(BaseHTTPRequestHandler):
+    """HTTP handler serving .well-known/agent.json and JSON-RPC 2.0.
+
+    Endpoints:
+        GET  /.well-known/agent.json  → Agent Card JSON
+        POST /                        → JSON-RPC 2.0 dispatch
+    """
+
+    # Set by the factory; shared across all requests
+    adapter: A2AToSW4RMAdapter = None  # type: ignore[assignment]
+
+    def log_message(self, format, *args):
+        logger.debug("HTTP %s", format % args)
+
+    def _send_json(self, status: int, body: dict) -> None:
+        payload = json.dumps(body).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def do_GET(self):
+        if self.path == "/.well-known/agent.json":
+            card = self.adapter.get_agent_card()
+            self._send_json(200, card)
+        else:
+            self._send_json(404, {"error": "Not Found"})
+
+    def do_POST(self):
+        if self.path != "/":
+            self._send_json(404, {"error": "Not Found"})
+            return
+
+        # Read body
+        content_length = int(self.headers.get("Content-Length", 0))
+        if content_length == 0:
+            self._send_json(200, _jsonrpc_error(
+                None, -32700, "Parse error: empty body",
+            ))
+            return
+
+        raw = self.rfile.read(content_length)
+        try:
+            request = json.loads(raw)
+        except json.JSONDecodeError:
+            self._send_json(200, _jsonrpc_error(
+                None, -32700, "Parse error: invalid JSON",
+            ))
+            return
+
+        # Validate JSON-RPC envelope
+        if not isinstance(request, dict) or request.get("jsonrpc") != "2.0":
+            self._send_json(200, _jsonrpc_error(
+                request.get("id") if isinstance(request, dict) else None,
+                -32600, "Invalid Request: missing jsonrpc 2.0",
+            ))
+            return
+
+        req_id = request.get("id")
+        method = request.get("method", "")
+        params = request.get("params", {})
+
+        result = _dispatch(self.adapter, method, params)
+        if result is None:
+            self._send_json(200, _jsonrpc_error(
+                req_id, -32601, f"Method not found: {method}",
+            ))
+            return
+
+        self._send_json(200, {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "result": result,
+        })
+
+
+def _jsonrpc_error(req_id, code: int, message: str) -> dict:
+    return {
+        "jsonrpc": "2.0",
+        "id": req_id,
+        "error": {"code": code, "message": message},
+    }
+
+
+def _dispatch(adapter: A2AToSW4RMAdapter, method: str, params: dict):
+    """Dispatch a JSON-RPC method to the adapter. Returns None for unknown methods."""
+    if method == "SendMessage":
+        message = params.get("message", {})
+        metadata = message.get("metadata", {})
+        target_agent = metadata.get("sw4rm.target_agent")
+        if not target_agent:
+            return {"error": "Missing sw4rm.target_agent in message metadata"}
+        task = adapter.send_message(
+            message=message,
+            target_agent_id=target_agent,
+            context_id=message.get("context_id"),
+        )
+        return {"task": task}
+
+    if method == "GetTask":
+        task_id = params.get("task_id")
+        if not task_id:
+            return {"error": "task_id is required"}
+        task = adapter.get_task(task_id)
+        if task is None:
+            return {"error": f"Task {task_id} not found"}
+        return {"task": task}
+
+    if method == "CancelTask":
+        task_id = params.get("task_id")
+        if not task_id:
+            return {"error": "task_id is required"}
+        task = adapter.cancel_task(task_id)
+        if task is None:
+            return {"error": f"Task {task_id} not found"}
+        return {"task": task}
+
+    if method == "GetAgentCard":
+        agent_id = params.get("agent_id")
+        return adapter.get_agent_card(agent_id=agent_id)
+
+    return None  # Unknown method
+
+
+def make_http_handler(adapter: A2AToSW4RMAdapter):
+    """Create an A2AHTTPHandler class bound to the given adapter."""
+
+    class BoundHandler(A2AHTTPHandler):
+        pass
+
+    BoundHandler.adapter = adapter
+    return BoundHandler
+
+
+def start_http_server(adapter: A2AToSW4RMAdapter, port: int = 8080) -> HTTPServer:
+    """Start the A2A HTTP server in a background daemon thread."""
+    handler_class = make_http_handler(adapter)
+    server = HTTPServer(("0.0.0.0", port), handler_class)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    logger.info("A2A HTTP server listening on http://0.0.0.0:%d", port)
+    return server
+
+
+# --- Adapter Factory ---
+
 def create_adapter(
     registry_addr: str = "localhost:50052",
     router_addr: str = "localhost:50051",
@@ -125,16 +277,12 @@ def create_adapter(
 
 def serve(
     port: int = 50054,
+    http_port: int = 8080,
     registry_addr: str = "localhost:50052",
     router_addr: str = "localhost:50051",
     scheduler_addr: str = "localhost:50053",
 ):
-    """Start the A2A gateway gRPC server.
-
-    Note: This MVP uses a JSON-over-gRPC approach without compiled
-    protobuf stubs. For production, compile a2a.proto with protoc
-    and use the generated servicer base class.
-    """
+    """Start the A2A gateway (gRPC adapter + HTTP server)."""
     adapter = create_adapter(
         registry_addr=registry_addr,
         router_addr=router_addr,
@@ -144,31 +292,30 @@ def serve(
 
     servicer = A2AServicer(adapter)
 
-    # For MVP, expose the adapter via a simple JSON-RPC-over-HTTP
-    # endpoint alongside the gRPC server. This avoids the need
-    # for compiled proto stubs while still being functional.
-    #
-    # Production: Use grpc.server() with compiled a2a_pb2_grpc stubs.
     logger.info(
         "A2A Gateway adapter created. "
         "Connect SW4RM services at registry=%s router=%s scheduler=%s",
         registry_addr, router_addr, scheduler_addr,
     )
-    logger.info("A2A Gateway ready on port %d", port)
+
+    # Start HTTP server for .well-known/agent.json and JSON-RPC
+    http_server = start_http_server(adapter, http_port)
 
     # Print agent card
     card = adapter.get_agent_card()
     logger.info("Agent Card: %s", json.dumps(card, indent=2))
+    logger.info("A2A Gateway ready — gRPC port %d, HTTP port %d", port, http_port)
 
-    return adapter, servicer
+    return adapter, servicer, http_server
 
 
 def main():
     parser = argparse.ArgumentParser(description="A2A Gateway for SW4RM")
     parser.add_argument("--port", type=int, default=50054)
-    parser.add_argument("--registry", default="localhost:50052")
-    parser.add_argument("--router", default="localhost:50051")
-    parser.add_argument("--scheduler", default="localhost:50053")
+    parser.add_argument("--http-port", type=int, default=8080)
+    parser.add_argument("--registry", default=os.environ.get("REGISTRY_ADDR", "localhost:50052"))
+    parser.add_argument("--router", default=os.environ.get("ROUTER_ADDR", "localhost:50051"))
+    parser.add_argument("--scheduler", default=os.environ.get("SCHEDULER_ADDR", "localhost:50053"))
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -176,8 +323,9 @@ def main():
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     )
 
-    adapter, servicer = serve(
+    adapter, servicer, http_server = serve(
         port=args.port,
+        http_port=args.http_port,
         registry_addr=args.registry,
         router_addr=args.router,
         scheduler_addr=args.scheduler,
@@ -189,6 +337,7 @@ def main():
     def handle_signal(signum, frame):
         nonlocal stop
         logger.info("Shutting down A2A gateway...")
+        http_server.shutdown()
         stop = True
 
     signal.signal(signal.SIGINT, handle_signal)

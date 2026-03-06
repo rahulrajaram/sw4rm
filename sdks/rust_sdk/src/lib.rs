@@ -88,6 +88,9 @@ pub mod voting;
 pub mod state_transitions;
 pub mod idempotency;
 
+// Phase 5: LLM client abstraction
+pub mod llm;
+
 // Re-export commonly used types
 pub use clients::*;
 pub use config::*;

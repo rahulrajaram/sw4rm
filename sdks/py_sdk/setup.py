@@ -23,7 +23,17 @@ setup(
             "pytest-asyncio",
             "black",
             "flake8",
-        ]
+        ],
+        "groq": [
+            "groq>=0.4",
+        ],
+        "anthropic": [
+            "anthropic>=0.18",
+        ],
+        "llm": [
+            "groq>=0.4",
+            "anthropic>=0.18",
+        ],
     },
     classifiers=[
         "Development Status :: 3 - Alpha",

@@ -26,14 +26,14 @@ def create_llm_client(
     This factory function creates the appropriate LLM client based on:
     1. Explicit client_type parameter
     2. LLM_CLIENT_TYPE environment variable
-    3. Default to "claude_sdk" (subscription auth)
+    3. Default to "mock" (safe for testing)
 
     Environment variables:
-        LLM_CLIENT_TYPE: "claude_sdk" or "mock" (default: "claude_sdk")
+        LLM_CLIENT_TYPE: "claude_sdk", "groq", "anthropic", or "mock" (default: "mock")
         LLM_DEFAULT_MODEL: Default model to use (default: "sonnet")
 
     Args:
-        client_type: Override client type ("claude_sdk" or "mock").
+        client_type: Override client type ("claude_sdk", "groq", "anthropic", or "mock").
         model: Default model to use (sonnet, opus, haiku).
         **kwargs: Additional arguments for client constructor.
 
@@ -48,7 +48,7 @@ def create_llm_client(
         ```python
         from sw4rm.llm import create_llm_client
 
-        # Auto-detect (uses Claude SDK by default)
+        # Auto-detect (uses mock by default)
         client = create_llm_client()
 
         # Explicit Claude SDK with opus model
@@ -64,7 +64,7 @@ def create_llm_client(
     """
     # Determine client type
     if client_type is None:
-        client_type = os.getenv("LLM_CLIENT_TYPE", "claude_sdk")
+        client_type = os.getenv("LLM_CLIENT_TYPE", "mock")
     client_type = client_type.lower()
 
     # Get model from environment if not overridden
@@ -83,8 +83,20 @@ def create_llm_client(
         logger.info("Creating Claude SDK client (uses subscription auth)")
         return ClaudeSDKClient(default_model=model, **kwargs)
 
+    elif client_type == "groq":
+        from sw4rm.llm.groq import GroqClient
+
+        logger.info("Creating Groq LLM client")
+        return GroqClient(default_model=model, **kwargs)
+
+    elif client_type == "anthropic":
+        from sw4rm.llm.anthropic import AnthropicClient
+
+        logger.info("Creating Anthropic LLM client")
+        return AnthropicClient(default_model=model, **kwargs)
+
     else:
         raise ValueError(
             f"Unknown LLM client type: {client_type}. "
-            f"Valid types: 'claude_sdk', 'mock'"
+            f"Valid types: 'claude_sdk', 'groq', 'anthropic', 'mock'"
         )

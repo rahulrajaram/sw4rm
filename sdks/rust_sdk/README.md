@@ -12,6 +12,7 @@ Reference Rust SDK for the SW4RM Agentic Protocol. This is one of three SDKs in 
 - **Configurable endpoints** with sensible defaults
 - **Production-ready** error handling and resource management
 - **CONTROL helpers** and content-types for CONTROL-only flows (scheduler command v1, agent report v1)
+- **LLM client abstraction** with Groq, Anthropic, and mock backends (feature `llm`)
 
 ## Install
 
@@ -125,6 +126,7 @@ The SDK is organized into several key modules:
 - **`config/`** - Configuration structures and defaults
 - **`types/`** - Common types and utilities
 - **`error/`** - Error types and result handling
+- **`llm/`** - Provider-agnostic LLM client (feature-gated)
 
 ## Protocol Services
 
@@ -210,6 +212,122 @@ let env = EnvelopeBuilder::new("frontend-agent".into(), constants::message_type:
     .with_content_type(CT_SCHEDULER_COMMAND_V1.to_string())
     .build();
 // send `env` via Router client
+```
+
+## LLM Client
+
+The SDK includes a provider-agnostic LLM client behind the `llm` feature flag.
+Supported backends: **Groq** (OpenAI-compatible), **Anthropic** (Claude), and a
+**Mock** client for testing.
+
+### Enable the feature
+
+```toml
+[dependencies]
+sw4rm-sdk = { version = "0.5.0", features = ["llm"] }
+tokio = { version = "1.0", features = ["full"] }
+```
+
+### Create a client with the factory
+
+`create_llm_client` resolves the provider from its arguments, the
+`LLM_CLIENT_TYPE` environment variable, or falls to `"mock"` as the default:
+
+```rust,no_run
+use sw4rm_sdk::llm::{create_llm_client, LlmClient};
+
+// Detect provider from LLM_CLIENT_TYPE env var (defaults to "mock")
+let client = create_llm_client(None, None).unwrap();
+
+// Explicit provider
+let client = create_llm_client(Some("groq"), None).unwrap();
+
+// Explicit provider + model override
+let client = create_llm_client(Some("anthropic"), Some("claude-opus-4-20250514")).unwrap();
+```
+
+### Query example (async)
+
+```rust,no_run
+use sw4rm_sdk::llm::{create_llm_client, LlmClient, LlmResponse};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let client = create_llm_client(Some("groq"), None)?;
+
+    let response: LlmResponse = client.query(
+        "Summarize the latest build results.",
+        Some("You are a concise CI assistant."),
+        4096,   // max_tokens
+        0.7,    // temperature
+        None,   // model_override (use provider default)
+    ).await?;
+
+    println!("Model: {}", response.model);
+    println!("Reply: {}", response.content);
+    println!("Tokens: {:?}", response.usage);
+    Ok(())
+}
+```
+
+### Credential resolution
+
+Each provider resolves its API key using the same three-step chain:
+
+| Priority | Source | Groq | Anthropic |
+|----------|--------|------|-----------|
+| 1 | Constructor `api_key` param | `GroqClient::new(Some("sk-..."), ...)` | `AnthropicClient::new(Some("sk-..."), ...)` |
+| 2 | Environment variable | `GROQ_API_KEY` | `ANTHROPIC_API_KEY` |
+| 3 | Dotfile in home directory | `~/.groq` | `~/.anthropic` |
+
+If none of the three sources yields a key, the client returns
+`LlmError::Authentication` at construction time.
+
+### Rate limiting
+
+Rate limiting is automatic and process-global. All LLM clients share a single
+token-bucket that refills at 250,000 tokens per minute (Groq free-tier default).
+When a provider returns HTTP 429 the bucket adaptively reduces its budget; after
+a cooldown period and enough consecutive successes it recovers toward the
+original baseline.
+
+No application code is required -- the rate limiter runs transparently inside
+every `query` and `stream_query` call.
+
+### Environment variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LLM_CLIENT_TYPE` | `"mock"` | Provider for `create_llm_client`: `"groq"`, `"anthropic"`, `"mock"` |
+| `LLM_DEFAULT_MODEL` | (provider default) | Override default model for any provider |
+| `GROQ_API_KEY` | -- | Groq API key |
+| `GROQ_DEFAULT_MODEL` | `llama-3.3-70b-versatile` | Groq default model |
+| `ANTHROPIC_API_KEY` | -- | Anthropic API key |
+| `ANTHROPIC_DEFAULT_MODEL` | `claude-sonnet-4-20250514` | Anthropic default model |
+| `LLM_RATE_LIMIT_ENABLED` | `"1"` | Enable/disable the global rate limiter |
+| `LLM_RATE_LIMIT_TOKENS_PER_MIN` | `250000` | Token budget per minute |
+| `LLM_RATE_LIMIT_ADAPTIVE` | `"1"` | Enable adaptive throttle (reduce on 429, recover on success) |
+
+### Mock client for tests
+
+The mock client needs no API key and no feature flag:
+
+```rust
+use sw4rm_sdk::llm::{MockLlmClient, LlmClient};
+
+# async fn run() -> Result<(), Box<dyn std::error::Error>> {
+let client = MockLlmClient::new(
+    "test-model".to_string(),
+    vec!["First response".to_string(), "Second response".to_string()],
+);
+
+let r1 = client.query("a", None, 4096, 1.0, None).await?;
+let r2 = client.query("b", None, 4096, 1.0, None).await?;
+assert_eq!(r1.content, "First response");
+assert_eq!(r2.content, "Second response");
+assert_eq!(client.call_count(), 2);
+# Ok(())
+# }
 ```
 
 ## Testing
