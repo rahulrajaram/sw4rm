@@ -1,6 +1,6 @@
 # SW4RM Common Lisp SDK
 
-Reference Common Lisp SDK for the SW4RM Agentic Protocol. This is one of four SDKs in this repository (Python, Rust, JavaScript, Common Lisp) and provides a full peer implementation with idiomatic CL condition/restart error handling patterns.
+Reference Common Lisp SDK for the SW4RM Agentic Protocol. This is one of five SDKs in this repository (Python, Rust, JavaScript, Elixir, Common Lisp) and provides a full peer implementation with idiomatic CL condition/restart error handling patterns.
 
 ## Features
 
@@ -226,7 +226,7 @@ All LLM conditions inherit from `sw4rm-error` and integrate with `with-sw4rm-err
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `LLM_CLIENT_TYPE` | Factory backend (`"groq"`, `"anthropic"`, `"mock"`) | `"groq"` |
+| `LLM_CLIENT_TYPE` | Factory backend (`"groq"`, `"anthropic"`, `"mock"`) | `"mock"` |
 | `LLM_DEFAULT_MODEL` | Override default model for factory | per-client default |
 | `GROQ_API_KEY` | Groq API key | none |
 | `GROQ_DEFAULT_MODEL` | Groq model override | `llama-3.3-70b-versatile` |

@@ -1,6 +1,6 @@
 # SW4RM Rust SDK
 
-Reference Rust SDK for the SW4RM Agentic Protocol. This is one of three SDKs in this repository (Python, Rust, JavaScript) and provides high-performance gRPC clients and runtime utilities for building distributed autonomous agents.
+Reference Rust SDK for the SW4RM Agentic Protocol. This is one of five SDKs in this repository (Python, Rust, JavaScript, Elixir, Common Lisp) and provides high-performance gRPC clients and runtime utilities for building distributed autonomous agents.
 
 ## Features
 

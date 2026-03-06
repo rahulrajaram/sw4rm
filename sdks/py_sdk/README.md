@@ -1,6 +1,6 @@
 # SW4RM Python SDK
 
-Reference Python SDK for the SW4RM Agentic Protocol. This is one of three SDKs in this repository (Python, Rust, JavaScript) and provides clients, a lightweight runtime, and helpers for ACK lifecycle, worktree/state handling, and more.
+Reference Python SDK for the SW4RM Agentic Protocol. This is one of five SDKs in this repository (Python, Rust, JavaScript, Elixir, Common Lisp) and provides clients, a lightweight runtime, and helpers for ACK lifecycle, worktree/state handling, and more.
 
 ## Install
 
@@ -845,7 +845,7 @@ client = create_llm_client(client_type="groq")
 client = create_llm_client(client_type="anthropic")
 client = create_llm_client(client_type="mock")
 
-# Auto-detect from LLM_CLIENT_TYPE env var (defaults to "claude_sdk")
+# Auto-detect from LLM_CLIENT_TYPE env var (defaults to "mock")
 client = create_llm_client()
 ```
 
@@ -935,7 +935,7 @@ assert client.call_count == 0
 
 | Variable | Default | Description |
 |---|---|---|
-| `LLM_CLIENT_TYPE` | `claude_sdk` | Provider for `create_llm_client()` when no explicit type is given |
+| `LLM_CLIENT_TYPE` | `mock` | Provider for `create_llm_client()` when no explicit type is given |
 | `LLM_DEFAULT_MODEL` | `sonnet` | Default model passed to the client constructor |
 | `GROQ_API_KEY` | -- | Groq API key |
 | `GROQ_DEFAULT_MODEL` | `llama-3.3-70b-versatile` | Default model for the Groq client |

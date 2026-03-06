@@ -71,7 +71,7 @@ tests).
 Use the factory to create a client without coupling to a specific provider:
 
 ```elixir
-# Defaults to Groq (or the LLM_CLIENT_TYPE env var)
+# Defaults to Mock (or the LLM_CLIENT_TYPE env var)
 {:ok, {module, client}} = Sw4rm.LLM.Factory.create_llm_client()
 
 # Explicit provider
@@ -164,7 +164,7 @@ All clients return `{:error, reason}` where `reason` is one of:
 
 | Variable | Default | Description |
 |---|---|---|
-| `LLM_CLIENT_TYPE` | `"groq"` | Default provider for `Factory.create_llm_client/1` |
+| `LLM_CLIENT_TYPE` | `"mock"` | Default provider for `Factory.create_llm_client/1` |
 | `LLM_DEFAULT_MODEL` | per-provider | Override the default model |
 | `GROQ_API_KEY` | -- | Groq API key |
 | `GROQ_DEFAULT_MODEL` | `"llama-3.3-70b-versatile"` | Groq model |

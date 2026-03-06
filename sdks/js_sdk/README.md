@@ -1,6 +1,6 @@
 # SW4RM JavaScript SDK
 
-Reference JavaScript SDK for the SW4RM Agentic Protocol. This is one of three SDKs in this repository (Python, Rust, JavaScript). 🚧 Under development: initial implementation includes a basic RegistryClient and core utilities.
+Reference JavaScript SDK for the SW4RM Agentic Protocol. This is one of five SDKs in this repository (Python, Rust, JavaScript, Elixir, Common Lisp). 🚧 Under development: initial implementation includes a basic RegistryClient and core utilities.
 
 ## Install
 
