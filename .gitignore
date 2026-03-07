@@ -135,3 +135,13 @@ artifacts/
 
 # External tooling
 quicklisp.lisp
+
+# Local yarli runtime config
+yarli.toml
+
+# Root-level local artifacts and workspace docs
+/yarli.profile*.toml
+/output
+/SPEC_QUESTIONS.md
+/EVENT_LOOP*
+/SW4-*

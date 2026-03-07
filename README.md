@@ -1,4 +1,4 @@
-# SW4RM Agentic Protocol
+<h1 align="left"><span style="color: rgb(8, 145, 178); font-family: 'Space Grotesk', sans-serif;">SW4RM Agentic Protocol</span></h1>
 
 [![Python CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-python.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-python.yml)
 [![Rust CI](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-rust.yml/badge.svg)](https://github.com/rahulrajaram/sw4rm/actions/workflows/ci-rust.yml)
