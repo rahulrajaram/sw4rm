@@ -1,6 +1,6 @@
 # RFC: SW4RM - Interruptible, Message-Driven Agent Coordination Protocol
 
-Version: 0.6.0 (2026-02-15)
+Version: 0.6.0 (2026-03-06)
 
 ## Versioning and Changelog
 
@@ -10,7 +10,7 @@ The versioning scope encompasses this document and the canonical protocol buffer
 
 **Changelog:**
 
-- **0.6.0 (2026-02-15)**: Versioned extension structure. Normative protocol
+- **0.6.0 (2026-03-06)**: Versioned extension structure. Normative protocol
   evolution is now tracked in versioned extension release files
   (`extensions/v0.N.0.md`). This document (`spec.md`) is frozen as a static
   core specification where only the version number changes. See

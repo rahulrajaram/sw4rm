@@ -61,7 +61,7 @@ Implementations may claim conformance to specific extensions:
 - Rust: SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, full SW4-004/SW4-005 conformance coverage, and shared vector adapters.
 - Common Lisp: SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, full SW4-004/SW4-005 conformance coverage, and shared vector adapters.
 
-See `sdks/SDK_IMPLEMENTATION_PROGRESS.md` for the authoritative cross-SDK capability matrix.
+This table is the canonical public cross-SDK implementation status; supporting evidence is maintained in `artifacts/verification/`.
 
 ## Extension Lifecycle
 

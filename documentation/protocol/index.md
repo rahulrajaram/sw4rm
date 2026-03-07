@@ -2,7 +2,7 @@
 
 ([Link to full RFC](https://github.com/rahulrajaram/sw4rm/blob/master/documentation/protocol/spec.md))
 
-**SW4RM Protocol v0.6.0** | **Status: Production Ready** | **Last Updated: 2026-02-15**
+**SW4RM Protocol v0.6.0** | **Status: Production Ready** | **Last Updated: 2026-03-06**
 
 Related documents:
 
@@ -13,7 +13,7 @@ Related documents:
 
 ??? note "Changelog"
 
-    **0.6.0 (2026-02-15)**
+    **0.6.0 (2026-03-06)**
 
     - Versioned extension structure: normative protocol evolution is now tracked
       in versioned extension release files (`extensions/v0.N.0.md`). The core

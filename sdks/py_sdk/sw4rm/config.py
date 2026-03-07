@@ -125,6 +125,12 @@ class SW4RMConfig:
         max_retries: Maximum number of retry attempts for failed operations
         enable_metrics: Whether to collect and export metrics
         enable_tracing: Whether to enable distributed tracing
+        metrics_backend: Metrics backend selector (noop|memory|statsd|datadog)
+        metrics_host: Hostname for statsd/dogstatsd backend
+        metrics_port: Port for statsd/dogstatsd backend
+        metrics_namespace: Optional namespace prefix for metric names
+        metrics_tags: Labels attached to every metric
+        metrics_sample_rate: Sample rate for histogram/counter emissions
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         feature_flags: Dictionary of feature flag name to value mappings
     """
@@ -135,6 +141,12 @@ class SW4RMConfig:
     max_retries: int = 3
     enable_metrics: bool = True
     enable_tracing: bool = True
+    metrics_backend: str = "noop"
+    metrics_host: str = "localhost"
+    metrics_port: int = 8125
+    metrics_namespace: str = "sw4rm"
+    metrics_tags: list[str] = field(default_factory=list)
+    metrics_sample_rate: float = 1.0
     log_level: str = "INFO"
     feature_flags: dict[str, Any] = field(default_factory=dict)
 
@@ -157,6 +169,12 @@ class SW4RMConfig:
             "max_retries",
             "enable_metrics",
             "enable_tracing",
+            "metrics_backend",
+            "metrics_host",
+            "metrics_port",
+            "metrics_namespace",
+            "metrics_tags",
+            "metrics_sample_rate",
             "log_level",
             "feature_flags",
         ]:
@@ -178,6 +196,12 @@ class SW4RMConfig:
             "max_retries": self.max_retries,
             "enable_metrics": self.enable_metrics,
             "enable_tracing": self.enable_tracing,
+            "metrics_backend": self.metrics_backend,
+            "metrics_host": self.metrics_host,
+            "metrics_port": self.metrics_port,
+            "metrics_namespace": self.metrics_namespace,
+            "metrics_tags": self.metrics_tags,
+            "metrics_sample_rate": self.metrics_sample_rate,
             "log_level": self.log_level,
             "feature_flags": self.feature_flags,
         }
@@ -216,6 +240,12 @@ def load_config(path: Optional[str] = None) -> SW4RMConfig:
         SW4RM_MAX_RETRIES: Maximum retry attempts
         SW4RM_ENABLE_METRICS: Enable metrics collection (true/false)
         SW4RM_ENABLE_TRACING: Enable tracing (true/false)
+        SW4RM_METRICS_BACKEND: Metrics backend (noop|memory|statsd|datadog)
+        SW4RM_METRICS_HOST: StatsD/DogStatsD host
+        SW4RM_METRICS_PORT: StatsD/DogStatsD port
+        SW4RM_METRICS_NAMESPACE: Optional metric namespace prefix
+        SW4RM_METRICS_TAGS: Comma-separated tags attached to all metrics
+        SW4RM_METRICS_SAMPLE_RATE: Sample rate between 0.0 and 1.0
         SW4RM_LOG_LEVEL: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     """
     # Start with defaults
@@ -305,6 +335,36 @@ def _load_from_env() -> dict[str, Any]:
             os.environ["SW4RM_ENABLE_TRACING"]
         )
 
+    if "SW4RM_METRICS_BACKEND" in os.environ:
+        env_config["metrics_backend"] = _normalize_metrics_backend(
+            os.environ["SW4RM_METRICS_BACKEND"]
+        )
+
+    if "SW4RM_METRICS_HOST" in os.environ:
+        env_config["metrics_host"] = os.environ["SW4RM_METRICS_HOST"]
+
+    if "SW4RM_METRICS_PORT" in os.environ:
+        try:
+            env_config["metrics_port"] = int(os.environ["SW4RM_METRICS_PORT"])
+        except ValueError:
+            logging.warning("Invalid SW4RM_METRICS_PORT value, using default")
+
+    if "SW4RM_METRICS_NAMESPACE" in os.environ:
+        env_config["metrics_namespace"] = os.environ["SW4RM_METRICS_NAMESPACE"]
+
+    if "SW4RM_METRICS_TAGS" in os.environ:
+        env_config["metrics_tags"] = _parse_tags(
+            os.environ["SW4RM_METRICS_TAGS"]
+        )
+
+    if "SW4RM_METRICS_SAMPLE_RATE" in os.environ:
+        try:
+            env_config["metrics_sample_rate"] = float(
+                os.environ["SW4RM_METRICS_SAMPLE_RATE"]
+            )
+        except ValueError:
+            logging.warning("Invalid SW4RM_METRICS_SAMPLE_RATE value, using default")
+
     # Log level
     if "SW4RM_LOG_LEVEL" in os.environ:
         env_config["log_level"] = os.environ["SW4RM_LOG_LEVEL"].upper()
@@ -322,6 +382,20 @@ def _parse_bool(value: str) -> bool:
         Boolean value
     """
     return value.lower() in ("true", "1", "yes", "on")
+
+
+def _normalize_metrics_backend(value: str) -> str:
+    """Normalize metrics backend names to known aliases."""
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes", "on"}:
+        return "statsd"
+    return normalized
+
+
+def _parse_tags(raw: str) -> list[str]:
+    """Parse tags from a comma-separated env value."""
+    parts = [part.strip() for part in raw.split(",")]
+    return [part for part in parts if part]
 
 
 # Global singleton config instance
@@ -370,4 +444,3 @@ def set_config(config: SW4RMConfig) -> None:
     """
     global _global_config
     _global_config = config
-

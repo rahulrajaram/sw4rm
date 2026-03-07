@@ -35,7 +35,7 @@ This file captures the current state, decisions, and next steps for the SW4RM Ag
     - Advanced features: streaming support, comprehensive observability, retry logic
     - Type safety with compile-time guarantees
     - Performance optimizations and enterprise-grade error handling
-    - Comprehensive documentation and examples (`sdks/SDK_IMPLEMENTATION_PROGRESS.md`)
+    - Comprehensive documentation and examples (protocol extensions + operational docs)
 
 ### Documentation Content & Structure
 - Implemented hierarchical numbering system across all documentation:

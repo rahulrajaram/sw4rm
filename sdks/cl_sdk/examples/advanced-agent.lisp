@@ -42,7 +42,7 @@
    :agent-id "reviewer-1"
    :name "CodeReviewAgent"
    :description "Reviews code changes and provides feedback."
-   :version "0.5.0"
+   :version "0.6.0"
    :capabilities '("code-review" "static-analysis" "security-audit")
    :endpoints (make-default-endpoints)
    :timeout-ms 30000

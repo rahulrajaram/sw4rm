@@ -40,10 +40,10 @@ The built site will be in the `site/` directory.
 
 Cross-SDK implementation status for the inter-swarm extensions is tracked in:
 
-- `sdks/SDK_IMPLEMENTATION_PROGRESS.md` (capability matrix by SDK)
 - `documentation/protocol/extensions/index.md` (extension-level status summary)
+- `artifacts/verification/` (evidence snapshots for verification claims)
 
-When updating SW4-004 or SW4-005 docs/claims, update both files together so conformance wording and SDK parity reporting stay consistent.
+When updating SW4-004 or SW4-005 docs/claims, update the extension status page and evidence snapshots together so conformance wording and parity reporting stay consistent.
 
 ## Phase Status (2026-02-15)
 

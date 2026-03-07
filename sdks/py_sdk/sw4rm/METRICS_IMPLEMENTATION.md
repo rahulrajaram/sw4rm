@@ -68,13 +68,14 @@
 
 ```
 sdks/py_sdk/sw4rm/
-├── metrics.py                    # Main implementation (11KB)
-├── METRICS_README.md            # User documentation (12KB)
-├── METRICS_IMPLEMENTATION.md    # This file
-└── __init__.py                  # Updated to export metrics
+├── metrics.py                 # Main implementation (11KB)
+├── METRICS_IMPLEMENTATION.md  # This file
+└── __init__.py               # Updated to export metrics
 
 sdks/py_sdk/
 └── test_metrics_validation.py   # Validation tests (5.3KB)
+
+Usage and API notes are documented in `sdks/py_sdk/sw4rm/metrics.py` docstrings and validated by `sdks/py_sdk/tests/test_metrics_validation.py`.
 ```
 
 ## API Surface
@@ -300,6 +301,6 @@ This implementation fully satisfies SW4RM specification §13 requirements:
 ## References
 
 - [SW4RM Specification §13](../../../documentation/protocol/spec.md#13-buffers-and-back-pressure)
-- [Metrics README](METRICS_README.md) - User documentation
+- [Metrics Module API](metrics.py) - Authoritative implementation documentation and examples
 - [Python SDK README](../README.md) - SDK overview
 - [Test Validation Script](../test_metrics_validation.py)

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // SW4RM JavaScript SDK
-export const version = '0.5.0';
+export const version = '0.6.0';
 
 // Clients
 export * from './clients/router.js';

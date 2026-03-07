@@ -627,7 +627,6 @@ intercepted_channel = grpc.intercept_channel(channel, AuthInterceptor('my-api-ke
 ## 10. References
 
 - SW4RM Protocol Specification: `documentation/protocol/spec.md`
-- SDK Implementation Progress: `sdks/SDK_IMPLEMENTATION_PROGRESS.md`
 - Python SDK README: `sdks/py_sdk/README.md`
 - Rust SDK README: `sdks/rust_sdk/README.md`
 - JavaScript SDK README: `sdks/js_sdk/README.md`
