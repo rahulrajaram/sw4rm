@@ -4,6 +4,24 @@ defmodule Sw4rm.NegotiationRoomTest do
   alias Sw4rm.NegotiationRoom
   alias Sw4rm.NegotiationRoom.{Proposal, Critique, Store}
 
+  defp force_collection_timeout(room, artifact_id) do
+    send(room, {:collection_timeout, artifact_id})
+    await_decision(room, artifact_id, 50)
+  end
+
+  defp await_decision(_room, _artifact_id, 0), do: flunk("decision was not recorded in time")
+
+  defp await_decision(room, artifact_id, retries) do
+    case NegotiationRoom.get_decision(room, artifact_id) do
+      nil ->
+        Process.sleep(10)
+        await_decision(room, artifact_id, retries - 1)
+
+      decision ->
+        decision
+    end
+  end
+
   describe "NegotiationRoom" do
     setup do
       {:ok, room} = NegotiationRoom.start_link(room_id: "room-1")
@@ -75,17 +93,14 @@ defmodule Sw4rm.NegotiationRoomTest do
         artifact_id: "art-t1",
         producer_id: "p1",
         requested_critics: ["c1", "c2"],
-        vote_collection_timeout_s: 0,
+        vote_collection_timeout_s: 60,
         quorum_policy: %{rule: {:minimum_fraction, 0.5}, on_failure: :fail_closed}
       }
 
       NegotiationRoom.submit_proposal(room, proposal)
       NegotiationRoom.add_critique(room, "art-t1", %Critique{critic_id: "c1", score: 8})
 
-      # Wait for the timeout message to be processed (timeout_s=0 → immediate)
-      Process.sleep(50)
-
-      decision = NegotiationRoom.get_decision(room, "art-t1")
+      decision = force_collection_timeout(room, "art-t1")
       assert decision != nil
       assert decision.quorum_met == true
       assert decision.collection_timeout_reached == true
@@ -100,16 +115,14 @@ defmodule Sw4rm.NegotiationRoomTest do
         artifact_id: "art-t2",
         producer_id: "p1",
         requested_critics: ["c1", "c2", "c3"],
-        vote_collection_timeout_s: 0,
+        vote_collection_timeout_s: 60,
         quorum_policy: %{rule: {:require_all, true}, on_failure: :fail_closed}
       }
 
       NegotiationRoom.submit_proposal(room, proposal)
       NegotiationRoom.add_critique(room, "art-t2", %Critique{critic_id: "c1", score: 8})
 
-      Process.sleep(50)
-
-      decision = NegotiationRoom.get_decision(room, "art-t2")
+      decision = force_collection_timeout(room, "art-t2")
       assert decision.quorum_met == false
       assert decision.outcome == :escalated_to_hitl
 
@@ -124,17 +137,14 @@ defmodule Sw4rm.NegotiationRoomTest do
         artifact_id: "art-t3",
         producer_id: "p1",
         requested_critics: ["c1", "c2"],
-        vote_collection_timeout_s: 0,
+        vote_collection_timeout_s: 60,
         quorum_policy: %{rule: {:minimum_fraction, 0.5}, on_failure: :fail_closed}
       }
 
       NegotiationRoom.submit_proposal(room, proposal)
       NegotiationRoom.add_critique(room, "art-t3", %Critique{critic_id: "c1", score: 8})
 
-      Process.sleep(50)
-
-      # Decision already rendered
-      decision_before = NegotiationRoom.get_decision(room, "art-t3")
+      decision_before = force_collection_timeout(room, "art-t3")
       assert decision_before != nil
 
       # Late vote — accepted but marked as late
@@ -153,15 +163,13 @@ defmodule Sw4rm.NegotiationRoomTest do
         artifact_id: "art-t4",
         producer_id: "p1",
         requested_critics: ["c1", "c2"],
-        vote_collection_timeout_s: 0
+        vote_collection_timeout_s: 60
       }
 
       NegotiationRoom.submit_proposal(room, proposal)
       NegotiationRoom.add_critique(room, "art-t4", %Critique{critic_id: "c1", score: 7})
 
-      Process.sleep(50)
-
-      decision = NegotiationRoom.get_decision(room, "art-t4")
+      decision = force_collection_timeout(room, "art-t4")
       # Default policy: minimum_fraction 0.5 → 1 of 2 is enough
       assert decision.quorum_met == true
     end
