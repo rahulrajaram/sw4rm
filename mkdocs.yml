@@ -102,6 +102,8 @@ nav:
     - examples/index.md
     - Use Cases: examples/use-cases.md
     - Deployment Patterns: examples/deployment.md
+  - Blog:
+    - "I141: How SW4RM Coordinates Code-Writing Agents": blog/i141-how-sw4rm-coordinates-code-writing-agents.md
   - Architecture:
     - architecture/index.md
     - State Machines: architecture/state-machines.md

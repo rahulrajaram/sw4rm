@@ -2,7 +2,7 @@
 
 (asdf:defsystem #:sw4rm-sdk
   :description "SW4RM Protocol SDK for Common Lisp - Full peer implementation"
-  :version "0.5.0"
+  :version "0.6.0"
   :author "SW4RM Team"
   :license "Apache-2.0"
   :depends-on (#:alexandria         ; Common utilities

@@ -328,6 +328,12 @@ def test_sw4rm_config_defaults():
     assert cfg.max_retries == 3
     assert cfg.enable_metrics is True
     assert cfg.enable_tracing is True
+    assert cfg.metrics_backend == "noop"
+    assert cfg.metrics_host == "localhost"
+    assert cfg.metrics_port == 8125
+    assert cfg.metrics_namespace == "sw4rm"
+    assert cfg.metrics_tags == []
+    assert cfg.metrics_sample_rate == 1.0
     assert cfg.log_level == "INFO"
     assert cfg.feature_flags == {}
 
@@ -341,6 +347,12 @@ def test_sw4rm_config_to_from_dict():
         max_retries=5,
         enable_metrics=False,
         enable_tracing=False,
+        metrics_backend="statsd",
+        metrics_host="statsd.internal",
+        metrics_port=8126,
+        metrics_namespace="team.alpha",
+        metrics_tags=["env:ci", "service:router"],
+        metrics_sample_rate=0.75,
         log_level="DEBUG",
         feature_flags={"TEST_FLAG": True},
     )
@@ -349,12 +361,22 @@ def test_sw4rm_config_to_from_dict():
     data = original.to_dict()
     assert data["router_addr"] == "test-router:1234"
     assert data["default_timeout_ms"] == 5000
+    assert data["metrics_backend"] == "statsd"
+    assert data["metrics_port"] == 8126
+    assert data["metrics_tags"] == ["env:ci", "service:router"]
+    assert data["metrics_sample_rate"] == 0.75
     assert data["feature_flags"]["TEST_FLAG"] is True
 
     # Reconstruct from dict
     reconstructed = config.SW4RMConfig.from_dict(data)
     assert reconstructed.router_addr == original.router_addr
     assert reconstructed.default_timeout_ms == original.default_timeout_ms
+    assert reconstructed.metrics_backend == original.metrics_backend
+    assert reconstructed.metrics_host == original.metrics_host
+    assert reconstructed.metrics_port == original.metrics_port
+    assert reconstructed.metrics_namespace == original.metrics_namespace
+    assert reconstructed.metrics_tags == original.metrics_tags
+    assert reconstructed.metrics_sample_rate == original.metrics_sample_rate
     assert reconstructed.feature_flags == original.feature_flags
 
 
@@ -366,6 +388,12 @@ def test_load_config_from_env(monkeypatch):
     monkeypatch.setenv("SW4RM_ENABLE_METRICS", "false")
     monkeypatch.setenv("SW4RM_ENABLE_TRACING", "true")
     monkeypatch.setenv("SW4RM_LOG_LEVEL", "debug")
+    monkeypatch.setenv("SW4RM_METRICS_BACKEND", "statsd")
+    monkeypatch.setenv("SW4RM_METRICS_HOST", "statsd.internal")
+    monkeypatch.setenv("SW4RM_METRICS_PORT", "9999")
+    monkeypatch.setenv("SW4RM_METRICS_NAMESPACE", "team.alpha")
+    monkeypatch.setenv("SW4RM_METRICS_TAGS", "env:ci,team:alpha")
+    monkeypatch.setenv("SW4RM_METRICS_SAMPLE_RATE", "0.5")
 
     cfg = config.load_config()
 
@@ -374,6 +402,12 @@ def test_load_config_from_env(monkeypatch):
     assert cfg.max_retries == 10
     assert cfg.enable_metrics is False
     assert cfg.enable_tracing is True
+    assert cfg.metrics_backend == "statsd"
+    assert cfg.metrics_host == "statsd.internal"
+    assert cfg.metrics_port == 9999
+    assert cfg.metrics_namespace == "team.alpha"
+    assert cfg.metrics_tags == ["env:ci", "team:alpha"]
+    assert cfg.metrics_sample_rate == 0.5
     assert cfg.log_level == "DEBUG"
 
 

@@ -20,7 +20,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-sw4rm-sdk = "0.5.0"
+sw4rm-sdk = "0.6.0"
 tokio = { version = "1.0", features = ["full"] }
 ```
 
@@ -224,7 +224,7 @@ Supported backends: **Groq** (OpenAI-compatible), **Anthropic** (Claude), and a
 
 ```toml
 [dependencies]
-sw4rm-sdk = { version = "0.5.0", features = ["llm"] }
+sw4rm-sdk = { version = "0.6.0", features = ["llm"] }
 tokio = { version = "1.0", features = ["full"] }
 ```
 

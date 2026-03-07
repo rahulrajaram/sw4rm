@@ -48,7 +48,7 @@ Dependencies (resolved automatically via Quicklisp):
    :agent-id "echo-1"
    :name "EchoAgent"
    :description "Echoes incoming DATA messages"
-   :version "0.5.0"
+   :version "0.6.0"
    :capabilities '("echo" "application/json")
    :endpoints (make-default-endpoints)
    :timeout-ms 30000

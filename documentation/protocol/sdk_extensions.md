@@ -94,11 +94,11 @@ Agent thread spawning infrastructure (`colony/` module). Provides `Spawner`
 base class and thread-based agent lifecycle management. This is an
 application-level concern not specified in the protocol.
 
-## 10. LLM Integration (Python only)
+## 10. LLM Integration (All SDKs)
 
-**SDK**: Python
+**SDKs**: Python, JavaScript/TypeScript, Rust, Elixir, Common Lisp
 
-Claude SDK adapter (`llm/` module) for integrating language model inference
+Provider-agnostic LLM adapters and factories for integrating language model inference
 into agent decision-making. Protocol-agnostic; the spec does not prescribe
 inference engine integration.
 

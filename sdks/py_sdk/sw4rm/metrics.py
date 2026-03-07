@@ -22,17 +22,37 @@ The metrics system supports three types of metrics:
 - Counters: Monotonically increasing values (e.g., total rejects)
 - Histograms: Distribution of values (e.g., latency measurements)
 
-Implementations can choose between NoOpMetricsCollector (default, no overhead)
-or InMemoryMetricsCollector (useful for testing and debugging).
+Implementations can choose between NoOpMetricsCollector (default, no overhead),
+InMemoryMetricsCollector (testing/debugging), and now StatsDMetricsCollector
+for production metrics backends (StatsD/Datadog-compatible).
 """
 
 from __future__ import annotations
 
+import logging
+import socket
 import time
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol, Optional
+
+
+_DEFAULT_STATSD_HOST = "localhost"
+_DEFAULT_STATSD_PORT = 8125
+_DEFAULT_METRICS_NAMESPACE = "sw4rm"
+
+
+def _safe_tag_value(value: object) -> str:
+    """Return a value suitable for a Datadog tag."""
+    return str(value).replace(":", "\\:").replace("|", "\\|")
+
+
+def _normalize_namespace(namespace: str) -> str:
+    return namespace.strip().strip(".")
+
+
+def _normalize_backend_name(backend: str) -> str:
+    return backend.strip().lower()
 
 
 class MetricName(Enum):
@@ -81,6 +101,28 @@ class Metric:
             raise TypeError(f"name must be a MetricName enum, got {type(self.name)}")
         if not isinstance(self.value, (int, float)):
             raise TypeError(f"value must be numeric, got {type(self.value)}")
+
+
+def _build_statsd_tags(
+    labels: Optional[dict[str, str]],
+    *,
+    global_tags: Optional[list[str]] = None,
+) -> str:
+    """Build a stable, deterministic Datadog/StatsD tag string."""
+    tags: list[str] = []
+    if global_tags:
+        tags.extend(global_tags)
+    if labels:
+        for key in sorted(labels):
+            tags.append(f"{_safe_tag_value(key)}:{_safe_tag_value(labels[key])}")
+    return f"|#{','.join(tags)}" if tags else ""
+
+
+def _format_metric_name(name: MetricName, namespace: str = "") -> str:
+    """Build metric name with optional namespace."""
+    metric_name = name.value
+    normalized_namespace = _normalize_namespace(namespace)
+    return f"{normalized_namespace}.{metric_name}" if normalized_namespace else metric_name
 
 
 class MetricsCollector(Protocol):
@@ -339,3 +381,169 @@ class InMemoryMetricsCollector:
         Useful for monitoring memory usage and testing.
         """
         return len(self._metrics)
+
+
+class StatsDMetricsCollector:
+    """Datadog/StatsD-compatible metrics collector.
+
+    This collector streams metrics to a local or remote StatsD UDP endpoint.
+    It is safe by design: metric send failures are swallowed and do not interrupt
+    control flow.
+
+    Example:
+        collector = StatsDMetricsCollector(
+            host="127.0.0.1",
+            port=8125,
+            namespace="sw4rm",
+            tags=["env:prod"],
+        )
+        collector.record_counter(MetricName.ENQUEUE_REJECTS_TOTAL, labels={"reason": "buffer_full"})
+    """
+
+    def __init__(
+        self,
+        host: str = _DEFAULT_STATSD_HOST,
+        port: int = _DEFAULT_STATSD_PORT,
+        namespace: str = _DEFAULT_METRICS_NAMESPACE,
+        tags: Optional[list[str]] = None,
+        sample_rate: float = 1.0,
+        *,
+        socket_factory=socket.socket,
+    ) -> None:
+        """Create a datagram-based metrics collector.
+
+        Args:
+            host: StatsD host
+            port: StatsD port
+            namespace: Optional metric namespace prefix
+            tags: Global tags appended to every metric
+            sample_rate: Optional DogStatsD sample rate (0.0 < rate <= 1.0)
+            socket_factory: Optional injection point for testing
+        """
+        self.host = host
+        self.port = port
+        self.namespace = _normalize_namespace(namespace) or _DEFAULT_METRICS_NAMESPACE
+        self.tags = tags or []
+        self.sample_rate = sample_rate
+
+        try:
+            self._socket = socket_factory(socket.AF_INET, socket.SOCK_DGRAM)
+            self._socket.settimeout(0.1)
+        except Exception:
+            logging.debug(
+                "Failed to create metrics socket, metrics emission will be disabled",
+                exc_info=True,
+            )
+            self._socket = None
+
+    def _emit(self, name: MetricName, value: float, metric_type: str, labels: Optional[dict[str, str]]) -> None:
+        """Emit one metric packet."""
+        if self._socket is None:
+            return
+
+        metric = _format_metric_name(name, namespace=self.namespace)
+        payload = f"{metric}:{value}|{metric_type}{_build_statsd_tags(labels, global_tags=self.tags)}"
+        if self.sample_rate and 0 < self.sample_rate < 1:
+            payload += f"|@{self.sample_rate}"
+        try:
+            self._socket.sendto(payload.encode("utf-8"), (self.host, self.port))
+        except Exception:
+            logging.debug(
+                "Failed to send metrics packet to %s:%s",
+                self.host,
+                self.port,
+                exc_info=True,
+            )
+
+    def record_gauge(
+        self,
+        name: MetricName,
+        value: float,
+        labels: Optional[dict[str, str]] = None,
+    ) -> None:
+        """Emit a gauge metric."""
+        self._emit(name, float(value), "g", labels)
+
+    def record_counter(
+        self,
+        name: MetricName,
+        increment: float = 1.0,
+        labels: Optional[dict[str, str]] = None,
+    ) -> None:
+        """Emit a counter metric."""
+        self._emit(name, float(increment), "c", labels)
+
+    def record_histogram(
+        self,
+        name: MetricName,
+        value: float,
+        labels: Optional[dict[str, str]] = None,
+    ) -> None:
+        """Emit a histogram metric."""
+        self._emit(name, float(value), "h", labels)
+
+    def get_metrics(self) -> list[Metric]:
+        """Return empty list (StatsD stores metrics externally)."""
+        return []
+
+    def close(self) -> None:
+        """Close underlying socket when no longer needed."""
+        if self._socket is not None:
+            self._socket.close()
+            self._socket = None
+
+
+def build_metrics_collector(
+    *,
+    enable_metrics: bool = True,
+    backend: str = "noop",
+    host: str = _DEFAULT_STATSD_HOST,
+    port: int = _DEFAULT_STATSD_PORT,
+    namespace: str = _DEFAULT_METRICS_NAMESPACE,
+    tags: Optional[list[str]] = None,
+    sample_rate: float = 1.0,
+) -> MetricsCollector:
+    """Build a metrics collector from explicit configuration.
+
+    Supported backends:
+    - noop / off / false / disabled
+    - memory / inmemory
+    - statsd / datadog / dogstatsd
+    """
+    if not enable_metrics:
+        return NoOpMetricsCollector()
+
+    backend_name = _normalize_backend_name(backend)
+    if backend_name in {"noop", "off", "false", "disabled"}:
+        return NoOpMetricsCollector()
+    if backend_name in {"memory", "inmemory"}:
+        return InMemoryMetricsCollector()
+    if backend_name in {"statsd", "datadog", "dogstatsd"}:
+        return StatsDMetricsCollector(
+            host=host,
+            port=port,
+            namespace=namespace,
+            tags=tags,
+            sample_rate=sample_rate,
+        )
+
+    logging.warning("Unknown metrics backend '%s'; defaulting to noop", backend)
+    return NoOpMetricsCollector()
+
+
+def build_metrics_collector_from_config(config: Optional["SW4RMConfig"] = None) -> MetricsCollector:
+    """Build a collector from SW4RMConfig."""
+    if config is None:
+        from . import config as _config
+
+        config = _config.get_config()
+
+    return build_metrics_collector(
+        enable_metrics=config.enable_metrics,
+        backend=config.metrics_backend,
+        host=config.metrics_host,
+        port=config.metrics_port,
+        namespace=config.metrics_namespace,
+        tags=config.metrics_tags,
+        sample_rate=config.metrics_sample_rate,
+    )

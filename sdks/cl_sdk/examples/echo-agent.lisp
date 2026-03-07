@@ -62,7 +62,7 @@
    :agent-id "echo-1"
    :name "EchoAgent"
    :description "Echoes incoming DATA messages back through the router."
-   :version "0.5.0"
+   :version "0.6.0"
    :capabilities '("echo" "text/plain" "application/json")
    :endpoints (make-default-endpoints)   ; honours SW4RM_*_ADDR env vars
    :timeout-ms 30000

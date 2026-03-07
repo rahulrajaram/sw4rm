@@ -11,20 +11,20 @@ require_file() {
 semver_re='^[0-9]+\.[0-9]+\.[0-9]+$'
 
 spec_ver() {
-  sed -n -E 's/^Version:\s*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' documentation/protocol/spec.md | head -n1
+  sed -n -E 's/^Version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' documentation/protocol/spec.md | head -n1
 }
 
 py_ver() {
   # Extract version under [project]
-  awk 'BEGIN{p=0} /^\[project\]/{p=1;next} /^\[/{p=0} p==1 && $1=="version"{gsub(/\"/ ,"",$3); print $3; exit}' pyproject.toml
+  awk 'BEGIN{p=0} /^\[project\]/{p=1;next} /^\[/{p=0} p==1 && $1=="version"{gsub(/"/,"",$3); print $3; exit}' pyproject.toml
 }
 
 js_ver() {
-  sed -n -E 's/\s*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' sdks/js_sdk/package.json | head -n1
+  sed -n -E 's/[[:space:]]*"version"[[:space:]]*:[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' sdks/js_sdk/package.json | head -n1
 }
 
 rs_ver() {
-  awk 'BEGIN{p=0} /^\[package\]/{p=1;next} /^\[/{p=0} p==1 && $1=="version"{gsub(/\"/ ,"",$3); print $3; exit}' sdks/rust_sdk/Cargo.toml
+  awk 'BEGIN{p=0} /^\[package\]/{p=1;next} /^\[/{p=0} p==1 && $1=="version"{gsub(/"/,"",$3); print $3; exit}' sdks/rust_sdk/Cargo.toml
 }
 
 require_file documentation/protocol/spec.md
@@ -52,10 +52,10 @@ fi
 if git rev-parse --verify HEAD >/dev/null 2>&1; then
   CHANGED=$(git diff --cached --name-only)
   base_ver() { git show HEAD:$1 2>/dev/null | sed -n -E "$2" | head -n1; }
-  BASE_SPEC=$(base_ver documentation/protocol/spec.md 's/^Version:\s*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p')
-  BASE_PY=$(base_ver pyproject.toml '/^\[project\]/,/^\[/{s/^version\s*=\s*"([^"]+)"/\1/p}')
-  BASE_JS=$(base_ver sdks/js_sdk/package.json 's/\s*"version"\s*:\s*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p')
-  BASE_RS=$(base_ver sdks/rust_sdk/Cargo.toml '/^\[package\]/{p=1;next} /^\[/{p=0} p==1 && $1=="version"{gsub(/\"/ ,"",$3); print $3; exit}')
+  BASE_SPEC=$(base_ver documentation/protocol/spec.md 's/^Version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p')
+  BASE_PY=$(base_ver pyproject.toml '/^\[project\]/,/^\[/{s/^version[[:space:]]*=[[:space:]]*"([^"]+)"/\1/p}')
+  BASE_JS=$(base_ver sdks/js_sdk/package.json 's/[[:space:]]*"version"[[:space:]]*:[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p')
+  BASE_RS=$(git show HEAD:sdks/rust_sdk/Cargo.toml 2>/dev/null | awk 'BEGIN{p=0} /^\[package\]/{p=1;next} /^\[/{p=0} p==1 && $1=="version"{gsub(/"/,"",$3); print $3; exit}')
 
   greater() { python - "$1" "$2" <<'PY'
 import sys
@@ -132,5 +132,3 @@ if echo "$CHANGED" | grep -E '^sdks/rust_sdk/.*\.rs$' >/dev/null 2>&1; then
   fi
   popd >/dev/null 2>&1
 fi
-
-

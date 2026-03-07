@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sw4rm-sdk"
-version = "0.5.0"
+version = "0.6.0"
 description = "SW4RM Agentic Protocol — Reference Python SDK (experimental)"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -22,6 +22,12 @@ dev = [
   "build>=1.0,<2",
   "twine>=5,<6",
   "pkginfo>=1.10,<2",
+]
+test = [
+  "pytest>=7.0,<9",
+  "pytest-asyncio",
+  "groq>=0.4",
+  "anthropic>=0.18",
 ]
 docs = [
   "mkdocs>=1.5.0",

@@ -42,7 +42,7 @@
    :agent-id "tool-agent-1"
    :name "ToolDemoAgent"
    :description "Demonstrates tool client and connector client usage."
-   :version "0.5.0"
+   :version "0.6.0"
    :capabilities '("tool-execution" "streaming")
    :endpoints (make-default-endpoints)
    :timeout-ms 30000
