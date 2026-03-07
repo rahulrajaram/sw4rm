@@ -23,6 +23,12 @@ dev = [
   "twine>=5,<6",
   "pkginfo>=1.10,<2",
 ]
+test = [
+  "pytest>=7.0,<9",
+  "pytest-asyncio",
+  "groq>=0.4",
+  "anthropic>=0.18",
+]
 docs = [
   "mkdocs>=1.5.0",
   "mkdocs-material>=9.4.0",
