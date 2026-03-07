@@ -1,1 +1,0 @@
-documentation/protocol/extensions/SW4-004-inter-swarm-composition.md
