@@ -14,6 +14,7 @@ defmodule Sw4rm.MixProject do
       name: "SW4RM SDK",
       description: "Elixir SDK for the SW4RM multi-agent coordination protocol",
       source_url: "https://github.com/sw4rm/sw4rm-sdk-elixir",
+      package: package(),
       docs: [main: "Sw4rm", extras: ["README.md"]]
     ]
   end
@@ -37,6 +38,16 @@ defmodule Sw4rm.MixProject do
   defp aliases do
     [
       "proto.gen": &proto_gen/1
+    ]
+  end
+
+  defp package do
+    [
+      licenses: ["Apache-2.0"],
+      links: %{
+        "GitHub" => "https://github.com/rahulrajaram/sw4rm",
+        "Protocol Docs" => "https://github.com/rahulrajaram/sw4rm/tree/master/documentation"
+      }
     ]
   end
 
