@@ -1,0 +1,61 @@
+name: Release Elixir (Hex.pm)
+
+on:
+  push:
+    tags:
+      - "ex-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: sdks/ex_sdk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: vars
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#ex-v}"
+          echo "tag_version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Erlang/Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: "26"
+          elixir-version: "1.16"
+
+      - name: Install Hex and Rebar
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Verify version matches mix.exs
+        shell: bash
+        run: |
+          FILE_VERSION=$(grep -m1 '@version "' mix.exs | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "Tag version: ${{ steps.vars.outputs.tag_version }}"
+          echo "File version: $FILE_VERSION"
+          if [ "$FILE_VERSION" != "${{ steps.vars.outputs.tag_version }}" ]; then
+            echo "Version mismatch: tag ${{ steps.vars.outputs.tag_version }} vs mix.exs $FILE_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Run tests
+        run: mix test
+
+      - name: Publish to Hex.pm
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        run: mix hex.publish --yes

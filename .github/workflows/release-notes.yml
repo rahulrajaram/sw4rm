@@ -6,6 +6,8 @@ on:
       - 'py-v*'
       - 'rs-v*'
       - 'npm-v*'
+      - 'cl-v*'
+      - 'ex-v*'
 
 permissions:
   contents: write
@@ -34,6 +36,20 @@ jobs:
             python sdks/rust_sdk/scripts/release_notes.py --tag "$TAG" > NOTES.md
           elif [[ "$TAG" == npm-v* ]]; then
             python sdks/js_sdk/scripts/release_notes.py --tag "$TAG" > NOTES.md
+          elif [[ "$TAG" == cl-v* ]]; then
+            cat > NOTES.md <<EOF
+# Common Lisp SDK Release ${TAG#cl-v}
+
+This release packages updates for the Common Lisp SDK.
+See auto-generated release notes below for commit-level details.
+EOF
+          elif [[ "$TAG" == ex-v* ]]; then
+            cat > NOTES.md <<EOF
+# Elixir SDK Release ${TAG#ex-v}
+
+This release packages updates for the Elixir SDK.
+See auto-generated release notes below for commit-level details.
+EOF
           else
             echo "Unsupported tag pattern: $TAG" >&2
             exit 1
