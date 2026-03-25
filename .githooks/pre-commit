@@ -51,6 +51,12 @@ fi
 # Optional stricter checks: if certain paths changed, ensure bump vs HEAD
 if git rev-parse --verify HEAD >/dev/null 2>&1; then
   CHANGED=$(git diff --cached --name-only)
+  NORMATIVE_PROTOCOL_CHANGED=$(echo "$CHANGED" | grep -E '^(documentation/protocol/|protos/)' | grep -Ev '^(documentation/protocol/sdk_extensions\.md|documentation/protocol/extensions/index\.md)$' || true)
+  VERSIONED_PY_CHANGED=$(echo "$CHANGED" | grep -E '^sdks/py_sdk/sw4rm/' || true)
+  VERSIONED_JS_CHANGED=$(echo "$CHANGED" | grep -E '^sdks/js_sdk/(src/|protos/|package\.json$)' || true)
+  JS_EXAMPLE_CHANGED=$(echo "$CHANGED" | grep -E '^sdks/js_sdk/examples/.*\.ts$' || true)
+  VERSIONED_RS_CHANGED=$(echo "$CHANGED" | grep -E '^sdks/rust_sdk/(src/|protos/|Cargo\.toml$)' || true)
+  RS_EXAMPLE_CHANGED=$(echo "$CHANGED" | grep -E '^sdks/rust_sdk/examples/.*\.rs$' || true)
   base_ver() { git show HEAD:$1 2>/dev/null | sed -n -E "$2" | head -n1; }
   BASE_SPEC=$(base_ver documentation/protocol/spec.md 's/^Version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p')
   BASE_PY=$(base_ver pyproject.toml '/^\[project\]/,/^\[/{s/^version[[:space:]]*=[[:space:]]*"([^"]+)"/\1/p}')
@@ -66,18 +72,18 @@ sys.exit(0 if v2 is None or (v1 and v2 and v1>v2) else 1)
 PY
   }
 
-  if echo "$CHANGED" | grep -E '^(documentation/protocol/|protos/)' >/dev/null 2>&1; then
+  if [[ -n "$NORMATIVE_PROTOCOL_CHANGED" ]]; then
     if ! greater "$SPEC" "$BASE_SPEC"; then
       red "Spec changed but version not bumped (head=$SPEC base=${BASE_SPEC:-unset})."; exit 1
     fi
   fi
-  if echo "$CHANGED" | grep -E '^sdks/py_sdk/' >/dev/null 2>&1; then
+  if [[ -n "$VERSIONED_PY_CHANGED" ]]; then
     if ! greater "$PY" "$BASE_PY"; then red "Python SDK changed but version not bumped (head=$PY base=${BASE_PY:-unset})."; exit 1; fi
   fi
-  if echo "$CHANGED" | grep -E '^sdks/js_sdk/' >/dev/null 2>&1; then
+  if [[ -n "$VERSIONED_JS_CHANGED" ]]; then
     if ! greater "$JS" "$BASE_JS"; then red "JS SDK changed but version not bumped (head=$JS base=${BASE_JS:-unset})."; exit 1; fi
   fi
-  if echo "$CHANGED" | grep -E '^sdks/rust_sdk/' >/dev/null 2>&1; then
+  if [[ -n "$VERSIONED_RS_CHANGED" ]]; then
     if ! greater "$RS" "$BASE_RS"; then red "Rust SDK changed but version not bumped (head=$RS base=${BASE_RS:-unset})."; exit 1; fi
   fi
 fi
@@ -107,7 +113,7 @@ if echo "$CHANGED" | grep -E '^sdks/py_sdk/.*\.py$' >/dev/null 2>&1; then
   fi
 fi
 
-if echo "$CHANGED" | grep -E '^sdks/js_sdk/.*\.ts$' >/dev/null 2>&1; then
+if [[ -n "$VERSIONED_JS_CHANGED" ]]; then
   green "pre-commit: running JavaScript/TypeScript linter"
   if command -v npx >/dev/null 2>&1; then
     pushd sdks/js_sdk >/dev/null 2>&1
@@ -120,12 +126,39 @@ if echo "$CHANGED" | grep -E '^sdks/js_sdk/.*\.ts$' >/dev/null 2>&1; then
   fi
 fi
 
-if echo "$CHANGED" | grep -E '^sdks/rust_sdk/.*\.rs$' >/dev/null 2>&1; then
+if [[ -n "$JS_EXAMPLE_CHANGED" ]]; then
+  green "pre-commit: typechecking JavaScript/TypeScript examples"
+  if command -v npx >/dev/null 2>&1; then
+    pushd sdks/js_sdk >/dev/null 2>&1
+    EXAMPLE_FILES=$(echo "$JS_EXAMPLE_CHANGED" | sed 's#^sdks/js_sdk/##')
+    if ! npx tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --lib ES2022 --types node $EXAMPLE_FILES >/dev/null 2>&1; then
+      red "JavaScript example typecheck failed. Run: cd sdks/js_sdk && npx tsc --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --lib ES2022 --types node examples/<file>.ts"
+      popd >/dev/null 2>&1
+      exit 1
+    fi
+    popd >/dev/null 2>&1
+  fi
+fi
+
+if [[ -n "$VERSIONED_RS_CHANGED" ]]; then
   green "pre-commit: running Rust linter"
   pushd sdks/rust_sdk >/dev/null 2>&1
   if command -v cargo >/dev/null 2>&1; then
     if ! cargo clippy --quiet -- -D warnings 2>/dev/null; then
       red "Rust linting failed. Run: cd sdks/rust_sdk && cargo clippy --fix"
+      popd >/dev/null 2>&1
+      exit 1
+    fi
+  fi
+  popd >/dev/null 2>&1
+fi
+
+if [[ -n "$RS_EXAMPLE_CHANGED" ]]; then
+  green "pre-commit: checking Rust examples"
+  pushd sdks/rust_sdk >/dev/null 2>&1
+  if command -v cargo >/dev/null 2>&1; then
+    if ! cargo check --examples >/dev/null 2>&1; then
+      red "Rust example check failed. Run: cd sdks/rust_sdk && cargo check --examples"
       popd >/dev/null 2>&1
       exit 1
     fi

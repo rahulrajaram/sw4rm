@@ -54,12 +54,15 @@ Implementations may claim conformance to specific extensions:
 - **Core + SW4-001..SW4-004**: Production-ready with inter-swarm composition
 - **Core + SW4-001..SW4-005**: Inter-swarm composition + spillover routing (wire compatibility + helper behavior where implemented)
 
-## Implementation Status (2026-02-15)
+## Implementation Status (2026-03-24)
 
-- Python: SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, full SW4-004/SW4-005 conformance suites, and shared vector adapters.
-- JS/TS: SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, full SW4-004/SW4-005 conformance coverage, and shared vector adapters.
-- Rust: SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, full SW4-004/SW4-005 conformance coverage, and shared vector adapters.
-- Common Lisp: SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, full SW4-004/SW4-005 conformance coverage, and shared vector adapters.
+| SDK | Status | Notes |
+|---|---|---|
+| Python | Complete | SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, full conformance suites, and shared vector adapters. |
+| JS/TS | Complete | SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, full conformance coverage, and shared vector adapters. |
+| Rust | Complete | SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, full conformance coverage, and shared vector adapters. |
+| Common Lisp | Complete | SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, full conformance coverage, and shared vector adapters. |
+| Elixir | Complete | SW4-004/SW4-005 wire fields, caller redirect helper, gateway redirect-emitter helper, cancellation helper behavior, and conformance coverage aligned to the public profile. |
 
 This table is the canonical public cross-SDK implementation status; supporting evidence is maintained in `artifacts/verification/`.
 
@@ -110,4 +113,4 @@ To propose a new extension:
 
 ---
 
-*Last updated: 2026-02-15*
+*Last updated: 2026-03-24*

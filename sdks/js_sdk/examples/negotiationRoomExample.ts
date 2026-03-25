@@ -2,335 +2,133 @@
 /**
  * Negotiation Room Example for SW4RM Protocol.
  *
- * This example demonstrates the producer-critic-coordinator pattern:
+ * This example demonstrates the producer-critic-coordinator pattern using
+ * the real SDK NegotiationRoomClient:
  * - A producer agent submits an artifact (code, plan, requirements)
  * - Multiple critic agents evaluate and vote on the artifact
- * - A coordinator aggregates votes and makes a final decision
+ * - A coordinator aggregates votes and stores a final decision
  *
  * The negotiation room pattern enables structured multi-agent review
  * with configurable thresholds and HITL escalation for edge cases.
  *
  * Prerequisites:
  *   - Install dependencies: `npm install`
- *   - Build the SDK: `npm run build`
  *
  * Run:
  *   npx tsx examples/negotiationRoomExample.ts
  *
- * Note: This example uses mock implementations since NegotiationRoomClient
- * is not yet implemented in the JS SDK. See Phase 2.1 in IMPLEMENTATION_PLAN.md.
+ * Execution mode:
+ *   - Local in-memory demo using the SDK's NegotiationRoomClient with a
+ *     shared in-memory store. No external services are required. Multiple
+ *     client instances share state via the default store, just as they
+ *     would in a multi-agent single-process deployment.
  *
  * @packageDocumentation
  */
 
-// ============================================================================
-// Type Definitions (matching negotiation_room.proto)
-// ============================================================================
-
-/**
- * ArtifactType represents the category of artifact being negotiated.
- * Maps to different stages of the workflow process.
- */
-enum ArtifactType {
-  ARTIFACT_TYPE_UNSPECIFIED = 0,
-  REQUIREMENTS = 1,
-  PLAN = 2,
-  CODE = 3,
-  DEPLOYMENT = 4,
-}
-
-/**
- * DecisionOutcome represents the final decision made by the coordinator
- * after aggregating critic votes and applying policy.
- */
-enum DecisionOutcome {
-  DECISION_OUTCOME_UNSPECIFIED = 0,
-  APPROVED = 1,
-  REVISION_REQUESTED = 2,
-  ESCALATED_TO_HITL = 3,
-}
-
-/**
- * NegotiationProposal represents a proposal for artifact evaluation.
- * Submitted by a producer agent to request multi-agent review.
- */
-interface NegotiationProposal {
-  artifact_type: ArtifactType;
-  artifact_id: string;
-  producer_id: string;
-  artifact: Uint8Array;
-  artifact_content_type: string;
-  requested_critics: string[];
-  negotiation_room_id: string;
-  created_at: Date;
-}
-
-/**
- * NegotiationVote represents a critic's evaluation of an artifact.
- * Includes numerical scoring, qualitative feedback, and confidence level.
- */
-interface NegotiationVote {
-  artifact_id: string;
-  critic_id: string;
-  score: number; // 0-10
-  confidence: number; // 0-1
-  passed: boolean;
-  strengths: string[];
-  weaknesses: string[];
-  recommendations: string[];
-  negotiation_room_id: string;
-  voted_at: Date;
-}
-
-/**
- * AggregatedScore provides statistical aggregation of multiple critic votes.
- */
-interface AggregatedScore {
-  mean: number;
-  min_score: number;
-  max_score: number;
-  std_dev: number;
-  weighted_mean: number;
-  vote_count: number;
-}
-
-/**
- * NegotiationDecision represents the final decision on an artifact.
- */
-interface NegotiationDecision {
-  artifact_id: string;
-  outcome: DecisionOutcome;
-  votes: NegotiationVote[];
-  aggregated_score: AggregatedScore;
-  policy_version: string;
-  reason: string;
-  negotiation_room_id: string;
-  decided_at: Date;
-}
+import {
+  NegotiationRoomClient,
+  ArtifactType,
+  DecisionOutcome,
+  aggregateVotes,
+  InMemoryNegotiationRoomStore,
+  ConfidenceWeightedAggregator,
+} from '../src/index.js';
+import type {
+  NegotiationProposal,
+  NegotiationVote,
+  NegotiationDecision,
+  AggregatedScore,
+} from '../src/index.js';
 
 // ============================================================================
-// Mock NegotiationRoomClient
+// Policy Constants
+// ============================================================================
+
+const APPROVAL_THRESHOLD = 7.0;
+const MIN_CONFIDENCE = 0.6;
+const MIN_VOTES = 2;
+
+// ============================================================================
+// Coordinator Decision Logic
 // ============================================================================
 
 /**
- * Mock NegotiationRoomClient for demonstration purposes.
+ * Apply policy thresholds to determine the decision outcome.
  *
- * In production, this would be a gRPC client connecting to the
- * NegotiationRoomService. See Phase 2.1 in IMPLEMENTATION_PLAN.md
- * for the real implementation roadmap.
+ * In production this logic would live in a dedicated coordinator agent
+ * or in the policy-store module. Here it shows the decision rules
+ * alongside the SDK aggregation helper.
  */
-class MockNegotiationRoomClient {
-  private proposals = new Map<string, NegotiationProposal>();
-  private votes = new Map<string, NegotiationVote[]>();
-  private decisions = new Map<string, NegotiationDecision>();
-
-  // Policy thresholds (would come from PolicyStore in production)
-  private readonly approvalThreshold = 7.0;
-  private readonly minConfidence = 0.6;
-  private readonly minVotes = 2;
-
-  /**
-   * Submit a proposal for review.
-   */
-  async submitProposal(proposal: NegotiationProposal): Promise<string> {
-    console.log(`\n[NegotiationRoom] Proposal submitted:`);
-    console.log(`  Artifact ID: ${proposal.artifact_id}`);
-    console.log(`  Type: ${ArtifactType[proposal.artifact_type]}`);
-    console.log(`  Producer: ${proposal.producer_id}`);
-    console.log(`  Requested Critics: ${proposal.requested_critics.join(', ')}`);
-
-    this.proposals.set(proposal.artifact_id, proposal);
-    this.votes.set(proposal.artifact_id, []);
-
-    return proposal.artifact_id;
-  }
-
-  /**
-   * Submit a vote for an artifact.
-   */
-  async submitVote(vote: NegotiationVote): Promise<void> {
-    const votes = this.votes.get(vote.artifact_id) ?? [];
-    votes.push(vote);
-    this.votes.set(vote.artifact_id, votes);
-
-    console.log(`\n[NegotiationRoom] Vote received:`);
-    console.log(`  Critic: ${vote.critic_id}`);
-    console.log(`  Score: ${vote.score}/10`);
-    console.log(`  Confidence: ${(vote.confidence * 100).toFixed(0)}%`);
-    console.log(`  Passed: ${vote.passed}`);
-    console.log(`  Strengths: ${vote.strengths.join(', ')}`);
-    console.log(`  Weaknesses: ${vote.weaknesses.join(', ')}`);
-  }
-
-  /**
-   * Get all votes for an artifact.
-   */
-  async getVotes(artifactId: string): Promise<NegotiationVote[]> {
-    return this.votes.get(artifactId) ?? [];
-  }
-
-  /**
-   * Get the decision for an artifact (non-blocking).
-   */
-  async getDecision(artifactId: string): Promise<NegotiationDecision | null> {
-    return this.decisions.get(artifactId) ?? null;
-  }
-
-  /**
-   * Wait for and compute a decision (blocks until all critics vote).
-   */
-  async waitForDecision(artifactId: string, timeoutMs = 30000): Promise<NegotiationDecision> {
-    const proposal = this.proposals.get(artifactId);
-    const votes = this.votes.get(artifactId) ?? [];
-
-    if (!proposal) {
-      throw new Error(`Proposal not found: ${artifactId}`);
-    }
-
-    // In production, this would poll or use streaming
-    // For demo, we check if we have enough votes
-    if (votes.length < this.minVotes) {
-      console.log(`\n[NegotiationRoom] Waiting for more votes (${votes.length}/${this.minVotes})...`);
-    }
-
-    // Compute aggregated score
-    const aggregated = this.aggregateVotes(votes);
-
-    // Determine outcome based on policy
-    const outcome = this.determineOutcome(aggregated, votes);
-
-    const decision: NegotiationDecision = {
-      artifact_id: artifactId,
-      outcome: outcome.outcome,
-      votes,
-      aggregated_score: aggregated,
-      policy_version: 'v1.0.0',
-      reason: outcome.reason,
-      negotiation_room_id: proposal.negotiation_room_id,
-      decided_at: new Date(),
-    };
-
-    this.decisions.set(artifactId, decision);
-    return decision;
-  }
-
-  /**
-   * Aggregate votes using multiple strategies.
-   */
-  private aggregateVotes(votes: NegotiationVote[]): AggregatedScore {
-    if (votes.length === 0) {
-      return {
-        mean: 0,
-        min_score: 0,
-        max_score: 0,
-        std_dev: 0,
-        weighted_mean: 0,
-        vote_count: 0,
-      };
-    }
-
-    const scores = votes.map((v) => v.score);
-    const confidences = votes.map((v) => v.confidence);
-
-    // Basic statistics
-    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
-    const minScore = Math.min(...scores);
-    const maxScore = Math.max(...scores);
-
-    // Standard deviation
-    const variance = scores.reduce((sum, s) => sum + Math.pow(s - mean, 2), 0) / scores.length;
-    const stdDev = Math.sqrt(variance);
-
-    // Confidence-weighted mean
-    const totalConfidence = confidences.reduce((a, b) => a + b, 0);
-    const weightedMean = votes.reduce((sum, v) => sum + v.score * v.confidence, 0) / totalConfidence;
-
+function determineOutcome(
+  aggregated: AggregatedScore,
+  votes: NegotiationVote[]
+): { outcome: DecisionOutcome; reason: string } {
+  if (aggregated.voteCount < MIN_VOTES) {
     return {
-      mean,
-      min_score: minScore,
-      max_score: maxScore,
-      std_dev: stdDev,
-      weighted_mean: weightedMean,
-      vote_count: votes.length,
+      outcome: DecisionOutcome.ESCALATED_TO_HITL,
+      reason: `Insufficient votes (${aggregated.voteCount}/${MIN_VOTES})`,
     };
   }
 
-  /**
-   * Determine outcome based on aggregated scores and policy.
-   */
-  private determineOutcome(
-    aggregated: AggregatedScore,
-    votes: NegotiationVote[]
-  ): { outcome: DecisionOutcome; reason: string } {
-    // Check if we have enough votes
-    if (aggregated.vote_count < this.minVotes) {
-      return {
-        outcome: DecisionOutcome.ESCALATED_TO_HITL,
-        reason: `Insufficient votes (${aggregated.vote_count}/${this.minVotes})`,
-      };
-    }
+  const avgConfidence = votes.reduce((s, v) => s + v.confidence, 0) / votes.length;
+  if (avgConfidence < MIN_CONFIDENCE) {
+    return {
+      outcome: DecisionOutcome.ESCALATED_TO_HITL,
+      reason: `Low average confidence (${(avgConfidence * 100).toFixed(0)}% < ${(MIN_CONFIDENCE * 100).toFixed(0)}%)`,
+    };
+  }
 
-    // Check average confidence
-    const avgConfidence = votes.reduce((sum, v) => sum + v.confidence, 0) / votes.length;
-    if (avgConfidence < this.minConfidence) {
-      return {
-        outcome: DecisionOutcome.ESCALATED_TO_HITL,
-        reason: `Low average confidence (${(avgConfidence * 100).toFixed(0)}% < ${(this.minConfidence * 100).toFixed(0)}%)`,
-      };
-    }
+  const allPassed = votes.every((v) => v.passed);
 
-    // Check if all critics passed
-    const allPassed = votes.every((v) => v.passed);
+  if (aggregated.weightedMean >= APPROVAL_THRESHOLD && allPassed) {
+    return {
+      outcome: DecisionOutcome.APPROVED,
+      reason: `Weighted mean ${aggregated.weightedMean.toFixed(2)} >= ${APPROVAL_THRESHOLD}, all critics passed`,
+    };
+  }
 
-    // Check weighted mean against threshold
-    if (aggregated.weighted_mean >= this.approvalThreshold && allPassed) {
-      return {
-        outcome: DecisionOutcome.APPROVED,
-        reason: `Weighted mean ${aggregated.weighted_mean.toFixed(2)} >= ${this.approvalThreshold}, all critics passed`,
-      };
-    }
-
-    // Request revision if score is close but not quite there
-    if (aggregated.weighted_mean >= this.approvalThreshold * 0.8) {
-      const weaknesses = votes.flatMap((v) => v.weaknesses);
-      return {
-        outcome: DecisionOutcome.REVISION_REQUESTED,
-        reason: `Score ${aggregated.weighted_mean.toFixed(2)} needs improvement. Issues: ${weaknesses.slice(0, 3).join('; ')}`,
-      };
-    }
-
-    // Escalate if scores are too divergent (high std dev)
-    if (aggregated.std_dev > 2.0) {
-      return {
-        outcome: DecisionOutcome.ESCALATED_TO_HITL,
-        reason: `High disagreement among critics (std dev: ${aggregated.std_dev.toFixed(2)})`,
-      };
-    }
-
+  if (aggregated.weightedMean >= APPROVAL_THRESHOLD * 0.8) {
+    const weaknesses = votes.flatMap((v) => v.weaknesses);
     return {
       outcome: DecisionOutcome.REVISION_REQUESTED,
-      reason: `Score ${aggregated.weighted_mean.toFixed(2)} below threshold ${this.approvalThreshold}`,
+      reason: `Score ${aggregated.weightedMean.toFixed(2)} needs improvement. Issues: ${weaknesses.slice(0, 3).join('; ')}`,
     };
   }
+
+  if (aggregated.stdDev > 2.0) {
+    return {
+      outcome: DecisionOutcome.ESCALATED_TO_HITL,
+      reason: `High disagreement among critics (std dev: ${aggregated.stdDev.toFixed(2)})`,
+    };
+  }
+
+  return {
+    outcome: DecisionOutcome.REVISION_REQUESTED,
+    reason: `Score ${aggregated.weightedMean.toFixed(2)} below threshold ${APPROVAL_THRESHOLD}`,
+  };
 }
 
 // ============================================================================
-// Example Simulation
+// Agent Simulation
 // ============================================================================
 
 /**
  * Simulate a producer agent submitting code for review.
  */
-async function simulateProducer(client: MockNegotiationRoomClient, roomId: string): Promise<string> {
+async function simulateProducer(
+  client: NegotiationRoomClient,
+  roomId: string
+): Promise<string> {
   console.log('\n' + '='.repeat(60));
   console.log('PRODUCER: Submitting code for review');
   console.log('='.repeat(60));
 
   const proposal: NegotiationProposal = {
-    artifact_type: ArtifactType.CODE,
-    artifact_id: `artifact-${Date.now()}`,
-    producer_id: 'producer-agent-1',
-    artifact: Buffer.from(
+    artifactType: ArtifactType.CODE,
+    artifactId: `artifact-${Date.now()}`,
+    producerId: 'producer-agent-1',
+    artifact: new TextEncoder().encode(
       JSON.stringify({
         language: 'typescript',
         file: 'auth.ts',
@@ -341,20 +139,25 @@ export async function authenticate(token: string): Promise<User> {
 }`,
       })
     ),
-    artifact_content_type: 'application/json',
-    requested_critics: ['security-critic', 'code-quality-critic', 'architecture-critic'],
-    negotiation_room_id: roomId,
-    created_at: new Date(),
+    artifactContentType: 'application/json',
+    requestedCritics: ['security-critic', 'code-quality-critic', 'architecture-critic'],
+    negotiationRoomId: roomId,
   };
 
-  return client.submitProposal(proposal);
+  const artifactId = await client.submitProposal(proposal);
+  console.log(`  Artifact ID: ${artifactId}`);
+  console.log(`  Type: ${ArtifactType[proposal.artifactType]}`);
+  console.log(`  Producer: ${proposal.producerId}`);
+  console.log(`  Requested Critics: ${proposal.requestedCritics.join(', ')}`);
+
+  return artifactId;
 }
 
 /**
  * Simulate a security critic evaluating the code.
  */
 async function simulateSecurityCritic(
-  client: MockNegotiationRoomClient,
+  client: NegotiationRoomClient,
   artifactId: string,
   roomId: string
 ): Promise<void> {
@@ -363,8 +166,8 @@ async function simulateSecurityCritic(
   console.log('-'.repeat(60));
 
   const vote: NegotiationVote = {
-    artifact_id: artifactId,
-    critic_id: 'security-critic',
+    artifactId,
+    criticId: 'security-critic',
     score: 6.5,
     confidence: 0.85,
     passed: false,
@@ -379,18 +182,18 @@ async function simulateSecurityCritic(
       'Add explicit expiration validation',
       'Implement rate limiting middleware',
     ],
-    negotiation_room_id: roomId,
-    voted_at: new Date(),
+    negotiationRoomId: roomId,
   };
 
   await client.submitVote(vote);
+  console.log(`  Score: ${vote.score}/10  Confidence: ${(vote.confidence * 100).toFixed(0)}%  Passed: ${vote.passed}`);
 }
 
 /**
  * Simulate a code quality critic evaluating the code.
  */
 async function simulateCodeQualityCritic(
-  client: MockNegotiationRoomClient,
+  client: NegotiationRoomClient,
   artifactId: string,
   roomId: string
 ): Promise<void> {
@@ -399,8 +202,8 @@ async function simulateCodeQualityCritic(
   console.log('-'.repeat(60));
 
   const vote: NegotiationVote = {
-    artifact_id: artifactId,
-    critic_id: 'code-quality-critic',
+    artifactId,
+    criticId: 'code-quality-critic',
     score: 8.0,
     confidence: 0.9,
     passed: true,
@@ -409,20 +212,26 @@ async function simulateCodeQualityCritic(
       'Proper async/await usage',
       'Single responsibility principle',
     ],
-    weaknesses: ['Missing error handling for jwt.verify', 'No input validation for token'],
-    recommendations: ['Add try-catch for JWT verification', 'Validate token format before processing'],
-    negotiation_room_id: roomId,
-    voted_at: new Date(),
+    weaknesses: [
+      'Missing error handling for jwt.verify',
+      'No input validation for token',
+    ],
+    recommendations: [
+      'Add try-catch for JWT verification',
+      'Validate token format before processing',
+    ],
+    negotiationRoomId: roomId,
   };
 
   await client.submitVote(vote);
+  console.log(`  Score: ${vote.score}/10  Confidence: ${(vote.confidence * 100).toFixed(0)}%  Passed: ${vote.passed}`);
 }
 
 /**
  * Simulate an architecture critic evaluating the code.
  */
 async function simulateArchitectureCritic(
-  client: MockNegotiationRoomClient,
+  client: NegotiationRoomClient,
   artifactId: string,
   roomId: string
 ): Promise<void> {
@@ -431,68 +240,109 @@ async function simulateArchitectureCritic(
   console.log('-'.repeat(60));
 
   const vote: NegotiationVote = {
-    artifact_id: artifactId,
-    critic_id: 'architecture-critic',
+    artifactId,
+    criticId: 'architecture-critic',
     score: 7.5,
     confidence: 0.75,
     passed: true,
     strengths: ['Clean separation of concerns', 'Uses service layer pattern', 'Async-first design'],
     weaknesses: ['Direct dependency on UserService', 'No dependency injection'],
-    recommendations: ['Consider dependency injection for UserService', 'Add interface for service abstraction'],
-    negotiation_room_id: roomId,
-    voted_at: new Date(),
+    recommendations: [
+      'Consider dependency injection for UserService',
+      'Add interface for service abstraction',
+    ],
+    negotiationRoomId: roomId,
   };
 
   await client.submitVote(vote);
+  console.log(`  Score: ${vote.score}/10  Confidence: ${(vote.confidence * 100).toFixed(0)}%  Passed: ${vote.passed}`);
 }
 
 /**
- * Simulate the coordinator aggregating and deciding.
+ * Simulate the coordinator aggregating votes and making a decision.
+ *
+ * Uses the SDK's aggregateVotes() helper, then applies local policy
+ * thresholds and stores the decision via storeDecision().
  */
 async function simulateCoordinator(
-  client: MockNegotiationRoomClient,
-  artifactId: string
+  client: NegotiationRoomClient,
+  artifactId: string,
+  roomId: string
 ): Promise<NegotiationDecision> {
   console.log('\n' + '='.repeat(60));
   console.log('COORDINATOR: Aggregating votes and deciding');
   console.log('='.repeat(60));
 
-  const decision = await client.waitForDecision(artifactId);
+  const votes = await client.getVotes(artifactId);
+
+  // Standalone convenience function (uses confidence-weighted aggregation)
+  const aggregated = aggregateVotes(votes);
+
+  // Equivalent strategy-based approach (same algorithm, explicit class)
+  const strategyAggregated = new ConfidenceWeightedAggregator().aggregate(votes);
+  console.log(
+    `\n  [Aggregation parity] standalone=${aggregated.weightedMean.toFixed(2)}, ` +
+    `strategy=${strategyAggregated.weightedMean.toFixed(2)}`
+  );
+
+  const { outcome, reason } = determineOutcome(aggregated, votes);
+
+  const decision: NegotiationDecision = {
+    artifactId,
+    outcome,
+    votes,
+    aggregatedScore: aggregated,
+    policyVersion: 'v1.0.0',
+    reason,
+    negotiationRoomId: roomId,
+  };
+
+  await client.storeDecision(decision);
 
   console.log('\n[Decision Summary]');
   console.log(`  Outcome: ${DecisionOutcome[decision.outcome]}`);
   console.log(`  Reason: ${decision.reason}`);
-  console.log(`  Vote Count: ${decision.aggregated_score.vote_count}`);
-  console.log(`  Mean Score: ${decision.aggregated_score.mean.toFixed(2)}`);
-  console.log(`  Weighted Mean: ${decision.aggregated_score.weighted_mean.toFixed(2)}`);
-  console.log(`  Score Range: ${decision.aggregated_score.min_score} - ${decision.aggregated_score.max_score}`);
-  console.log(`  Std Dev: ${decision.aggregated_score.std_dev.toFixed(2)}`);
+  console.log(`  Vote Count: ${aggregated.voteCount}`);
+  console.log(`  Mean Score: ${aggregated.mean.toFixed(2)}`);
+  console.log(`  Weighted Mean: ${aggregated.weightedMean.toFixed(2)}`);
+  console.log(`  Score Range: ${aggregated.minScore} - ${aggregated.maxScore}`);
+  console.log(`  Std Dev: ${aggregated.stdDev.toFixed(2)}`);
 
   return decision;
 }
 
-/**
- * Main demonstration function.
- */
+// ============================================================================
+// Main
+// ============================================================================
+
 async function main(): Promise<number> {
   console.log('SW4RM Negotiation Room Example');
   console.log('='.repeat(60));
-  console.log('\nThis example demonstrates the producer-critic-coordinator pattern');
-  console.log('for multi-agent artifact approval workflows.\n');
+  console.log('\nThis example uses the SDK NegotiationRoomClient to demonstrate');
+  console.log('the producer-critic-coordinator pattern for artifact approval.\n');
 
-  const client = new MockNegotiationRoomClient();
+  // All clients share the same in-memory store (the SDK default)
+  const store = new InMemoryNegotiationRoomStore();
+  const producerClient = new NegotiationRoomClient({ store });
+  const criticClient = new NegotiationRoomClient({ store });
+  const coordinatorClient = new NegotiationRoomClient({ store });
+
   const roomId = `room-${Date.now()}`;
 
   // Producer submits artifact
-  const artifactId = await simulateProducer(client, roomId);
+  const artifactId = await simulateProducer(producerClient, roomId);
 
-  // Critics evaluate (in production these would be separate agents)
-  await simulateSecurityCritic(client, artifactId, roomId);
-  await simulateCodeQualityCritic(client, artifactId, roomId);
-  await simulateArchitectureCritic(client, artifactId, roomId);
+  // Critics evaluate (in production these run as separate agents)
+  await simulateSecurityCritic(criticClient, artifactId, roomId);
+  await simulateCodeQualityCritic(criticClient, artifactId, roomId);
+  await simulateArchitectureCritic(criticClient, artifactId, roomId);
 
   // Coordinator aggregates and decides
-  const decision = await simulateCoordinator(client, artifactId);
+  const decision = await simulateCoordinator(coordinatorClient, artifactId, roomId);
+
+  // Verify: a subsequent getDecision call returns the stored decision
+  const retrieved = await coordinatorClient.getDecision(artifactId);
+  console.log(`\n[Verification] Decision retrievable: ${retrieved !== null}`);
 
   // Summary
   console.log('\n' + '='.repeat(60));
@@ -501,13 +351,13 @@ async function main(): Promise<number> {
 
   switch (decision.outcome) {
     case DecisionOutcome.APPROVED:
-      console.log('\nArtifact APPROVED - Ready for deployment');
+      console.log('\nArtifact APPROVED — Ready for deployment');
       break;
     case DecisionOutcome.REVISION_REQUESTED:
-      console.log('\nRevision REQUESTED - Producer must address issues:');
+      console.log('\nRevision REQUESTED — Producer must address issues:');
       decision.votes.forEach((v) => {
         if (v.weaknesses.length > 0) {
-          console.log(`  [${v.critic_id}] ${v.weaknesses.join('; ')}`);
+          console.log(`  [${v.criticId}] ${v.weaknesses.join('; ')}`);
         }
       });
       break;
@@ -517,17 +367,89 @@ async function main(): Promise<number> {
       break;
   }
 
+  // --------------------------------------------------------------------------
+  // Failure Path: HITL Escalation via high disagreement
+  // --------------------------------------------------------------------------
+  console.log('\n' + '='.repeat(60));
+  console.log('FAILURE PATH: HITL Escalation (Polarized Votes)');
+  console.log('='.repeat(60));
+
+  const escalationRoomId = `room-escalation-${Date.now()}`;
+  const escalationProposal: NegotiationProposal = {
+    artifactType: ArtifactType.CODE,
+    artifactId: `artifact-escalation-${Date.now()}`,
+    producerId: 'producer-agent-2',
+    artifact: new TextEncoder().encode(JSON.stringify({ file: 'experimental.ts' })),
+    artifactContentType: 'application/json',
+    requestedCritics: ['optimist-critic', 'pessimist-critic'],
+    negotiationRoomId: escalationRoomId,
+  };
+
+  const escArtifactId = await producerClient.submitProposal(escalationProposal);
+  console.log(`\n  Submitted polarizing artifact: ${escArtifactId}`);
+
+  // Two critics with wildly different scores → high stdDev
+  const optimistVote: NegotiationVote = {
+    artifactId: escArtifactId,
+    criticId: 'optimist-critic',
+    score: 9.5,
+    confidence: 0.9,
+    passed: true,
+    strengths: ['Innovative approach'],
+    weaknesses: [],
+    recommendations: [],
+    negotiationRoomId: escalationRoomId,
+  };
+
+  const pessimistVote: NegotiationVote = {
+    artifactId: escArtifactId,
+    criticId: 'pessimist-critic',
+    score: 3.0,
+    confidence: 0.85,
+    passed: false,
+    strengths: [],
+    weaknesses: ['Fundamental design flaw', 'No error handling'],
+    recommendations: ['Complete rewrite needed'],
+    negotiationRoomId: escalationRoomId,
+  };
+
+  await criticClient.submitVote(optimistVote);
+  await criticClient.submitVote(pessimistVote);
+  console.log('  optimist-critic: 9.5/10   pessimist-critic: 3.0/10');
+
+  const escVotes = await coordinatorClient.getVotes(escArtifactId);
+  const escAggregated = aggregateVotes(escVotes);
+  const escResult = determineOutcome(escAggregated, escVotes);
+
+  console.log(`\n  Std Dev: ${escAggregated.stdDev.toFixed(2)}`);
+  console.log(`  Outcome: ${DecisionOutcome[escResult.outcome]}`);
+  console.log(`  Reason: ${escResult.reason}`);
+
+  // Demonstrate vote validation error
+  console.log('\n--- Vote Validation Error ---');
+  try {
+    const badVote: NegotiationVote = {
+      ...optimistVote,
+      criticId: 'bad-critic',
+      score: 15, // Out of range [0, 10]
+    };
+    await criticClient.submitVote(badVote);
+  } catch (err) {
+    console.log(`  Caught: ${(err as Error).name}: ${(err as Error).message}`);
+  }
+
   console.log('\nKey takeaways:');
-  console.log('1. Producers submit artifacts with requested critics');
-  console.log('2. Critics provide scores, confidence, and qualitative feedback');
-  console.log('3. Coordinator aggregates using confidence-weighted scoring');
-  console.log('4. Policy thresholds determine approval/revision/escalation');
-  console.log('5. High disagreement (std dev) triggers HITL escalation');
+  console.log('1. NegotiationRoomClient uses a shared store so multiple clients see the same state');
+  console.log('2. submitVote() validates score/confidence ranges and prevents duplicate votes');
+  console.log('3. aggregateVotes() and ConfidenceWeightedAggregator both compute weighted scoring');
+  console.log('4. storeDecision() records the coordinator verdict for later retrieval');
+  console.log('5. Policy thresholds determine approval/revision/escalation outcomes');
+  console.log('6. High vote disagreement (stdDev > 2.0) triggers HITL escalation');
+  console.log('7. Out-of-range scores throw NegotiationValidationError');
 
   return 0;
 }
 
-// Entry point
 main().catch((err) => {
   console.error('[Fatal] Unhandled error:', err);
   process.exit(1);

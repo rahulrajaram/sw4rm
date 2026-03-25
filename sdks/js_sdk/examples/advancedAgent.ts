@@ -20,6 +20,7 @@
  * Environment Variables:
  *   SW4RM_ROUTER_ADDR   - Router service address (default: localhost:50051)
  *   SW4RM_REGISTRY_ADDR - Registry service address (default: localhost:50052)
+ *   SW4RM_WORKTREE_ADDR - Worktree service address (default: localhost:50062)
  *   DATA_DIR            - Directory for persistent state (default: ./agent_data)
  *
  * @packageDocumentation
@@ -45,6 +46,7 @@ import type { ActivityRecord } from '../src/internal/runtime/activityBuffer.js';
 // Default addresses
 const DEFAULT_ROUTER_ADDR = 'localhost:50051';
 const DEFAULT_REGISTRY_ADDR = 'localhost:50052';
+const DEFAULT_WORKTREE_ADDR = 'localhost:50062';
 const DEFAULT_DATA_DIR = './agent_data';
 
 interface CliArgs {
@@ -52,6 +54,7 @@ interface CliArgs {
   name: string;
   routerAddr: string;
   registryAddr: string;
+  worktreeAddr: string;
   dataDir: string;
 }
 
@@ -65,6 +68,7 @@ function parseCliArgs(): CliArgs {
       name: { type: 'string', default: process.env.AGENT_NAME ?? 'AdvancedAgent' },
       router: { type: 'string', default: process.env.SW4RM_ROUTER_ADDR ?? DEFAULT_ROUTER_ADDR },
       registry: { type: 'string', default: process.env.SW4RM_REGISTRY_ADDR ?? DEFAULT_REGISTRY_ADDR },
+      worktree: { type: 'string', default: process.env.SW4RM_WORKTREE_ADDR ?? DEFAULT_WORKTREE_ADDR },
       'data-dir': { type: 'string', default: process.env.DATA_DIR ?? DEFAULT_DATA_DIR },
     },
   });
@@ -74,6 +78,7 @@ function parseCliArgs(): CliArgs {
     name: values.name as string,
     routerAddr: values.router as string,
     registryAddr: values.registry as string,
+    worktreeAddr: values.worktree as string,
     dataDir: values['data-dir'] as string,
   };
 }
@@ -125,7 +130,7 @@ class AdvancedAgent {
     // Initialize SDK components
     this.registry = new RegistryClient({ address: args.registryAddr });
     this.router = new RouterClient({ address: args.routerAddr });
-    this.worktree = new WorktreeClient({ address: args.registryAddr });
+    this.worktree = new WorktreeClient({ address: args.worktreeAddr });
     this.activityBuffer = new ActivityBuffer({ maxEntries: 1000 });
     this.ackManager = new ACKLifecycleManager();
 

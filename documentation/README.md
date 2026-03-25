@@ -1,6 +1,10 @@
 # SW4RM Agentic Protocol Documentation
 
-This directory contains the documentation source for the SW4RM Agentic Protocol website (with sections for the reference SDKs: Python, Rust, JS/TS, Common Lisp) built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/).
+This directory contains the MkDocs source for the SW4RM Agentic Protocol website built with [MkDocs Material](https://squidfunk.github.io/mkdocs-material/).
+
+Public-facing docs treat Python as the reference SDK and include the other
+official SDKs where they are implemented: Rust, JavaScript/TypeScript, Common Lisp,
+and Elixir.
 
 ## Setup
 
@@ -36,53 +40,22 @@ make docs-build
 
 The built site will be in the `site/` directory.
 
-## SW4-004/SW4-005 Status Tracking
+## Status Tracking
 
 Cross-SDK implementation status for the inter-swarm extensions is tracked in:
 
 - `documentation/protocol/extensions/index.md` (extension-level status summary)
 - `artifacts/verification/` (evidence snapshots for verification claims)
 
-When updating SW4-004 or SW4-005 docs/claims, update the extension status page and evidence snapshots together so conformance wording and parity reporting stay consistent.
-
-## Phase Status (2026-02-15)
-
-- **Phase 6** (`I39`-`I49`): Closed. Evidence under `artifacts/verification/`.
-- **Phase 7** (`I50`-`I52`): Closed. CL gateway parity, cross-SDK conformance, testbed bootstrap.
-- **Phase 8** (`I53`-`I55`): Closed. Dispatch authority reconciliation, smoke workflow, CI lockstep.
-- Evidence lookup: `IMPLEMENTATION_PLAN.md` > Verification Snapshot > Evidence Index.
-- Production transport runbook: `documentation/production/inter-swarm-transport-testbed.md`.
-- CI smoke workflow: `.github/workflows/ci-inter-swarm-smoke-evidence.yml`.
-
-## Verification Pipeline Runbook (Anti-Recursive Dispatch)
-
-Use this flow to avoid recursive `yarli run` dispatch loops during tranche execution:
-
-1. Run preflight checks before tranche verification loops:
-   ```bash
-   make yarli-preflight
-   ```
-2. Run tranche checks directly from the shell (`py-test`, `proto-check`, `docs-lint`, `docs-build`) instead of invoking `yarli run` from inside a tranche task.
-3. Detect recursion by scanning tranche Verify steps and active logs for nested/self-dispatch (`yarli run`) patterns.
-4. If recursion is detected, stop the inner run immediately, keep the captured logs in `artifacts/verification/`, and resume verification with direct command-family invocations.
-5. For Common Lisp verification, use `make test-lisp`. If `sdks/cl_sdk` does not expose a `test` make target, the command automatically reports the caveat and runs the explicit SBCL fallback invocation.
-6. Record detection/recovery and guardrail evidence in `IMPLEMENTATION_PLAN.md` before advancing to the next tranche.
+Update the status page and evidence snapshots together whenever SW4-004 or SW4-005 claims change.
 
 ## Structure
 
-```
-documentation/
-├── index.md              # Homepage
-├── quickstart/
-│   ├── index.md          # Getting started overview
-│   ├── installation.md   # Installation guide  
-│   └── first-agent.md    # First agent tutorial
-├── examples/
-│   └── index.md          # Examples overview
-├── architecture/
-│   └── index.md          # Architecture overview
-└── gen_ref_pages.py      # API docs generator (disabled)
-```
+- `documentation/index.md` - homepage
+- `documentation/quickstart/` - getting started guide
+- `documentation/examples/index.md` - cross-SDK example matrix
+- `documentation/architecture/` - architecture overview
+- `documentation/protocol/` - protocol and extension specs
 
 ## Deployment Options
 
@@ -167,20 +140,4 @@ The site supports:
 
 ## Future Enhancements
 
-When ready to add API documentation:
-
-
-1. Uncomment the plugins in `mkdocs.yml`:
-   ```yaml
-   - gen-files:
-       scripts: 
-         - documentation/gen_ref_pages.py
-   - mkdocstrings[python]
-   ```
-
-2. Add API reference to navigation:
-   ```yaml  
-   - API Reference: reference/
-   ```
-
-This will auto-generate API docs from docstrings in the Python code.
+When API reference generation is ready, re-enable `gen_ref_pages.py` and add a reference section to the navigation.
