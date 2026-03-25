@@ -33,10 +33,30 @@ IO.puts("       test ──┘")
 pipeline = %{
   name: "ci-cd-pipeline",
   nodes: [
-    %{node_id: "lint", agent_id: "lint-agent", task_type: "lint", params: %{strict: true}},
-    %{node_id: "test", agent_id: "test-agent", task_type: "test", params: %{suite: "unit"}},
-    %{node_id: "build", agent_id: "build-agent", task_type: "build", params: %{target: "release"}},
-    %{node_id: "deploy", agent_id: "deploy-agent", task_type: "deploy", params: %{env: "staging"}}
+    %{
+      node_id: "lint",
+      agent_id: "lint-agent",
+      task_type: "lint",
+      params: %{strict: true}
+    },
+    %{
+      node_id: "test",
+      agent_id: "test-agent",
+      task_type: "test",
+      params: %{suite: "unit"}
+    },
+    %{
+      node_id: "build",
+      agent_id: "build-agent",
+      task_type: "build",
+      params: %{target: "release"}
+    },
+    %{
+      node_id: "deploy",
+      agent_id: "deploy-agent",
+      task_type: "deploy",
+      params: %{env: "staging"}
+    }
   ],
   edges: [
     %{from_node: "lint", to_node: "build"},
