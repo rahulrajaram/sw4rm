@@ -5,7 +5,9 @@ hide: [toc]
 ---
 
 <!-- Landing page content is provided by the home.html template (hero + Agentic Workflows). -->
-SW4RM (pronounced "swarm") establishes the foundational protocol that enables agentic systems to operate with the same level of standardization and reliability as traditional distributed systems. Just as TCP provides reliable packet delivery and Linux provides process scheduling, SW4RM provides:
+SW4RM (pronounced "swarm") defines the coordination layer for agentic systems. This site documents the protocol, the SDKs, and the example surface. Python is the reference bar, and the docs call out partial support explicitly instead of smoothing it over.
+
+Just as TCP provides reliable packet delivery and Linux provides process scheduling, SW4RM provides:
 
 
 - **Standardized Message Protocols**: Guaranteed delivery semantics with explicit acknowledgment lifecycle
@@ -33,16 +35,17 @@ For a narrative deep dive into the platform's concepts, architecture, and positi
 
 ## Available SDKs
 
-SW4RM provides official SDK implementations in multiple languages:
+SW4RM provides official SDK implementations in five languages:
 
-| SDK | Path | Description |
-|-----|------|-------------|
-| **Python** | [`sdks/py_sdk`](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/py_sdk) | Full-featured reference implementation |
-| **Rust** | [`sdks/rust_sdk`](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/rust_sdk) | High-performance implementation |
+| SDK | Path | Support note |
+|-----|------|--------------|
+| **Python** | [`sdks/py_sdk`](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/py_sdk) | Reference implementation and parity baseline |
+| **Rust** | [`sdks/rust_sdk`](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/rust_sdk) | High-performance implementation with cooperative runtime helpers |
 | **JavaScript/TypeScript** | [`sdks/js_sdk`](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/js_sdk) | Browser and Node.js support |
 | **Common Lisp** | [`sdks/cl_sdk`](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/cl_sdk) | Full peer SDK with idiomatic CL condition/restart patterns |
+| **Elixir** | [`sdks/ex_sdk`](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/ex_sdk) | Local-first SDK with protocol clients and runtime helpers |
 
-All SDKs implement SW4RM protocol v0.6.0 and maintain behavioral consistency through shared operational contracts.
+All SDKs implement SW4RM protocol v0.6.0. The public docs use shared matrices to show when a feature is service-backed, local, mock, or stubbed.
 
 For gRPC service client APIs exposed by these SDKs, see the [SDK Clients](clients/index.md) reference.
 

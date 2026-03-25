@@ -1,0 +1,681 @@
+version = 1
+
+[[tranches]]
+key = "I53"
+summary = "Dispatch authority reconciliation and no-phantom-open enforcement"
+status = "complete"
+group = "phase8-control"
+allowed_paths = [
+    ".yarli/",
+    "PROMPT.md",
+    "IMPLEMENTATION_PLAN.md",
+    "scripts/",
+    "yarli.toml",
+]
+
+[[tranches]]
+key = "I54"
+summary = "Promote inter-swarm testbed bootstrap to repeatable smoke workflow"
+status = "complete"
+group = "phase8-transport"
+allowed_paths = [
+    "tests/inter_swarm_testbed/",
+    "documentation/production/",
+    "artifacts/verification/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I55"
+summary = "Integrate testbed smoke + verification evidence into CI and docs lockstep"
+status = "complete"
+group = "phase8-verification"
+allowed_paths = [
+    ".github/",
+    "documentation/",
+    "tests/inter_swarm_testbed/",
+    "artifacts/verification/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I39"
+summary = "Reset run driver for Phase 6 and open tranches"
+status = "complete"
+group = "phase6-spec"
+allowed_paths = [
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I40"
+summary = "Spec profile closure for cancellation + gateway parity"
+status = "complete"
+group = "phase6-spec"
+allowed_paths = ["documentation/protocol/extensions/"]
+
+[[tranches]]
+key = "I41"
+summary = "Python gateway/delegation reliability and budget telemetry hardening"
+status = "complete"
+group = "phase6-sdk"
+allowed_paths = [
+    "sdks/py_sdk/",
+    "documentation/clients/",
+]
+
+[[tranches]]
+key = "I42"
+summary = "JS cancellation helper parity implementation"
+status = "complete"
+group = "phase6-sdk"
+allowed_paths = [
+    "sdks/js_sdk/",
+    "documentation/",
+    "sdks/SDK_IMPLEMENTATION_PROGRESS.md",
+]
+
+[[tranches]]
+key = "I43"
+summary = "Rust cancellation helper parity implementation"
+status = "complete"
+group = "phase6-sdk"
+allowed_paths = [
+    "sdks/rust_sdk/",
+    "documentation/",
+    "sdks/SDK_IMPLEMENTATION_PROGRESS.md",
+]
+
+[[tranches]]
+key = "I44"
+summary = "JS + Rust gateway redirect-emitter parity helpers"
+status = "complete"
+group = "phase6-sdk"
+allowed_paths = [
+    "sdks/js_sdk/",
+    "sdks/rust_sdk/",
+    "documentation/",
+    "sdks/SDK_IMPLEMENTATION_PROGRESS.md",
+]
+
+[[tranches]]
+key = "I45"
+summary = "Cross-SDK conformance vectors v2 (cancellation + gateway)"
+status = "complete"
+group = "phase6-conformance"
+allowed_paths = [
+    "tests/",
+    "sdks/",
+    "documentation/clients/",
+]
+
+[[tranches]]
+key = "I46"
+summary = "Cross-SDK parity matrix/doc lockstep update"
+status = "complete"
+group = "phase6-conformance"
+allowed_paths = [
+    "sdks/SDK_IMPLEMENTATION_PROGRESS.md",
+    "documentation/",
+]
+
+[[tranches]]
+key = "I47"
+summary = "Long-loop reliability guardrails in YARLI tooling"
+status = "complete"
+group = "phase6-ops"
+allowed_paths = [
+    "yarli.toml",
+    "scripts/",
+    "Makefile",
+    "PROMPT.md",
+    "IMPLEMENTATION_PLAN.md",
+    "documentation/README.md",
+]
+
+[[tranches]]
+key = "I48"
+summary = "Full-matrix verification consolidation"
+status = "complete"
+group = "phase6-ops"
+allowed_paths = [
+    "IMPLEMENTATION_PLAN.md",
+    "artifacts/verification/",
+    "documentation/",
+    "sdks/",
+]
+
+[[tranches]]
+key = "I49"
+summary = "Phase 6 closure and Phase 7 seed tranches"
+status = "complete"
+group = "phase6-ops"
+allowed_paths = [
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "sdks/SDK_IMPLEMENTATION_PROGRESS.md",
+    "documentation/README.md",
+]
+
+[[tranches]]
+key = "I50"
+summary = "Common Lisp SW4-005 gateway redirect-emitter parity closure"
+status = "complete"
+group = "phase7-sdk"
+allowed_paths = [
+    "sdks/cl_sdk/",
+    "sdks/SDK_IMPLEMENTATION_PROGRESS.md",
+    "documentation/",
+]
+
+[[tranches]]
+key = "I51"
+summary = "Cross-SDK full SW4-004/SW4-005 conformance suite expansion"
+status = "complete"
+group = "phase7-conformance"
+allowed_paths = [
+    "tests/",
+    "sdks/",
+    "documentation/",
+]
+
+[[tranches]]
+key = "I52"
+summary = "Production transport + multi-process inter-swarm integration testbed bootstrap"
+status = "complete"
+group = "phase7-transport"
+allowed_paths = [
+    "documentation/",
+    "sdks/",
+    "tests/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I56"
+summary = "Fix critical codec bugs from multi-AI validation"
+status = "complete"
+group = "phase9-cl-transport"
+allowed_paths = [
+    "sdks/cl_sdk/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I57"
+summary = "Implement IEEE 754 double encode/decode"
+status = "complete"
+group = "phase9-cl-transport"
+allowed_paths = [
+    "sdks/cl_sdk/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I58"
+summary = "Cross-SDK validation (CL ↔ Python)"
+status = "complete"
+group = "phase9-cl-transport"
+allowed_paths = [
+    "sdks/cl_sdk/",
+    "sdks/py_sdk/",
+    "tests/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I59"
+summary = "Integration test with reference gRPC server"
+status = "complete"
+group = "phase9-cl-transport"
+allowed_paths = [
+    "sdks/cl_sdk/",
+    "tests/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I60"
+summary = "TLS channel support"
+status = "complete"
+group = "phase9-cl-transport"
+allowed_paths = [
+    "sdks/cl_sdk/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I61"
+summary = "CL proto-backed UNIMPLEMENTED method closure"
+status = "complete"
+group = "phase9-cl-transport"
+allowed_paths = [
+    "sdks/cl_sdk/",
+    "documentation/",
+    "sdks/SDK_IMPLEMENTATION_PROGRESS.md",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I62"
+summary = "CL deferred codec closure (policy/workflow deep decode)"
+status = "complete"
+group = "phase9-cl-transport"
+allowed_paths = [
+    "sdks/cl_sdk/",
+    "documentation/",
+    "sdks/SDK_IMPLEMENTATION_PROGRESS.md",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I63"
+summary = "Cross-SDK/spec drift audit and parity fixes"
+status = "complete"
+group = "phase9-cross-sdk"
+allowed_paths = [
+    "sdks/",
+    "tests/",
+    "documentation/",
+    "sdks/SDK_IMPLEMENTATION_PROGRESS.md",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I64"
+summary = "Final matrix verification and dispatch closure"
+status = "complete"
+group = "phase9-verification"
+allowed_paths = [
+    "sdks/",
+    "tests/",
+    "documentation/",
+    "artifacts/verification/",
+    ".yarli/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I065"
+summary = "Implement Python reference gRPC server with persistent state (SQLite or PostgreSQL backend) for Registry, Router, and Scheduler services"
+status = "complete"
+group = "multi-model"
+
+[[tranches]]
+key = "I066"
+summary = "Add authentication middleware (JWT tokens or mTLS) to Python reference server with per-agent authorization policies"
+status = "complete"
+group = "cross-cutting"
+
+[[tranches]]
+key = "I067"
+summary = "Implement rate limiting and quota enforcement in Python reference server (per-agent message/second limits)"
+status = "complete"
+group = "cross-cutting"
+
+[[tranches]]
+key = "I068"
+summary = "Add health check endpoints (gRPC health protocol) to Python reference server"
+status = "complete"
+group = "cross-cutting"
+
+[[tranches]]
+key = "I069"
+summary = "Implement graceful shutdown with connection draining and in-flight message completion guarantees"
+status = "complete"
+group = "cross-cutting"
+
+[[tranches]]
+key = "I070"
+summary = "Add configuration hot-reload support (environment variables, config files, or etcd/consul integration)"
+status = "complete"
+group = "cross-cutting"
+
+[[tranches]]
+key = "I071"
+summary = "Package Python reference server as a Docker image with documented deployment patterns (docker-compose, Kubernetes Helm chart)"
+status = "complete"
+group = "cross-cutting"
+allowed_paths = [
+    "sdks/py_sdk/reference-services/",
+    "artifacts/verification/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I072"
+summary = "Implement log aggregation and structured logging (JSON format) with correlation IDs for trace continuity"
+status = "complete"
+group = "cross-cutting"
+allowed_paths = [
+    "sdks/py_sdk/reference-services/",
+    "sdks/py_sdk/tests/",
+    "artifacts/verification/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I073"
+summary = "Add Prometheus metrics exporter to Python reference server (message counts, latency histograms, error rates, active connections)"
+status = "complete"
+group = "cross-cutting"
+allowed_paths = [
+    "sdks/py_sdk/reference-services/",
+    "sdks/py_sdk/tests/",
+    "artifacts/verification/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+]
+
+[[tranches]]
+key = "I074"
+summary = "Implement OpenTelemetry tracing in Python SDK and reference server (distributed trace context propagation via envelope metadata)"
+status = "complete"
+group = "cross-cutting"
+allowed_paths = [
+    "sdks/py_sdk/sw4rm/",
+    "sdks/py_sdk/reference-services/hive/reference_auth_middleware.py",
+    "sdks/py_sdk/tests/",
+    "sdks/py_sdk/sw4rm/CROSS_CUTTING_README.md",
+    "sdks/py_sdk/reference-services/README.md",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I075"
+summary = "Add StatsD/Datadog metrics integration to Python SDK"
+status = "complete"
+group = "cross-cutting"
+
+[[tranches]]
+key = "I160"
+summary = "Convert JS handoff example to use public exported clients with truthful fidelity notes"
+status = "complete"
+group = "phase12-js"
+allowed_paths = [
+    "sdks/js_sdk/",
+    "documentation/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I161"
+summary = "Convert JS workflow example to use public exported clients with runnable orchestration flow"
+status = "complete"
+group = "phase12-js"
+allowed_paths = [
+    "sdks/js_sdk/",
+    "documentation/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I162"
+summary = "Convert JS negotiation example to use public exported clients with runnable voting flow"
+status = "complete"
+group = "phase12-js"
+allowed_paths = [
+    "sdks/js_sdk/",
+    "documentation/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I163"
+summary = "Convert Rust handoff example to use public exported clients with truthful fidelity notes"
+status = "complete"
+group = "phase12-rust"
+allowed_paths = [
+    "sdks/rust_sdk/",
+    "documentation/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I164"
+summary = "Convert Rust workflow example to use public exported clients with runnable orchestration flow"
+status = "complete"
+group = "phase12-rust"
+allowed_paths = [
+    "sdks/rust_sdk/",
+    "documentation/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I165"
+summary = "Convert Rust negotiation example to use public exported clients with runnable voting flow"
+status = "complete"
+group = "phase12-rust"
+allowed_paths = [
+    "sdks/rust_sdk/",
+    "documentation/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I166"
+summary = "Add JS tool execution and streaming example plus README and docs coverage"
+status = "complete"
+group = "phase12-js"
+allowed_paths = [
+    "sdks/js_sdk/",
+    "documentation/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I167"
+summary = "Add Rust tool execution and streaming example plus README and docs coverage"
+status = "complete"
+group = "phase12-rust"
+allowed_paths = [
+    "sdks/rust_sdk/",
+    "documentation/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I168"
+summary = "Add JS voting-focused example plus README and docs coverage"
+status = "complete"
+group = "phase12-js"
+allowed_paths = [
+    "sdks/js_sdk/",
+    "documentation/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I169"
+summary = "Add Rust voting-focused example plus README and docs coverage"
+status = "complete"
+group = "phase12-rust"
+allowed_paths = [
+    "sdks/rust_sdk/",
+    "documentation/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I170"
+summary = "Add Python secrets example and surface it in public example docs"
+status = "complete"
+group = "phase12-python"
+allowed_paths = [
+    "sdks/py_sdk/",
+    "documentation/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I171"
+summary = "Add JS secrets example and surface it in public example docs"
+status = "complete"
+group = "phase12-js"
+allowed_paths = [
+    "sdks/js_sdk/",
+    "documentation/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I172"
+summary = "Add Rust secrets example and surface it in public example docs"
+status = "complete"
+group = "phase12-rust"
+allowed_paths = [
+    "sdks/rust_sdk/",
+    "documentation/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I173"
+summary = "Promote Elixir reference demo into an activity and envelope lifecycle walkthrough"
+status = "complete"
+group = "phase12-elixir"
+allowed_paths = [
+    "sdks/ex_sdk/",
+    "documentation/",
+    "tests/inter_swarm_testbed/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I174"
+summary = "Add Elixir workflow example coverage or explicit unsupported guidance with lockstep checks"
+status = "complete"
+group = "phase12-elixir"
+allowed_paths = [
+    "sdks/ex_sdk/",
+    "documentation/",
+    "tests/inter_swarm_testbed/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I175"
+summary = "Add Elixir HITL example coverage or explicit unsupported guidance with lockstep checks"
+status = "complete"
+group = "phase12-elixir"
+allowed_paths = [
+    "sdks/ex_sdk/",
+    "documentation/",
+    "tests/inter_swarm_testbed/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I176"
+summary = "Add JS and Rust example verification harnesses for coordination, tool, voting, and secrets examples"
+status = "complete"
+group = "phase12-verify"
+allowed_paths = [
+    "sdks/js_sdk/",
+    "sdks/rust_sdk/",
+    "tests/inter_swarm_testbed/",
+    "documentation/",
+    "yarli.toml",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I177"
+summary = "Add Python and Elixir example verification plus docs lockstep coverage for new parity rows"
+status = "complete"
+group = "phase12-verify"
+allowed_paths = [
+    "sdks/py_sdk/",
+    "sdks/ex_sdk/",
+    "tests/inter_swarm_testbed/",
+    "documentation/",
+    "yarli.toml",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I178"
+summary = "Sync public docs and per-SDK example READMEs with new parity and fidelity labels"
+status = "complete"
+group = "phase12-docs"
+allowed_paths = [
+    "documentation/",
+    "sdks/py_sdk/examples/README.md",
+    "sdks/js_sdk/examples/README.md",
+    "sdks/rust_sdk/examples/README.md",
+    "sdks/cl_sdk/examples/README.md",
+    "sdks/ex_sdk/examples/README.md",
+    "tests/inter_swarm_testbed/",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
+
+[[tranches]]
+key = "I179"
+summary = "Run final cross-SDK example parity audit and close the Phase 12 tranche wave"
+status = "complete"
+group = "phase12-closure"
+allowed_paths = [
+    "documentation/",
+    "sdks/",
+    "tests/inter_swarm_testbed/",
+    "yarli.toml",
+    "IMPLEMENTATION_PLAN.md",
+    "PROMPT.md",
+    "artifacts/verification/",
+]
