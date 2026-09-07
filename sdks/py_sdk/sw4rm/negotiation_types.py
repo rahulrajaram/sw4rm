@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from sw4rm_policies.aggregation import aggregate_votes as _aggregate_neutral
+
 
 def _utcnow() -> datetime:
     """Return a timezone-aware UTC timestamp."""
@@ -357,36 +359,12 @@ def aggregate_votes(votes: List[NegotiationVote]) -> AggregatedScore:
     Raises:
         ValueError: If votes list is empty
     """
-    if not votes:
-        raise ValueError("Cannot aggregate empty list of votes")
-
-    scores = [v.score for v in votes]
-    confidences = [v.confidence for v in votes]
-
-    # Basic statistics
-    mean = sum(scores) / len(scores)
-    min_score = min(scores)
-    max_score = max(scores)
-
-    # Standard deviation
-    variance = sum((s - mean) ** 2 for s in scores) / len(scores)
-    std_dev = variance ** 0.5
-
-    # Confidence-weighted mean
-    # weight_i = confidence_i / sum(confidences)
-    # weighted_mean = sum(score_i * weight_i)
-    total_confidence = sum(confidences)
-    if total_confidence > 0:
-        weighted_mean = sum(s * c for s, c in zip(scores, confidences)) / total_confidence
-    else:
-        # Fallback to simple mean if all confidences are zero
-        weighted_mean = mean
-
+    summary = _aggregate_neutral(votes)
     return AggregatedScore(
-        mean=mean,
-        min_score=min_score,
-        max_score=max_score,
-        std_dev=std_dev,
-        weighted_mean=weighted_mean,
-        vote_count=len(votes),
+        mean=summary.mean,
+        min_score=summary.min_score,
+        max_score=summary.max_score,
+        std_dev=summary.std_dev,
+        weighted_mean=summary.weighted_mean,
+        vote_count=summary.vote_count,
     )

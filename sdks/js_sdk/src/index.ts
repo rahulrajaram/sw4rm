@@ -81,6 +81,7 @@ export * from './persistence/persistence.js';
 
 // Phase 2 Runtime (Voting, Policy Store, Agent State)
 export * from './runtime/voting.js';
+export * from './runtime/quorum.js';
 export * from './runtime/policyStore.js';
 export {
   AgentState,

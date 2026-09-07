@@ -1,0 +1,13 @@
+{
+  "contract": "quorum-v1",
+  "description": "Count distinct requested critics. Fraction uses ceiling, not strict majority. all_votes preserves input votes and appends generated abstains only for fail_with_abstain. The caller controls deadlines and validates voter authority.",
+  "vectors": [
+    {"id":"duplicates-and-outsiders-do-not-count", "requested":["a","b","c"], "votes":[{"critic_id":"a"},{"critic_id":"a"},{"critic_id":"outsider"}], "rule":{"kind":"minimum_votes","value":2}, "on_failure":"fail_closed", "expected":{"met":false,"received":1,"expected":3,"threshold":2,"action":"escalate_hitl","injected":[],"all_vote_count":3}},
+    {"id":"half-of-two-is-one", "requested":["a","b"], "votes":[{"critic_id":"a"}], "rule":{"kind":"minimum_fraction","value":0.5}, "on_failure":"fail_closed", "expected":{"met":true,"received":1,"expected":2,"threshold":1,"action":"none","injected":[],"all_vote_count":1}},
+    {"id":"fraction-rounds-up", "requested":["a","b","c"], "votes":[{"critic_id":"a"}], "rule":{"kind":"minimum_fraction","value":0.5}, "on_failure":"fail_with_available", "expected":{"met":false,"received":1,"expected":3,"threshold":2,"action":"decided_with_available","injected":[],"all_vote_count":1}},
+    {"id":"abstains-join-downstream-votes", "requested":["a","b","c"], "votes":[{"critic_id":"a"}], "rule":{"kind":"require_all","value":true}, "on_failure":"fail_with_abstain", "expected":{"met":false,"received":1,"expected":3,"threshold":3,"action":"decided_with_abstains","injected":["b","c"],"all_vote_count":3}},
+    {"id":"disabled-require-all", "requested":["a","b"], "votes":[], "rule":{"kind":"require_all","value":false}, "on_failure":"fail_closed", "expected":{"met":true,"received":0,"expected":2,"threshold":0,"action":"none","injected":[],"all_vote_count":0}},
+    {"id":"explicit-minimum-survives-empty-roster", "requested":[], "votes":[], "rule":{"kind":"minimum_votes","value":1}, "on_failure":"fail_closed", "expected":{"met":false,"received":0,"expected":0,"threshold":1,"action":"escalate_hitl","injected":[],"all_vote_count":0}},
+    {"id":"duplicated-roster-counts-once", "requested":["a","a","b"], "votes":[{"critic_id":"a"}], "rule":{"kind":"minimum_votes","value":2}, "on_failure":"fail_closed", "expected":{"met":false,"received":1,"expected":3,"threshold":2,"action":"escalate_hitl","injected":[],"all_vote_count":1}}
+  ]
+}

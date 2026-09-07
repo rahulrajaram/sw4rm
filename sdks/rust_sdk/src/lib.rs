@@ -89,6 +89,7 @@ pub mod worktree_state;
 
 // Phase 3: New modules for SDK parity
 pub mod policy_store;
+pub mod quorum;
 pub mod voting;
 
 // Phase 4: Parity modules
@@ -117,6 +118,11 @@ pub use audit::{
 pub use policy_store::{
     EffectivePolicy, EscalationPolicy, ExecutionPolicy, InMemoryPolicyStore,
     JsonFilePolicyStore, NegotiationPolicy, PolicyStore, ScoringConfig,
+};
+pub use quorum::{
+    default_policy as default_quorum_policy, evaluate as evaluate_quorum, AbstainVote, CriticId,
+    DecidedWithAbstains, DecidedWithAvailable, EscalateHitl, FailureAction, MinimumFraction,
+    MinimumVotes, QuorumFailure, QuorumOutcome, QuorumPolicy, QuorumRule, RequireAll,
 };
 pub use state_transitions::{
     is_valid_transition, valid_transitions, validate_transition,

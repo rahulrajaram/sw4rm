@@ -306,6 +306,130 @@
   "Default deduplication window must be 3600 seconds (per spec S11.2)."
   (is (= 3600 sw4rm-sdk::*default-deduplication-window-seconds*)))
 
+;;; =======================================================================
+;;;  1b. Quorum Policy (SW4-001)
+;;; =======================================================================
+
+(def-suite quorum-policy-suite :description "Quorum policy parity tests"
+  :in sw4rm-suite)
+(in-suite quorum-policy-suite)
+
+(test quorum-default-is-majority-fail-closed
+  "The default policy matches the Python/Elixir runtime-neutral contract."
+  (let ((policy (sw4rm-sdk:default-quorum-policy)))
+    (is (typep (sw4rm-sdk:quorum-policy-rule policy)
+               'sw4rm-sdk:minimum-fraction))
+    (is (= 0.5d0 (sw4rm-sdk:minimum-fraction-fraction
+                  (sw4rm-sdk:quorum-policy-rule policy))))
+    (is (eq :fail-closed (sw4rm-sdk:quorum-policy-on-failure policy)))))
+
+(test quorum-fraction-ceils-and-filters-critics
+  "Thresholds ceil and votes from unrequested critics do not count."
+  (let* ((policy (sw4rm-sdk:make-quorum-policy
+                  (sw4rm-sdk:make-minimum-fraction 0.5d0) :fail-closed))
+         (outcome (sw4rm-sdk:evaluate-quorum
+                   '((:critic-id "c1") (:critic-id "outside"))
+                   '("c1" "c2" "c3") policy)))
+    (is (not (sw4rm-sdk:quorum-outcome-met outcome)))
+    (is (= 1 (sw4rm-sdk:quorum-outcome-votes-received outcome)))
+    (is (= 2 (sw4rm-sdk:quorum-outcome-threshold outcome)))))
+
+(test quorum-abstain-action-injects-missing
+  "Fail-with-abstain supplies zero-score abstain records."
+  (let* ((policy (sw4rm-sdk:make-quorum-policy
+                  (sw4rm-sdk:make-minimum-votes 3) :fail-with-abstain))
+         (outcome (sw4rm-sdk:evaluate-quorum
+                   '((:critic-id "c1")) '("c1" "c2" "c3") policy))
+         (action (sw4rm-sdk:quorum-outcome-action outcome))
+         (injected (getf action :injected-votes)))
+    (is (eq :decided-with-abstains (getf action :type)))
+    (is (= 2 (length injected)))
+    (is (every (lambda (vote) (getf vote :abstain)) injected))
+    (is (= 3 (length (getf action :all-votes))))))
+
+(test quorum-shared-vectors
+  "The Lisp quorum evaluator matches quorum_vectors.json."
+  (let* ((path (merge-pathnames
+                #P"../../tests/conformance_vectors/quorum_vectors.json"
+                (asdf:system-source-directory :sw4rm-sdk)))
+         (data (with-open-file (stream path :direction :input)
+                 (json:decode-json stream)))
+         (vectors (%json-array->list (%json-object-get data "vectors"))))
+    (dolist (vector vectors)
+      (let* ((requested (%json-array->list (%json-object-get vector "requested")))
+             (votes (mapcar (lambda (vote)
+                              (list :critic-id (%json-object-get vote "critic_id")))
+                            (%json-array->list (%json-object-get vector "votes"))))
+             (rule-data (%json-object-get vector "rule"))
+             (rule-kind (%json-object-get rule-data "kind"))
+             (rule-value (%json-object-get rule-data "value"))
+             (rule (cond
+                     ((string= rule-kind "minimum_votes")
+                      (sw4rm-sdk:make-minimum-votes rule-value))
+                     ((string= rule-kind "minimum_fraction")
+                      (sw4rm-sdk:make-minimum-fraction rule-value))
+                     ((string= rule-kind "require_all")
+                      (sw4rm-sdk:make-require-all rule-value))))
+             (failure (intern (string-upcase
+                               (substitute #\- #\_ (%json-object-get vector "on_failure")))
+                              :keyword))
+             (result (sw4rm-sdk:evaluate-quorum
+                      votes requested (sw4rm-sdk:make-quorum-policy rule failure)))
+             (expected (%json-object-get vector "expected"))
+             (action (sw4rm-sdk:quorum-outcome-action result)))
+        (is (eql (not (null (%json-object-get expected "met")))
+                 (sw4rm-sdk:quorum-outcome-met result)))
+        (is (= (%json-object-get expected "received")
+               (sw4rm-sdk:quorum-outcome-votes-received result)))
+        (is (= (%json-object-get expected "threshold")
+               (sw4rm-sdk:quorum-outcome-threshold result)))
+        (is (= (%json-object-get expected "all_vote_count")
+               (length (sw4rm-sdk:quorum-outcome-all-votes result))))
+        (when action
+          (is (string= (%json-object-get expected "action")
+                       (string-downcase
+                        (substitute #\_ #\-
+                                    (symbol-name (getf action :type)))))))))))
+
+;;; =======================================================================
+;;;  1d. Score aggregation vectors
+;;; =======================================================================
+
+(def-suite score-aggregation-suite :description "Score summary parity tests"
+  :in sw4rm-suite)
+(in-suite score-aggregation-suite)
+
+(test score-aggregation-shared-vectors
+  "The Lisp score summary matches score_aggregation_vectors.json."
+  (let* ((path (merge-pathnames
+                #P"../../tests/conformance_vectors/score_aggregation_vectors.json"
+                (asdf:system-source-directory :sw4rm-sdk)))
+         (data (with-open-file (stream path :direction :input)
+                 (json:decode-json stream)))
+         (vectors (%json-array->list (%json-object-get data "vectors"))))
+    (dolist (vector vectors)
+      (let ((id (%json-object-get vector "id")))
+        (if (string= id "empty-input")
+            (signals error (sw4rm-sdk:aggregate-votes nil))
+            (let* ((raw-votes (%json-array->list (%json-object-get vector "votes")))
+                   (votes (mapcar (lambda (vote)
+                                    (list :score (%json-object-get vote "score")
+                                          :confidence (%json-object-get vote "confidence")))
+                                  raw-votes))
+                   (expected (%json-object-get vector "expected"))
+                   (summary (sw4rm-sdk:aggregate-votes votes)))
+              (is (< (abs (- (sw4rm-sdk:score-summary-mean summary)
+                             (%json-object-get expected "mean"))) 0.000001))
+              (is (< (abs (- (sw4rm-sdk:score-summary-weighted-mean summary)
+                             (%json-object-get expected "weighted_mean"))) 0.000001))
+              (is (= (sw4rm-sdk:score-summary-min-score summary)
+                     (%json-object-get expected "min_score")))
+              (is (= (sw4rm-sdk:score-summary-max-score summary)
+                     (%json-object-get expected "max_score")))
+              (is (< (abs (- (sw4rm-sdk:score-summary-std-dev summary)
+                             (%json-object-get expected "std_dev"))) 0.000001))
+              (is (= (sw4rm-sdk:score-summary-vote-count summary)
+                     (%json-object-get expected "vote_count")))))))))
 
 ;;; =======================================================================
 ;;;  1c. File persistence durability
@@ -1075,8 +1199,6 @@
     (cond
       ((string= normalized "VALIDATION_ERROR") sw4rm-sdk::+validation-error+)
       ((string= normalized "REDIRECT") sw4rm-sdk::+redirect+)
-      ((string= normalized "ACK_TIMEOUT") sw4rm-sdk::+ack-timeout+)
-      ((string= normalized "NONE") 0)
       (t (error "Unsupported vector rejection code: ~A" name)))))
 
 (defun %shared-cancellation-vector-file-path ()
@@ -1647,6 +1769,8 @@
     (is (typep c 'sw4rm-sdk::workflow-client))
     (is (typep c 'sw4rm-sdk::base-client))))
 
+;; These tests exercise the unavailable-backend path explicitly. Native RPC
+;; behavior is verified separately by protocol-client-suite against Python.
 (test workflow-submit-dag-signals-rpc-error
   "submit-dag must signal rpc-error with UNIMPLEMENTED code."
   (let ((c (make-instance 'sw4rm-sdk::workflow-client
@@ -1770,6 +1894,7 @@
 ;;; =======================================================================
 
 (in-suite sw4rm-suite)
+
 ;;; =======================================================================
 ;;;  14. Transport boundary repairs (R18-R20)
 ;;; =======================================================================

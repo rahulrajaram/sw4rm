@@ -30,6 +30,7 @@
                              (:file "activity-buffer")
                              (:file "worktree-state")
                              (:file "voting")
+                             (:file "quorum-policy")
                              (:file "audit")
                              (:file "secrets")
                              (:file "persistence")

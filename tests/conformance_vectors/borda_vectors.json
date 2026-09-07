@@ -1,0 +1,83 @@
+{
+  "contract": "borda-v1",
+  "description": "Score-derived Borda over scored votes: votes are ranked by score (highest first, stable for ties), points n..1 by rank, and weighted_mean = sum(points * score) / sum(points). The Lisp and Elixir SDKs implement classic Borda over ranked preference lists (vote.choice), a distinct input format producing per-choice winners.",
+  "vectors": [
+    {
+      "id": "score-sensitive-same-count",
+      "votes": [
+        {"critic_id": "c0", "score": 9.0},
+        {"critic_id": "c1", "score": 1.0},
+        {"critic_id": "c2", "score": 1.0}
+      ],
+      "expected": {
+        "mean": 3.6666666666666665,
+        "min_score": 1.0,
+        "max_score": 9.0,
+        "std_dev": 3.7712361663282534,
+        "weighted_mean": 5.0,
+        "vote_count": 3
+      }
+    },
+    {
+      "id": "extremes-same-count",
+      "votes": [
+        {"critic_id": "c0", "score": 10.0},
+        {"critic_id": "c1", "score": 0.0}
+      ],
+      "expected": {
+        "mean": 5.0,
+        "min_score": 0.0,
+        "max_score": 10.0,
+        "std_dev": 5.0,
+        "weighted_mean": 6.666666666666667,
+        "vote_count": 2
+      }
+    },
+    {
+      "id": "uniform-scores",
+      "votes": [
+        {"critic_id": "c0", "score": 5.0},
+        {"critic_id": "c1", "score": 5.0},
+        {"critic_id": "c2", "score": 5.0}
+      ],
+      "expected": {
+        "mean": 5.0,
+        "min_score": 5.0,
+        "max_score": 5.0,
+        "std_dev": 0.0,
+        "weighted_mean": 5.0,
+        "vote_count": 3
+      }
+    },
+    {
+      "id": "ties-stable-order",
+      "votes": [
+        {"critic_id": "c0", "score": 6.0},
+        {"critic_id": "c1", "score": 6.0},
+        {"critic_id": "c2", "score": 2.0}
+      ],
+      "expected": {
+        "mean": 4.666666666666667,
+        "min_score": 2.0,
+        "max_score": 6.0,
+        "std_dev": 1.8856180831641267,
+        "weighted_mean": 5.333333333333333,
+        "vote_count": 3
+      }
+    },
+    {
+      "id": "single-vote",
+      "votes": [
+        {"critic_id": "c0", "score": 7.0}
+      ],
+      "expected": {
+        "mean": 7.0,
+        "min_score": 7.0,
+        "max_score": 7.0,
+        "std_dev": 0.0,
+        "weighted_mean": 7.0,
+        "vote_count": 1
+      }
+    }
+  ]
+}

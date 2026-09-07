@@ -2,6 +2,85 @@ defmodule Sw4rm.VotingTest do
   use ExUnit.Case, async: true
 
   alias Sw4rm.Voting.{Vote, MajorityVote, SimpleAverage, BordaCount, ConfidenceWeighted}
+  alias Sw4rm.Voting.ScoreSummary
+
+  describe "aggregate_votes/1" do
+    test "matches the shared score aggregation vectors" do
+      path =
+        Path.expand(
+          "../../../../tests/conformance_vectors/score_aggregation_vectors.json",
+          __DIR__
+        )
+
+      vectors = path |> File.read!() |> Jason.decode!() |> Map.fetch!("vectors")
+
+      Enum.each(vectors, fn vector ->
+        case Map.get(vector, "error") do
+          "empty-votes" ->
+            assert_raise ArgumentError, fn -> Sw4rm.Voting.aggregate_votes([]) end
+
+          nil ->
+            votes =
+              Enum.map(Map.get(vector, "votes"), fn vote ->
+                %{score: vote["score"], confidence: vote["confidence"]}
+              end)
+
+            expected = Map.fetch!(vector, "expected")
+            result = Sw4rm.Voting.aggregate_votes(votes)
+            assert_in_delta result.mean, expected["mean"], 0.000001
+            assert result.min_score == expected["min_score"]
+            assert result.max_score == expected["max_score"]
+            assert_in_delta result.std_dev, expected["std_dev"], 0.000001
+            assert_in_delta result.weighted_mean, expected["weighted_mean"], 0.000001
+            assert result.vote_count == expected["vote_count"]
+        end
+      end)
+    end
+
+    test "computes arithmetic and confidence-weighted statistics" do
+      result =
+        Sw4rm.Voting.aggregate_votes([
+          %{score: 2.0, confidence: 0.25},
+          %{score: 8.0, confidence: 0.75}
+        ])
+
+      assert %ScoreSummary{
+               mean: 5.0,
+               min_score: 2.0,
+               max_score: 8.0,
+               weighted_mean: 6.5,
+               vote_count: 2
+             } = result
+
+      assert_in_delta result.std_dev, 3.0, 0.0001
+    end
+
+    test "falls back to arithmetic mean when confidence is all zero" do
+      result =
+        Sw4rm.Voting.aggregate_votes([
+          %{score: 2.0, confidence: 0.0},
+          %{score: 8.0, confidence: 0.0}
+        ])
+
+      assert result.mean == 5.0
+      assert result.weighted_mean == 5.0
+    end
+
+    test "handles a single vote" do
+      result = Sw4rm.Voting.aggregate_votes([%{score: 7, confidence: 1.0}])
+      assert result.mean == 7.0
+      assert result.min_score == 7
+      assert result.max_score == 7
+      assert result.std_dev == 0.0
+      assert result.weighted_mean == 7.0
+    end
+
+    test "rejects empty votes" do
+      assert_raise ArgumentError, "Cannot aggregate empty list of votes", fn ->
+        Sw4rm.Voting.aggregate_votes([])
+      end
+    end
+  end
 
   describe "MajorityVote" do
     test "empty votes" do

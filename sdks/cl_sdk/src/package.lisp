@@ -274,6 +274,18 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:voting-round-strategy-name
    #:voting-round-votes)
 
+  ;; Runtime-neutral scored vote aggregation (score-summary-v1)
+  (:export
+   #:score-summary
+   #:make-score-summary
+   #:score-summary-mean
+   #:score-summary-min-score
+   #:score-summary-max-score
+   #:score-summary-std-dev
+   #:score-summary-weighted-mean
+   #:score-summary-vote-count
+   #:aggregate-votes)
+
   ;; Persistence backends
   (:export
    #:persistence-error
@@ -285,6 +297,31 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:load-records
    #:clear-records
    #:list-namespaces)
+
+  ;; Quorum policy (SW4-001), matching the runtime-neutral Python contract
+  (:export
+   #:minimum-votes
+   #:make-minimum-votes
+   #:minimum-votes-n
+   #:minimum-fraction
+   #:make-minimum-fraction
+   #:minimum-fraction-fraction
+   #:require-all
+   #:make-require-all
+   #:require-all-enabled
+   #:quorum-policy
+   #:make-quorum-policy
+   #:quorum-policy-rule
+   #:quorum-policy-on-failure
+   #:default-quorum-policy
+   #:quorum-outcome
+   #:quorum-outcome-met
+   #:quorum-outcome-votes-received
+   #:quorum-outcome-votes-expected
+   #:quorum-outcome-threshold
+   #:quorum-outcome-action
+   #:quorum-outcome-all-votes
+   #:evaluate-quorum)
 
   ;; Secrets
   (:export

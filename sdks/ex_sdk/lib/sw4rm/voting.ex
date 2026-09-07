@@ -24,6 +24,49 @@ defmodule Sw4rm.Voting do
 
   @callback aggregate([Vote.t()]) :: map()
   @callback strategy_name() :: String.t()
+
+  defmodule ScoreSummary do
+    @moduledoc "Arithmetic and confidence-weighted statistics for scored votes."
+    @type t :: %__MODULE__{
+            mean: float(),
+            min_score: number(),
+            max_score: number(),
+            std_dev: float(),
+            weighted_mean: float(),
+            vote_count: non_neg_integer()
+          }
+    defstruct [:mean, :min_score, :max_score, :std_dev, :weighted_mean, :vote_count]
+  end
+
+  @doc "Aggregate scored vote maps using the runtime-neutral score-summary-v1 contract."
+  @spec aggregate_votes([map()]) :: ScoreSummary.t()
+  def aggregate_votes([]), do: raise(ArgumentError, "Cannot aggregate empty list of votes")
+
+  def aggregate_votes(votes) when is_list(votes) do
+    scores = Enum.map(votes, &Map.fetch!(&1, :score))
+    confidences = Enum.map(votes, &Map.fetch!(&1, :confidence))
+    mean = Enum.sum(scores) / length(scores)
+    variance = Enum.sum(Enum.map(scores, &((&1 - mean) * (&1 - mean)))) / length(scores)
+    total_confidence = Enum.sum(confidences)
+
+    weighted_mean =
+      if total_confidence > 0 do
+        Enum.zip(scores, confidences)
+        |> Enum.reduce(0, fn {score, confidence}, acc -> acc + score * confidence end)
+        |> Kernel./(total_confidence)
+      else
+        mean
+      end
+
+    %ScoreSummary{
+      mean: mean,
+      min_score: Enum.min(scores),
+      max_score: Enum.max(scores),
+      std_dev: :math.sqrt(variance),
+      weighted_mean: weighted_mean,
+      vote_count: length(votes)
+    }
+  end
 end
 
 defmodule Sw4rm.Voting.MajorityVote do
