@@ -222,19 +222,6 @@
     (check (assoc 2 fields))
     (check (assoc 3 fields))))
 
-(deftest cancel-task-roundtrip
-  (let* ((encoded (encode-cancel-task-request "agent-1" "task-42" "User cancelled"))
-         (fields (decode-fields encoded)))
-    (check (assoc 1 fields))   ;; agent_id
-    (check (assoc 2 fields))   ;; task_id
-    (check (assoc 3 fields))))  ;; reason
-
-(deftest get-task-status-encodes-query
-  (let* ((encoded (encode-get-task-status-request "agent-1" "task-42"))
-         (fields (decode-fields encoded)))
-    (check (assoc 1 fields))
-    (check (assoc 2 fields))))
-
 (deftest poll-activity-roundtrip
   (let* ((encoded (encode-poll-activity-buffer-request "agent-1"))
          (fields (decode-fields encoded)))
@@ -810,30 +797,6 @@
          (buf (coerce (coerce f1 'list) '(simple-array (unsigned-byte 8) (*))))
          (result (decode-preempt-response buf)))
     (check= (getf result :enqueued) t)))
-
-(deftest decode-cancel-task-response-test
-  (let* ((f1 (encode-field-varint 1 1))
-         (f2 (encode-field-string 2 "cancelled"))
-         (buf (concatenate '(simple-array (unsigned-byte 8) (*)) f1 f2))
-         (result (decode-cancel-task-response buf)))
-    (check= (getf result :cancelled) t)
-    (check= (getf result :reason) "cancelled")))
-
-(deftest decode-task-status-response-test
-  (let* ((f1 (encode-field-string 1 "task-1"))
-         (f2 (encode-field-varint 2 3))
-         (f3 (encode-field-double 3 0.55d0))
-         (f4 (encode-field-string 4 "running"))
-         (f5 (encode-field-string 5 "2026-02-01T00:00:00Z"))
-         (f6 (encode-field-string 6 "2026-02-01T01:00:00Z"))
-         (buf (concatenate '(simple-array (unsigned-byte 8) (*)) f1 f2 f3 f4 f5 f6))
-         (result (decode-task-status-response buf)))
-    (check= (getf result :task-id) "task-1")
-    (check= (getf result :status) 3)
-    (check (< (abs (- (getf result :progress) 0.55d0)) 1d-12))
-    (check= (getf result :message) "running")
-    (check= (getf result :started-at) "2026-02-01T00:00:00Z")
-    (check= (getf result :completed-at) "2026-02-01T01:00:00Z")))
 
 (deftest decode-hitl-response-response-test
   (let* ((f1 (encode-field-varint 1 1))

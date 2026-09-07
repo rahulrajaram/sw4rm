@@ -25,18 +25,25 @@ class LoggingClient:
             self._pb2 = None
             self._stub = None
 
-    def ingest(self, event: dict) -> Any:
+    def ingest(self, event: Any) -> Any:
         """Ingest a log event into the logging service.
 
         Args:
-            event: Dictionary with LogEvent fields (timestamp, level, message,
-                correlation_id, agent_id, metadata, etc.)
+            event: A ``LogEvent`` message, or a dict with ``LogEvent``
+                fields (``ts`` — a ``google.protobuf.Timestamp``,
+                ``correlation_id``, ``agent_id``, ``event_type``,
+                ``level`` — INFO|WARN|ERROR, ``details_json``).
 
         Returns:
-            IngestResponse with acknowledgment
+            IngestResponse with the acknowledgment (``ok``).
         """
-        if not self._stub:
-            raise RuntimeError("Protobuf stubs not generated. Run `make protos`.")
-        req = self._pb2.IngestRequest(event=self._pb2.LogEvent(**event))
-        return self._stub.Ingest(req)
+        self._require()
+        if not isinstance(event, self._pb2.LogEvent):
+            event = self._pb2.LogEvent(**event)
+        return self._stub.Ingest(event)
 
+    def _require(self) -> None:
+        if not self._stub:
+            raise RuntimeError(
+                "Protobuf stubs not generated for logging. Run protoc to generate sw4rm/protos/*_pb2.py"
+            )

@@ -23,7 +23,7 @@ pub mod workflow;
 
 pub use hitl::HitlClient;
 pub use registry::RegistryClient;
-pub use router::RouterClient;
+pub use router::{DeliveryAckResult, IncomingMessage, RouterClient};
 pub use scheduler::SchedulerClient;
 pub use worktree::WorktreeClient;
 

@@ -8,6 +8,8 @@ pub struct EnvelopeBuilder {
     pub idempotency_token: String,
     pub producer_id: String,
     pub correlation_id: String,
+    #[serde(default)]
+    pub parent_correlation_id: String,
     pub sequence_number: u64,
     pub retry_count: u32,
     pub message_type: i32,
@@ -16,8 +18,9 @@ pub struct EnvelopeBuilder {
     pub repo_id: String,
     pub worktree_id: String,
     pub hlc_timestamp: String,
-    pub timestamp_seconds: i64,
-    pub timestamp_nanos: i32,
+    /// Wire timestamp; None when the sender omitted it. Presence is
+    /// round-tripped explicitly instead of being fabricated (R9).
+    pub timestamp: Option<WireTimestamp>,
     pub ttl_ms: u64,
     pub payload: Vec<u8>,
     pub state: i32,
@@ -37,6 +40,7 @@ impl EnvelopeBuilder {
             idempotency_token: String::new(),
             producer_id,
             correlation_id: new_uuid(),
+            parent_correlation_id: String::new(),
             sequence_number: 1,
             retry_count: 0,
             message_type,
@@ -45,11 +49,13 @@ impl EnvelopeBuilder {
             repo_id: String::new(),
             worktree_id: String::new(),
             hlc_timestamp: now_hlc_stub(),
-            timestamp_seconds: now.as_secs() as i64,
-            timestamp_nanos: now.subsec_nanos() as i32,
+            timestamp: Some(WireTimestamp {
+                seconds: now.as_secs() as i64,
+                nanos: now.subsec_nanos() as i32,
+            }),
             ttl_ms: 0,
             payload: Vec::new(),
-            state: crate::constants::envelope_state::CREATED,
+            state: crate::constants::envelope_state::SENT,
             effective_policy_id: String::new(),
             audit_proof: Vec::new(),
             audit_policy_id: String::new(),
@@ -65,6 +71,12 @@ impl EnvelopeBuilder {
     /// Set the correlation ID
     pub fn with_correlation_id(mut self, id: String) -> Self {
         self.correlation_id = id;
+        self
+    }
+
+    /// Set the parent workflow correlation for delegated work.
+    pub fn with_parent_correlation_id(mut self, id: String) -> Self {
+        self.parent_correlation_id = id;
         self
     }
 
@@ -153,6 +165,7 @@ impl EnvelopeBuilder {
             idempotency_token: self.idempotency_token,
             producer_id: self.producer_id,
             correlation_id: self.correlation_id,
+            parent_correlation_id: self.parent_correlation_id,
             sequence_number: self.sequence_number,
             retry_count: self.retry_count,
             message_type: self.message_type,
@@ -161,8 +174,7 @@ impl EnvelopeBuilder {
             repo_id: self.repo_id,
             worktree_id: self.worktree_id,
             hlc_timestamp: self.hlc_timestamp,
-            timestamp_seconds: self.timestamp_seconds,
-            timestamp_nanos: self.timestamp_nanos,
+            timestamp: self.timestamp,
             ttl_ms: self.ttl_ms,
             payload: self.payload,
             state: self.state,
@@ -174,12 +186,40 @@ impl EnvelopeBuilder {
 }
 
 /// Final envelope data structure
+/// JSON-friendly timestamp shape for [`EnvelopeData`]; converts losslessly
+/// to and from `prost_types::Timestamp` at the wire boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct WireTimestamp {
+    pub seconds: i64,
+    pub nanos: i32,
+}
+
+impl From<WireTimestamp> for prost_types::Timestamp {
+    fn from(value: WireTimestamp) -> Self {
+        Self {
+            seconds: value.seconds,
+            nanos: value.nanos,
+        }
+    }
+}
+
+impl From<prost_types::Timestamp> for WireTimestamp {
+    fn from(value: prost_types::Timestamp) -> Self {
+        Self {
+            seconds: value.seconds,
+            nanos: value.nanos,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvelopeData {
     pub message_id: String,
     pub idempotency_token: String,
     pub producer_id: String,
     pub correlation_id: String,
+    #[serde(default)]
+    pub parent_correlation_id: String,
     pub sequence_number: u64,
     pub retry_count: u32,
     pub message_type: i32,
@@ -188,8 +228,9 @@ pub struct EnvelopeData {
     pub repo_id: String,
     pub worktree_id: String,
     pub hlc_timestamp: String,
-    pub timestamp_seconds: i64,
-    pub timestamp_nanos: i32,
+    /// Wire timestamp; None when the sender omitted it. Presence is
+    /// round-tripped explicitly instead of being fabricated (R9).
+    pub timestamp: Option<WireTimestamp>,
     pub ttl_ms: u64,
     pub payload: Vec<u8>,
     pub state: i32,
@@ -207,6 +248,58 @@ impl EnvelopeData {
     /// Get payload as string
     pub fn string_payload(&self) -> Result<String, std::string::FromUtf8Error> {
         String::from_utf8(self.payload.clone())
+    }
+}
+
+/// Convert SDK data to the canonical wire message. Policy/audit fields remain local.
+impl From<&EnvelopeData> for crate::proto::sw4rm::common::Envelope {
+    fn from(envelope: &EnvelopeData) -> Self {
+        Self {
+            message_id: envelope.message_id.clone(),
+            idempotency_token: envelope.idempotency_token.clone(),
+            producer_id: envelope.producer_id.clone(),
+            correlation_id: envelope.correlation_id.clone(),
+            parent_correlation_id: envelope.parent_correlation_id.clone(),
+            sequence_number: envelope.sequence_number,
+            retry_count: envelope.retry_count,
+            message_type: envelope.message_type,
+            content_type: envelope.content_type.clone(),
+            content_length: envelope.content_length,
+            repo_id: envelope.repo_id.clone(),
+            worktree_id: envelope.worktree_id.clone(),
+            hlc_timestamp: envelope.hlc_timestamp.clone(),
+            ttl_ms: envelope.ttl_ms,
+            timestamp: envelope.timestamp.map(Into::into),
+            payload: envelope.payload.clone(),
+            state: envelope.state,
+        }
+    }
+}
+
+impl From<crate::proto::sw4rm::common::Envelope> for EnvelopeData {
+    fn from(envelope: crate::proto::sw4rm::common::Envelope) -> Self {
+        Self {
+            message_id: envelope.message_id,
+            idempotency_token: envelope.idempotency_token,
+            producer_id: envelope.producer_id,
+            correlation_id: envelope.correlation_id,
+            parent_correlation_id: envelope.parent_correlation_id,
+            sequence_number: envelope.sequence_number,
+            retry_count: envelope.retry_count,
+            message_type: envelope.message_type,
+            content_type: envelope.content_type,
+            content_length: envelope.content_length,
+            repo_id: envelope.repo_id,
+            worktree_id: envelope.worktree_id,
+            hlc_timestamp: envelope.hlc_timestamp,
+            ttl_ms: envelope.ttl_ms,
+            timestamp: envelope.timestamp.map(Into::into),
+            payload: envelope.payload,
+            state: envelope.state,
+            effective_policy_id: String::new(),
+            audit_proof: Vec::new(),
+            audit_policy_id: String::new(),
+        }
     }
 }
 

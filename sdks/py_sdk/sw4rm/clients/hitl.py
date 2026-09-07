@@ -25,18 +25,26 @@ class HitlClient:
             self._pb2 = None
             self._stub = None
 
-    def decide(self, invocation: dict) -> Any:
+    def decide(self, invocation: Any) -> Any:
         """Submit a HITL invocation for human decision.
 
         Args:
-            invocation: Dictionary with HitlInvocation fields (correlation_id,
-                reason_type, context, options, etc.)
+            invocation: A ``HitlInvocation`` message, or a dict with
+                ``HitlInvocation`` fields (``reason_type`` — a
+                ``HitlReasonType`` value, ``context`` — bytes,
+                ``proposed_actions`` — repeated string, ``priority`` — int).
 
         Returns:
-            DecideResponse with the human's decision
+            HitlDecision with the human's decision (action,
+            decision_payload, rationale).
         """
-        if not self._stub:
-            raise RuntimeError("Protobuf stubs not generated. Run `make protos`.")
-        req = self._pb2.DecideRequest(invocation=self._pb2.HitlInvocation(**invocation))
-        return self._stub.Decide(req)
+        self._require()
+        if not isinstance(invocation, self._pb2.HitlInvocation):
+            invocation = self._pb2.HitlInvocation(**invocation)
+        return self._stub.Decide(invocation)
 
+    def _require(self) -> None:
+        if not self._stub:
+            raise RuntimeError(
+                "Protobuf stubs not generated for hitl. Run protoc to generate sw4rm/protos/*_pb2.py"
+            )

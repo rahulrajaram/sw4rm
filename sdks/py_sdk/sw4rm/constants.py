@@ -113,8 +113,8 @@ REJECTED_ENVELOPE = 5  # avoid collision with AckStage.REJECTED
 FAILED_ENVELOPE = 6  # avoid collision with AckStage.FAILED
 TIMED_OUT_ENVELOPE = 7  # avoid collision with AckStage.TIMED_OUT
 
-# Backwards compatibility aliases for old names (CREATED/PENDING/RUNNING)
-CREATED = SENT
+# Backwards compatibility aliases for old names (PENDING/RUNNING).
+# There is no CREATED envelope state: fresh envelopes are SENT (state 1).
 PENDING = RECEIVED_ENVELOPE
 RUNNING_ENVELOPE = READ_ENVELOPE
 

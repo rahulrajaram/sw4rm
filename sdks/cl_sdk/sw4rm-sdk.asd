@@ -44,12 +44,15 @@
                 :serial t
                 :components ((:file "grpc-ffi")
                              (:file "protobuf-codec")
+                             (:file "protocol-bindings")
+                             (:file "protocol-codec")
                              (:file "grpc-transport")))
                (:module "clients"
                 :pathname "src/clients"
                 :depends-on ("src" "transport")
                 :serial t
                 :components ((:file "base")
+                             (:file "protocol")
                              (:file "router")
                              (:file "registry")
                              (:file "scheduler")
@@ -86,6 +89,7 @@
   :components ((:module "test"
                 :serial t
                 :components ((:file "suite")
+                             (:file "protocol-client-test")
                              (:file "transport-test")
                              (:file "llm-test"))))
   :perform (test-op (o c)

@@ -19,9 +19,9 @@ The Three-ID Envelope Model tracks message lifecycle with three distinct identif
    - Generation: Computed from canonical operation parameters
 
 Envelope State Lifecycle:
-- CREATED: Envelope created but not yet sent
-- PENDING: Sent and awaiting acknowledgment
-- RUNNING: Operation in progress
+- SENT: Envelope sent or prepared for sending
+- RECEIVED: Delivered to the receiving agent
+- READ: Read by the receiving agent
 - FULFILLED: Successfully completed
 - REJECTED: Explicitly rejected by recipient
 - FAILED: Failed due to error
@@ -58,14 +58,16 @@ def now_hlc_stub() -> str:
 
 
 def compute_deterministic_hash(params: dict[str, Any]) -> str:
-    """Compute deterministic hash from canonical operation parameters.
+    """Legacy Python JSON hash, retained for existing token compatibility.
+
+    Use compute_idempotency_token with canonical bytes for cross-SDK portability.
 
     Args:
         params: Dictionary of parameters that uniquely identify the operation.
                 Should include all fields that distinguish this operation from others.
 
     Returns:
-        Hexadecimal SHA256 hash of the canonicalized parameters.
+        First 16 hexadecimal characters of the SHA256 digest.
 
     Example:
         >>> params = {"tool": "git_commit", "repo": "myrepo", "files": ["a.py"]}
@@ -114,6 +116,7 @@ def build_envelope(
     content_type: str = "application/json",
     payload: bytes = b"",
     correlation_id: Optional[str] = None,
+    parent_correlation_id: Optional[str] = None,
     sequence_number: Optional[int] = None,
     retry_count: int = 0,
     idempotency_token: Optional[str] = None,
@@ -133,13 +136,14 @@ def build_envelope(
         content_type: MIME type of payload (default: "application/json")
         payload: Message payload bytes
         correlation_id: Workflow/session identifier (auto-generated if None)
+        parent_correlation_id: Parent workflow correlation for delegated work.
         sequence_number: Sequence number for ordering (default: 1)
         retry_count: Number of retry attempts (default: 0)
         idempotency_token: Stable token for deduplication (optional)
         repo_id: Repository identifier (optional)
         worktree_id: Worktree identifier (optional)
         ttl_ms: Time-to-live in milliseconds (default: 0 = no expiry)
-        state: Initial envelope state (default: CREATED)
+        state: Initial envelope state (default: SENT)
         effective_policy_id: ID of the effective policy governing this operation.
             Should be attached when:
             - Initiating a negotiation (policy governs negotiation behavior)
@@ -168,7 +172,8 @@ def build_envelope(
         "idempotency_token": idempotency_token or "",
         "producer_id": producer_id,
         "correlation_id": correlation_id or new_uuid(),
-        "sequence_number": sequence_number or 1,
+        "parent_correlation_id": parent_correlation_id or "",
+        "sequence_number": 1 if sequence_number is None else sequence_number,
         "retry_count": retry_count,
         "message_type": message_type,
         "content_type": content_type,
@@ -231,3 +236,24 @@ def is_terminal_state(state: int) -> bool:
         C.TIMED_OUT_ENVELOPE,
     )
 
+
+def compute_idempotency_token(producer_id: str, operation: str, canonical_bytes: bytes) -> str:
+    """Portable bytes-v1 token, matching every SDK's byte-oriented helper.
+
+    Applications supply the same canonical bytes in every language. The digest
+    covers UTF-8 producer, LF, UTF-8 operation, LF, and those exact bytes. Legacy
+    compute_deterministic_hash uses a different, language-specific input format.
+
+    Raises:
+        ValueError: If producer_id or operation contains a newline (R43): LF is
+            the bytes-v1 field separator, so an embedded LF would make the
+            digest prefix ambiguous.
+    """
+    if "\n" in producer_id or "\n" in operation:
+        raise ValueError(
+            "producer_id/operation must not contain LF: the bytes-v1 digest "
+            "prefix uses LF as the field separator"
+        )
+    digest = hashlib.sha256(producer_id.encode("utf-8") + b"\n"
+                            + operation.encode("utf-8") + b"\n" + canonical_bytes).hexdigest()[:16]
+    return make_idempotency_token(producer_id, operation, digest)

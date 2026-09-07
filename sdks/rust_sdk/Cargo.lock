@@ -2733,6 +2733,7 @@ dependencies = [
  "criterion",
  "dashmap",
  "directories",
+ "flate2",
  "futures",
  "hex",
  "keyring",

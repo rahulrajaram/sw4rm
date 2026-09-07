@@ -62,6 +62,13 @@
 //! }
 //! ```
 
+// clippy::result_large_err: `error::Error` carries inline payload fields that
+// exceed the 128-byte Err-size threshold enforced by clippy >= 1.87 (this lint
+// did not fire on the toolchain the crate was originally linted with). Boxing
+// the large variants is a dedicated refactor tracked as a known follow-up;
+// the allow is scoped crate-wide until then.
+#![allow(clippy::result_large_err)]
+
 pub mod ack_integration;
 pub mod acks;
 pub mod activity_buffer;
@@ -111,16 +118,16 @@ pub use policy_store::{
     EffectivePolicy, EscalationPolicy, ExecutionPolicy, InMemoryPolicyStore,
     JsonFilePolicyStore, NegotiationPolicy, PolicyStore, ScoringConfig,
 };
-pub use voting::{
-    AggregationStrategy, BordaCountAggregator, ConfidenceWeightedAggregator,
-    MajorityVoteAggregator, SimpleAverageAggregator, VotingAggregator,
-};
 pub use state_transitions::{
     is_valid_transition, valid_transitions, validate_transition,
     StateTransitionError as AgentStateTransitionError, state_name,
 };
+pub use voting::{
+    AggregationStrategy, BordaCountAggregator, ConfidenceWeightedAggregator,
+    MajorityVoteAggregator, SimpleAverageAggregator, VotingAggregator,
+};
 pub use idempotency::{
-    compute_deterministic_hash, make_idempotency_token, create_idempotency_token,
+    compute_deterministic_hash, make_idempotency_token, create_idempotency_token, compute_idempotency_token,
 };
 
 // Generated protobuf code

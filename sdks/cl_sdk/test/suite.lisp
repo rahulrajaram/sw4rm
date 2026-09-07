@@ -922,12 +922,12 @@
     (is (not (null (sw4rm-sdk::client-channel c))))))
 
 (test base-client-make-metadata
-  "make-metadata must produce a proper alist."
+  "make-metadata must produce a proper alist with string keys (R19)."
   (let* ((c (make-instance 'sw4rm-sdk::base-client
                             :address "localhost:50051"))
          (md (sw4rm-sdk::make-metadata c :agent-id "a1" :correlation-id "c1")))
-    (is (string= "a1" (cdr (assoc :agent-id md))))
-    (is (string= "c1" (cdr (assoc :correlation-id md))))))
+    (is (string= "a1" (cdr (assoc "agent-id" md :test #'string=))))
+    (is (string= "c1" (cdr (assoc "correlation-id" md :test #'string=))))))
 
 ;; -- handoff-client -------------------------------------------------------
 
@@ -1048,6 +1048,8 @@
     (cond
       ((string= normalized "VALIDATION_ERROR") sw4rm-sdk::+validation-error+)
       ((string= normalized "REDIRECT") sw4rm-sdk::+redirect+)
+      ((string= normalized "ACK_TIMEOUT") sw4rm-sdk::+ack-timeout+)
+      ((string= normalized "NONE") 0)
       (t (error "Unsupported vector rejection code: ~A" name)))))
 
 (defun %shared-cancellation-vector-file-path ()
@@ -1621,7 +1623,7 @@
 (test workflow-submit-dag-signals-rpc-error
   "submit-dag must signal rpc-error with UNIMPLEMENTED code."
   (let ((c (make-instance 'sw4rm-sdk::workflow-client
-                           :address "localhost:50071")))
+                           :address "unused" :channel "unavailable-backend")))
     (handler-case
         (progn
           (sw4rm-sdk::submit-dag c '(:workflow-id "wf-1" :name "test"))
@@ -1632,7 +1634,7 @@
 (test workflow-get-status-signals-rpc-error
   "get-workflow-status must signal rpc-error with UNIMPLEMENTED code."
   (let ((c (make-instance 'sw4rm-sdk::workflow-client
-                           :address "localhost:50071")))
+                           :address "unused" :channel "unavailable-backend")))
     (handler-case
         (progn
           (sw4rm-sdk::get-workflow-status c "wf-1")
@@ -1643,7 +1645,7 @@
 (test workflow-cancel-signals-rpc-error
   "cancel-workflow must signal rpc-error with UNIMPLEMENTED code."
   (let ((c (make-instance 'sw4rm-sdk::workflow-client
-                           :address "localhost:50071")))
+                           :address "unused" :channel "unavailable-backend")))
     (handler-case
         (progn
           (sw4rm-sdk::cancel-workflow c "wf-1" "abort")
@@ -1654,7 +1656,7 @@
 (test workflow-resume-signals-rpc-error
   "resume-workflow must signal rpc-error with UNIMPLEMENTED code."
   (let ((c (make-instance 'sw4rm-sdk::workflow-client
-                           :address "localhost:50071")))
+                           :address "unused" :channel "unavailable-backend")))
     (handler-case
         (progn
           (sw4rm-sdk::resume-workflow c "wf-1" "node-1")
@@ -1665,7 +1667,7 @@
 (test workflow-list-signals-rpc-error
   "list-workflows must signal rpc-error with UNIMPLEMENTED code."
   (let ((c (make-instance 'sw4rm-sdk::workflow-client
-                           :address "localhost:50071")))
+                           :address "unused" :channel "unavailable-backend")))
     (handler-case
         (progn
           (sw4rm-sdk::list-workflows c :status :running)
@@ -1741,6 +1743,59 @@
 ;;; =======================================================================
 
 (in-suite sw4rm-suite)
+;;; =======================================================================
+;;;  14. Transport boundary repairs (R18-R20)
+;;; =======================================================================
+
+(def-suite transport-repairs-suite :description "Native transport repair regressions"
+  :in sw4rm-suite)
+(in-suite transport-repairs-suite)
+
+(test make-metadata-uses-string-keys
+  "make-metadata emits lowercase string keys; octet values need -bin (R19)."
+  (let ((client (make-instance 'sw4rm-sdk::registry-client :address "unused")))
+    (is (equal '(("correlation-id" . "wf-1") ("agent-id" . "agent-1"))
+               (sw4rm-sdk::make-metadata client :correlation-id "wf-1" :agent-id "agent-1")))
+    (let ((octets (make-array 3 :element-type '(unsigned-byte 8)
+                                  :initial-contents '(1 2 3))))
+      ;; -bin suffixed keys carry octet values.
+      (is (equalp (list (cons "trace-bin" octets))
+                  (sw4rm-sdk::make-metadata client :trace-bin octets)))
+      ;; Octet values without -bin are rejected loudly.
+      (signals error (sw4rm-sdk::make-metadata client :trace octets)))))
+
+(test concurrent-first-connect-shares-one-channel
+  "Concurrent first connects serialize; no native channel leaks (R18)."
+  (let ((creations 0) (disposals 0))
+    (let ((*grpc-available* t)
+          (original-make (symbol-function 'sw4rm-sdk::make-grpc-channel))
+          (original-destroy (symbol-function 'sw4rm-sdk::destroy-grpc-channel)))
+      (unwind-protect
+           (progn
+             (setf (symbol-function 'sw4rm-sdk::make-grpc-channel)
+                   (lambda (&rest args)
+                     (declare (ignore args))
+                     (incf creations)
+                     (make-instance 'sw4rm-sdk:grpc-channel
+                                    :raw-channel :fake
+                                    :target "fake:1")))
+             (setf (symbol-function 'sw4rm-sdk::destroy-grpc-channel)
+                   (lambda (channel)
+                     (declare (ignore channel))
+                     (incf disposals)))
+             (let* ((client (make-instance 'sw4rm-sdk::registry-client :address "unused"))
+                    (threads (loop for i below 8
+                                   collect (bordeaux-threads:make-thread
+                                            (lambda ()
+                                              (sw4rm-sdk::ensure-connected client))))))
+               (mapc #'bordeaux-threads:join-thread threads)
+               ;; Exactly one channel was created and every caller shares it.
+               (is (= 1 creations))
+               (is (not (null (sw4rm-sdk::client-channel client))))
+               (is (= 0 disposals))))
+        (setf (symbol-function 'sw4rm-sdk::make-grpc-channel) original-make)
+        (setf (symbol-function 'sw4rm-sdk::destroy-grpc-channel) original-destroy)))))
+
 ;;; =======================================================================
 ;;;  7. Secrets Backend permissions
 ;;; =======================================================================

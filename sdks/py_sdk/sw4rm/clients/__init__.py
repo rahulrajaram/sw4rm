@@ -25,6 +25,7 @@ For persistent storage backends (JSON file, Redis, PostgreSQL), see colony/store
 """
 
 __all__ = [
+    "ProtocolClient",
     "ActivityClient",
     "ConnectorClient",
     "HandoffClient",
@@ -48,6 +49,7 @@ __all__ = [
 ]
 
 from sw4rm.clients.activity import ActivityClient
+from sw4rm.clients.protocol import ProtocolClient
 from sw4rm.clients.connector import ConnectorClient
 from sw4rm.clients.handoff import HandoffClient
 from sw4rm.clients.hitl import HitlClient

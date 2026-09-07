@@ -16,6 +16,7 @@
 export const version = '0.6.0';
 
 // Clients
+export * from './clients/protocol.js';
 export * from './clients/router.js';
 export * from './clients/scheduler.js';
 export * from './clients/schedulerPolicy.js';

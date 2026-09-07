@@ -222,10 +222,30 @@
                     :payload (make-array 0 :element-type '(unsigned-byte 8))
                     :state 0
                     :parent-correlation-id ""))
-         (item-bytes (sw4rm-sdk::encode-field-submessage 1 (sw4rm-sdk:encode-envelope env)))
+         (item-bytes (concatenate '(simple-array (unsigned-byte 8) (*))
+                                  (sw4rm-sdk::encode-field-submessage 1 (sw4rm-sdk:encode-envelope env))
+                                  (sw4rm-sdk:encode-field-varint 2 42)))
          (decoded (sw4rm-sdk::decode-stream-item item-bytes)))
     (is (string= "s-msg" (getf decoded :message-id)))
-    (is (string= "sender" (getf decoded :producer-id)))))
+    (is (string= "sender" (getf decoded :producer-id)))
+    (is (= 42 (getf decoded :delivery-seq)))
+    (is (= 42 (sw4rm-sdk:stream-item-seq decoded)))))
+
+(test delivery-ack-codec-roundtrip
+  "DeliveryAckRequest carries agent, sequence, message ID, and outcome."
+  (let* ((encoded (sw4rm-sdk:encode-delivery-ack-request
+                   "agent-test" 42 :message-id "s-msg" :permanent-failure t))
+         (fields (sw4rm-sdk::decode-fields encoded)))
+    (is (string= "agent-test" (sw4rm-sdk::field-string fields 1)))
+    (is (= 42 (sw4rm-sdk::field-int fields 2)))
+    (is (string= "s-msg" (sw4rm-sdk::field-string fields 3)))
+    (is (= 1 (sw4rm-sdk::field-int fields 4)))))
+
+(test delivery-ack-response-decode
+  "DeliveryAckResponse exposes whether the sequence was recorded."
+  (let ((response (sw4rm-sdk::decode-delivery-ack-response
+                   (sw4rm-sdk:encode-field-varint 1 1))))
+    (is (eq t (getf response :recorded)))))
 
 ;;; =======================================================================
 ;;;  5. Registry codec round-trip

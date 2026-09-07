@@ -381,6 +381,7 @@ mod tests {
     #[tokio::test]
     async fn test_ack_lifecycle_manager() {
         let temp_file = NamedTempFile::new().unwrap();
+        std::fs::remove_file(temp_file.path()).unwrap();
         let persistence = Box::new(JsonFilePersistence::new(temp_file.path()));
         let _buffer = PersistentActivityBuffer::new(1000, Some(persistence)).unwrap();
 
@@ -412,6 +413,7 @@ mod tests {
     #[tokio::test]
     async fn test_ack_manager_passes_router_result_and_updates_buffer() {
         let temp_file = NamedTempFile::new().unwrap();
+        std::fs::remove_file(temp_file.path()).unwrap();
         let persistence = Box::new(JsonFilePersistence::new(temp_file.path()));
         let buffer = PersistentActivityBuffer::new(100, Some(persistence)).unwrap();
 

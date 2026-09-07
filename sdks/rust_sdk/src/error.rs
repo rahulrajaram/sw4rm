@@ -42,6 +42,9 @@ pub enum Error {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    #[error("Persistence load error: {0}")]
+    Persistence(String),
+
     #[error("UUID error: {0}")]
     Uuid(#[from] uuid::Error),
 

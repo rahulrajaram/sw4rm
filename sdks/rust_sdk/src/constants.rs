@@ -113,8 +113,8 @@ pub mod envelope_state {
     pub const FAILED: i32 = 6;
     pub const TIMED_OUT: i32 = 7;
 
-    // Backwards compatibility aliases
-    pub const CREATED: i32 = SENT;
+    // Backwards compatibility aliases.  There is no CREATED envelope state:
+    // fresh envelopes are SENT.
     pub const PENDING: i32 = RECEIVED;
     pub const RUNNING: i32 = READ;
 
@@ -149,4 +149,4 @@ pub use hitl_reason_type::*;
 pub use message_type::*;
 // Note: agent_state, envelope_state, and worktree_state_const are not re-exported
 // at top level to avoid name collisions (e.g. ack_stage::FAILED vs agent_state::FAILED).
-// Use e.g. constants::agent_state::FAILED or constants::envelope_state::CREATED
+// Use e.g. constants::agent_state::FAILED or constants::envelope_state::SENT

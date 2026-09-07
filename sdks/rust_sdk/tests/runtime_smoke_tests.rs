@@ -51,7 +51,10 @@ struct MockRouterService {
 impl MockRouterService {
     fn send_to(&self, agent_id: &str, env: sw4rm::common::Envelope) {
         if let Some(tx) = self.streams.lock().unwrap().get(agent_id) {
-            let _ = tx.send(Ok(sw4rm::router::StreamItem { msg: Some(env) }));
+            let _ = tx.send(Ok(sw4rm::router::StreamItem {
+                msg: Some(env),
+                seq: 1,
+            }));
         }
     }
 }
@@ -80,6 +83,15 @@ impl sw4rm::router::router_service_server::RouterService for MockRouterService {
             mpsc::unbounded_channel::<std::result::Result<sw4rm::router::StreamItem, Status>>();
         self.streams.lock().unwrap().insert(agent_id, tx);
         Ok(Response::new(UnboundedReceiverStream::new(rx)))
+    }
+
+    async fn ack_delivery(
+        &self,
+        request: Request<sw4rm::router::DeliveryAckRequest>,
+    ) -> std::result::Result<Response<sw4rm::router::DeliveryAckResponse>, Status> {
+        Ok(Response::new(sw4rm::router::DeliveryAckResponse {
+            recorded: request.into_inner().seq > 0,
+        }))
     }
 }
 
@@ -193,6 +205,8 @@ async fn test_runtime_stream_and_preemption() {
         ttl_ms: 0,
         timestamp: None,
         payload: b"ping".to_vec(),
+        state: 0,
+        parent_correlation_id: String::new(),
     };
     server.send_to_agent("smoke-agent", env);
 
@@ -220,6 +234,8 @@ async fn test_runtime_stream_and_preemption() {
         ttl_ms: 0,
         timestamp: None,
         payload: control_payload,
+        state: 0,
+        parent_correlation_id: String::new(),
     };
     server.send_to_agent("smoke-agent", ctrl);
 

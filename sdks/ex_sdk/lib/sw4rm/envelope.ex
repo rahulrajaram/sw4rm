@@ -9,6 +9,19 @@ defmodule Sw4rm.Envelope do
   """
 
   @type t :: %__MODULE__{}
+  @local_states %{
+    ENVELOPE_STATE_UNSPECIFIED: :unspecified,
+    SENT: :sent,
+    RECEIVED: :received,
+    READ: :read,
+    FULFILLED: :fulfilled,
+    REJECTED: :rejected,
+    FAILED: :failed,
+    TIMED_OUT: :timed_out
+  }
+  # Total local-to-wire translation (R10): :unspecified maps back through
+  # the wire path instead of crashing in wire_enum.
+  @wire_states Map.new(@local_states, fn {wire, local} -> {local, wire} end)
   defstruct [
     :message_id,
     :idempotency_token,
@@ -22,6 +35,7 @@ defmodule Sw4rm.Envelope do
     :repo_id,
     :worktree_id,
     :hlc_timestamp,
+    :timestamp,
     :ttl_ms,
     :state,
     :parent_correlation_id,
@@ -58,6 +72,15 @@ defmodule Sw4rm.Envelope do
       repo_id: Keyword.get(opts, :repo_id, ""),
       worktree_id: Keyword.get(opts, :worktree_id, ""),
       hlc_timestamp: generate_hlc_timestamp(),
+      timestamp:
+        Keyword.get_lazy(opts, :timestamp, fn ->
+          now = System.os_time(:nanosecond)
+
+          %Google.Protobuf.Timestamp{
+            seconds: div(now, 1_000_000_000),
+            nanos: rem(now, 1_000_000_000)
+          }
+        end),
       ttl_ms: Keyword.get(opts, :ttl_ms, 0),
       state: Keyword.get(opts, :state, :sent),
       parent_correlation_id: Keyword.get(opts, :parent_correlation_id, ""),
@@ -67,6 +90,53 @@ defmodule Sw4rm.Envelope do
       audit_policy_id: Keyword.get(opts, :audit_policy_id, "")
     }
   end
+
+  @doc "Convert an SDK envelope to protobuf. Policy/audit annotations remain local."
+  @spec to_proto(t()) :: Sw4rm.Proto.Common.Envelope.t()
+  def to_proto(%__MODULE__{} = envelope) do
+    fields = Map.keys(Sw4rm.Proto.Common.Envelope.__message_props__().field_tags)
+
+    envelope
+    |> Map.from_struct()
+    |> Map.take(fields)
+    |> Map.update!(:state, &to_wire_state/1)
+    |> Map.update!(:message_type, &wire_enum(Sw4rm.Proto.Common.MessageType, &1))
+    |> then(&struct!(Sw4rm.Proto.Common.Envelope, &1))
+  end
+
+  @doc "Convert a canonical protobuf envelope to SDK data, preserving all wire fields."
+  @spec from_proto(Sw4rm.Proto.Common.Envelope.t()) :: t()
+  def from_proto(%Sw4rm.Proto.Common.Envelope{} = envelope) do
+    fields = Map.keys(Sw4rm.Proto.Common.Envelope.__message_props__().field_tags)
+
+    values =
+      envelope
+      |> Map.from_struct()
+      |> Map.take(fields)
+      |> Map.update!(
+        :state,
+        &Map.get(@local_states, wire_enum(Sw4rm.Proto.Common.EnvelopeState, &1), &1)
+      )
+
+    struct!(__MODULE__, values)
+  end
+
+  defp wire_enum(module, value) when is_integer(value), do: module.key(value)
+
+  defp wire_enum(module, value) when is_atom(value),
+    do: module.value(value |> Atom.to_string() |> String.upcase()) |> module.key()
+
+  # Total local-state translation: every @local_states value maps back to
+  # its wire key; unknown atoms pass through to wire_enum (R10).
+  defp to_wire_state(state) when is_atom(state) do
+    case Map.fetch(@wire_states, state) do
+      {:ok, wire_key} -> wire_key
+      :error -> wire_enum(Sw4rm.Proto.Common.EnvelopeState, state)
+    end
+  end
+
+  defp to_wire_state(state) when is_integer(state),
+    do: wire_enum(Sw4rm.Proto.Common.EnvelopeState, state)
 
   @doc "Generate a new UUIDv4 string."
   @spec generate_uuid() :: String.t()
@@ -108,6 +178,27 @@ defmodule Sw4rm.Envelope do
     :crypto.hash(:sha256, canonical)
     |> Base.encode16(case: :lower)
     |> binary_part(0, 16)
+  end
+
+  @doc "Portable bytes-v1 token; supply identical canonical bytes in every language."
+  @spec compute_idempotency_token(String.t(), String.t(), binary()) :: String.t()
+  def compute_idempotency_token(producer_id, operation, canonical_bytes)
+      when is_binary(producer_id) and is_binary(operation) and is_binary(canonical_bytes) do
+    # LF is the bytes-v1 digest field separator: an embedded LF in either
+    # field would make the prefix ambiguous, so reject it loudly (R43).
+    if String.contains?(producer_id, "\n") or String.contains?(operation, "\n") do
+      raise Sw4rm.Error.Validation,
+        message: "producer_id/operation must not contain LF (bytes-v1 digest prefix)",
+        field: "producer_id",
+        constraint: "no LF"
+    end
+
+    hash =
+      :crypto.hash(:sha256, [producer_id, "\n", operation, "\n", canonical_bytes])
+      |> Base.encode16(case: :lower)
+      |> binary_part(0, 16)
+
+    make_idempotency_token(producer_id, operation, hash)
   end
 
   @doc "Create idempotency token: `{producer_id}:{operation_type}:{hash}`."

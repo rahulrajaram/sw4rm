@@ -28,6 +28,8 @@ fn test_envelope_struct_exists() {
         ttl_ms: 0,
         timestamp: None,
         payload: vec![1, 2, 3],
+        state: 0,
+        parent_correlation_id: String::new(),
     };
 
     assert_eq!(envelope.message_id, "test");
@@ -85,6 +87,8 @@ fn test_proto_compilation_integration() {
         ttl_ms: 0,
         timestamp: None,
         payload: Vec::new(),
+        state: 0,
+        parent_correlation_id: String::new(),
     };
 
     // Test that client modules exist

@@ -76,8 +76,10 @@ use std::time::Duration;
 /// what stage of the workflow the artifact belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(i32)]
+#[derive(Default)]
 pub enum ArtifactType {
     /// Unspecified artifact type
+    #[default]
     Unspecified = 0,
     /// Requirements documentation
     Requirements = 1,
@@ -89,20 +91,16 @@ pub enum ArtifactType {
     Deployment = 4,
 }
 
-impl Default for ArtifactType {
-    fn default() -> Self {
-        Self::Unspecified
-    }
-}
-
 /// Outcome of a negotiation decision.
 ///
 /// Represents the final decision made by the coordinator after aggregating
 /// critic votes and applying policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(i32)]
+#[derive(Default)]
 pub enum DecisionOutcome {
     /// Unspecified outcome
+    #[default]
     Unspecified = 0,
     /// Artifact approved
     Approved = 1,
@@ -110,12 +108,6 @@ pub enum DecisionOutcome {
     RevisionRequested = 2,
     /// Escalated to human-in-the-loop
     EscalatedToHitl = 3,
-}
-
-impl Default for DecisionOutcome {
-    fn default() -> Self {
-        Self::Unspecified
-    }
 }
 
 /// A proposal for artifact evaluation in a negotiation room.

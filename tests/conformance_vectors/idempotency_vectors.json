@@ -1,0 +1,79 @@
+{
+  "profile": "sw4rm-idempotency-bytes-v1",
+  "vectors": [
+    {
+      "id": "empty",
+      "producer_id": "agent",
+      "operation": "work",
+      "canonical_hex": "",
+      "token": "agent:work:e09d48d3d73fad94"
+    },
+    {
+      "id": "binary",
+      "producer_id": "agent",
+      "operation": "work",
+      "canonical_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+      "token": "agent:work:544fa6053f3be4ec"
+    },
+    {
+      "id": "unicode",
+      "producer_id": "λ-agent",
+      "operation": "操作",
+      "canonical_hex": "e29c93",
+      "token": "λ-agent:操作:1237c18398ffb569"
+    },
+    {
+      "id": "json",
+      "producer_id": "agent",
+      "operation": "work",
+      "canonical_hex": "7b2261223a312c2262223a327d",
+      "token": "agent:work:f65efee16e55e693"
+    },
+    {
+      "id": "other-producer",
+      "producer_id": "other",
+      "operation": "work",
+      "canonical_hex": "7b2261223a312c2262223a327d",
+      "token": "other:work:b8dbde8912a6b867"
+    },
+    {
+      "id": "other-operation",
+      "producer_id": "agent",
+      "operation": "other",
+      "canonical_hex": "7b2261223a312c2262223a327d",
+      "token": "agent:other:f52acb7079319be0"
+    },
+    {
+      "id": "newline",
+      "producer_id": "agent",
+      "operation": "tool:call",
+      "canonical_hex": "610a620063",
+      "token": "agent:tool:call:884315fb818090f5"
+    },
+    {
+      "id": "ordering-is-caller-owned",
+      "producer_id": "agent",
+      "operation": "work",
+      "canonical_hex": "7b2262223a322c2261223a317d",
+      "token": "agent:work:6bb2f6594d3064e1"
+    },
+    {
+      "id": "producer-with-lf",
+      "producer_id": "agent\nx",
+      "operation": "work",
+      "canonical_hex": "",
+      "token": "agent\nx:work:d3a0dd0abfc423aa",
+      "rejected": true,
+      "note": "LF in producer_id collides with the bytes-v1 field separator; rejected (R43)"
+    },
+    {
+      "id": "operation-with-lf",
+      "producer_id": "agent",
+      "operation": "tool:call\nextra",
+      "canonical_hex": "",
+      "token": "agent:tool:call\nextra:022b173dec277261",
+      "rejected": true,
+      "note": "LF in operation collides with the bytes-v1 field separator; rejected (R43)"
+    }
+  ]
+}

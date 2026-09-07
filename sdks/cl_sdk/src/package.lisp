@@ -214,6 +214,7 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:make-envelope
    #:update-envelope-state
    #:terminal-state-p
+   #:compute-idempotency-token
    #:compute-deterministic-hash
    #:make-idempotency-token
    #:generate-uuid
@@ -318,6 +319,8 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:grpc-unary-call
    #:grpc-server-stream
    #:stream-handle
+   #:wait-for-stream
+   #:stream-handle-error
    #:cancel-stream)
 
   ;; Codec — protobuf wire-format primitives (reusable by haake codecs)
@@ -330,7 +333,24 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:encode-field-submessage
    #:encode-field-bool
    #:encode-envelope
-   #:decode-envelope)
+   #:decode-envelope
+   #:stream-item-seq
+   #:encode-delivery-ack-request
+   #:decode-delivery-ack-response)
+
+  ;; Router consumer delivery acknowledgements
+  (:export
+   #:router-client
+   #:send-envelope
+   #:open-stream
+   #:ack-delivery
+   #:close-stream)
+
+  (:export #:scheduler-client #:shutdown-agent #:workflow-client #:start-workflow)
+
+  (:export #:protocol-client #:protocol-rpc-paths #:connect #:disconnect
+           #:call-protocol-rpc #:stream-protocol-rpc
+           #:encode-protocol-message #:decode-protocol-message)
 
   ;; Handoff client (SW4-004/SW4-005 local surface)
   (:export

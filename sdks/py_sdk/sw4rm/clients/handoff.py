@@ -40,21 +40,12 @@ class HandoffClient:
         """Initialize the HandoffClient.
 
         Args:
-            channel: Optional gRPC channel for communication with handoff service.
-                If None, uses shared in-memory storage (for development/testing).
+            channel: Reserved legacy argument. Use ProtocolClient for remote
+                HandoffService calls; this helper only implements local storage.
         """
-        self._channel = channel
-
-        # Placeholder for future gRPC stub
-        self._stub = None
-        if channel:
-            try:
-                # Future: from sw4rm.protos import handoff_pb2, handoff_pb2_grpc
-                # self._pb2 = handoff_pb2
-                # self._stub = handoff_pb2_grpc.HandoffServiceStub(channel)
-                pass
-            except Exception:
-                pass
+        if channel is not None:
+            raise ValueError("HandoffClient is local-only; use ProtocolClient for remote HandoffService RPCs")
+        self._channel = None
 
     def request_handoff(self, request: HandoffRequest) -> HandoffResponse:
         """Request a handoff to another agent.
@@ -71,12 +62,7 @@ class HandoffClient:
             HandoffResponse with accepted=True (pending acceptance), handoff_id,
             and status=PENDING
 
-        Raises:
-            RuntimeError: If gRPC stub is configured but not available
-        """
-        if self._stub:
-            # Future: Use gRPC stub
-            raise RuntimeError("gRPC handoff service not yet implemented")
+"""
 
         # In-memory implementation
         handoff_id = str(uuid.uuid4())
@@ -106,11 +92,7 @@ class HandoffClient:
 
         Raises:
             ValueError: If handoff_id is not found or handoff is not in PENDING status
-            RuntimeError: If gRPC stub is configured but not available
         """
-        if self._stub:
-            # Future: Use gRPC stub
-            raise RuntimeError("gRPC handoff service not yet implemented")
 
         with _shared_lock:
             if handoff_id not in _shared_handoffs:
@@ -150,11 +132,7 @@ class HandoffClient:
 
         Raises:
             ValueError: If handoff_id is not found or handoff is not in PENDING status
-            RuntimeError: If gRPC stub is configured but not available
         """
-        if self._stub:
-            # Future: Use gRPC stub
-            raise RuntimeError("gRPC handoff service not yet implemented")
 
         with _shared_lock:
             if handoff_id not in _shared_handoffs:
@@ -194,11 +172,7 @@ class HandoffClient:
 
         Raises:
             ValueError: If handoff_id is not found or handoff is not in ACCEPTED status
-            RuntimeError: If gRPC stub is configured but not available
         """
-        if self._stub:
-            # Future: Use gRPC stub
-            raise RuntimeError("gRPC handoff service not yet implemented")
 
         with _shared_lock:
             if handoff_id not in _shared_handoffs:
@@ -230,12 +204,7 @@ class HandoffClient:
         Returns:
             List of HandoffRequest objects in PENDING status for this agent
 
-        Raises:
-            RuntimeError: If gRPC stub is configured but not available
-        """
-        if self._stub:
-            # Future: Use gRPC stub
-            raise RuntimeError("gRPC handoff service not yet implemented")
+"""
 
         with _shared_lock:
             pending_ids = _shared_pending_by_agent.get(agent_id, [])
@@ -256,12 +225,7 @@ class HandoffClient:
         Returns:
             HandoffResponse if found, None otherwise
 
-        Raises:
-            RuntimeError: If gRPC stub is configured but not available
-        """
-        if self._stub:
-            # Future: Use gRPC stub
-            raise RuntimeError("gRPC handoff service not yet implemented")
+"""
 
         with _shared_lock:
             if handoff_id in _shared_handoffs:

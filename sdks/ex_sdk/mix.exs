@@ -52,7 +52,9 @@ defmodule Sw4rm.MixProject do
   end
 
   defp proto_gen(_args) do
-    protos_dir = Path.join([__DIR__, "..", "rust_sdk", "protos"])
+    # The repository-level protos/ directory is canonical.  Other SDK copies
+    # may lag behind and must never be used to regenerate these bindings.
+    protos_dir = Path.expand("../../protos", __DIR__)
     out_dir = Path.join([__DIR__, "lib", "sw4rm", "proto"])
 
     proto_files =

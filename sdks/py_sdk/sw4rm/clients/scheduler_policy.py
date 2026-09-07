@@ -49,7 +49,9 @@ class SchedulerPolicyClient:
             >>> policy = policy_pb2.NegotiationPolicy(
             ...     max_rounds=10,
             ...     score_threshold=0.8,
-            ...     hitl_mode="PauseBetweenRounds"
+            ...     hitl=policy_pb2.NegotiationPolicy.Hitl(
+            ...         mode="PauseBetweenRounds"
+            ...     )
             ... )
             >>> client.set_negotiation_policy(policy)
         """
@@ -83,7 +85,7 @@ class SchedulerPolicyClient:
 
         Policy profiles are named presets (e.g., LOW, MEDIUM, HIGH) that can be
         selected by agents or workflows. Each profile contains a complete
-        EffectivePolicy configuration.
+        NegotiationPolicy configuration.
 
         Args:
             profiles: List of PolicyProfile protobuf messages to register.
@@ -99,13 +101,12 @@ class SchedulerPolicyClient:
             >>> from sw4rm.protos import policy_pb2
             >>> profiles = [
             ...     policy_pb2.PolicyProfile(
-            ...         profile_id="low",
             ...         name="Low Intensity",
-            ...         is_default=True
+            ...         policy=policy_pb2.NegotiationPolicy(max_rounds=5)
             ...     ),
             ...     policy_pb2.PolicyProfile(
-            ...         profile_id="high",
-            ...         name="High Intensity"
+            ...         name="High Intensity",
+            ...         policy=policy_pb2.NegotiationPolicy(max_rounds=50)
             ...     )
             ... ]
             >>> client.set_policy_profiles(profiles)
@@ -130,7 +131,7 @@ class SchedulerPolicyClient:
         Example:
             >>> response = client.list_policy_profiles()
             >>> for profile in response.profiles:
-            ...     print(f"{profile.name}: {profile.description}")
+            ...     print(profile.name)
         """
         self._require()
         req = self._pb2.ListPolicyProfilesRequest()
@@ -153,8 +154,8 @@ class SchedulerPolicyClient:
             grpc.RpcError: If the RPC call fails (e.g., negotiation not found).
 
         Example:
-            >>> policy = client.get_effective_policy("neg-123")
-            >>> print(f"Token budget: {policy.policy.negotiation.token_budget_per_round}")
+            >>> response = client.get_effective_policy("neg-123")
+            >>> print(f"Token budget: {response.effective.policy.token_budget_per_round}")
         """
         self._require()
         req = self._pb2.GetEffectivePolicyRequest(negotiation_id=negotiation_id)
@@ -182,10 +183,14 @@ class SchedulerPolicyClient:
         Example:
             >>> from sw4rm.protos import policy_pb2
             >>> report = policy_pb2.EvaluationReport(
-            ...     negotiation_id="neg-123",
-            ...     round_number=2,
-            ...     scores={"quality": 8.5},
-            ...     summary="Good progress"
+            ...     from_agent="agent-1",
+            ...     deterministic_score=0.85,
+            ...     llm_confidence=0.8,
+            ...     notes="Good progress",
+            ...     delta=policy_pb2.DeltaSummary(
+            ...         magnitude=0.1,
+            ...         changed_paths=["src/handoff.py"]
+            ...     )
             ... )
             >>> client.submit_evaluation("neg-123", report)
         """

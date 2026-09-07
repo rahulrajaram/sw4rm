@@ -37,8 +37,10 @@ use uuid::Uuid;
 /// Tracks the lifecycle state of individual nodes during workflow execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(i32)]
+#[derive(Default)]
 pub enum NodeStatus {
     /// Node waiting for dependencies
+    #[default]
     Pending = 1,
     /// Node ready to execute
     Ready = 2,
@@ -50,12 +52,6 @@ pub enum NodeStatus {
     Failed = 5,
     /// Node skipped due to conditional logic
     Skipped = 6,
-}
-
-impl Default for NodeStatus {
-    fn default() -> Self {
-        Self::Pending
-    }
 }
 
 impl NodeStatus {
@@ -70,6 +66,7 @@ impl NodeStatus {
 /// Defines how and when a node should be activated within the workflow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(i32)]
+#[derive(Default)]
 pub enum TriggerType {
     /// Triggered by specific events
     Event = 1,
@@ -78,13 +75,8 @@ pub enum TriggerType {
     /// Triggered by explicit user action
     Manual = 3,
     /// Triggered by dependency completion
+    #[default]
     Dependency = 4,
-}
-
-impl Default for TriggerType {
-    fn default() -> Self {
-        Self::Dependency
-    }
 }
 
 /// A single node in a workflow DAG.

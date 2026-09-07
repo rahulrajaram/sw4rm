@@ -35,6 +35,10 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol, Optional
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover - import cycle guard for type checkers
+    from .config import SW4RMConfig
 
 
 _DEFAULT_STATSD_HOST = "localhost"
