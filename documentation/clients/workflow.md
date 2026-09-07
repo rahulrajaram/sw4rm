@@ -7,7 +7,16 @@ The Workflow Client orchestrates DAG-based multi-agent workflows. Use it to:
 - Cancel workflows or update node status during execution.
 - Validate dependencies and detect cycles before execution.
 
-Current SDKs provide in-memory implementations. JavaScript/TypeScript and Rust store definitions and instances locally, while Python's `WorkflowClient` is an alias for the in-process `WorkflowEngine`. A gRPC `WorkflowService` is defined in `protos/workflow.proto` but is not yet wired into SDK clients.
+Current SDKs provide in-memory implementations. JavaScript/TypeScript and Rust store definitions and instances locally, while Python's `WorkflowClient` is an alias for the in-process `WorkflowEngine`. All four remote `WorkflowService` RPCs are available through each SDK's [complete wire interface](../sdk-parity.md). The local engines below retain their own APIs.
+
+```mermaid
+flowchart LR
+    A["draft (agent node)"] -->|"shared-data output → input mapping"| R["review (agent node)"]
+    R --> D(["workflow complete"])
+```
+
+Nodes execute only after all of their dependencies reach `COMPLETED`; stage
+ordering comes from `get_execution_plan`.
 
 ## 6.16.1. Service Overview
 
@@ -341,7 +350,7 @@ For complete runnable examples demonstrating Workflow usage:
 - [:simple-rust: Rust workflow](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/rust_sdk/examples/workflow.rs)
 - [:simple-typescript: TypeScript workflow](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/js_sdk/examples/workflowExample.ts)
 
-## 6.16.5. Error Handling
+## 6.16.6. Error Handling
 
 - JavaScript/TypeScript throws `WorkflowValidationError` for invalid definitions and `WorkflowCycleError` for cycles; missing workflows or instances raise `WorkflowValidationError`.
 - Rust returns `Error::Config` for invalid definitions, missing workflows, and missing instances.

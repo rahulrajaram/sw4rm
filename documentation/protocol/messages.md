@@ -1,6 +1,11 @@
 # Message Types
 
-Complete specification of all message types supported by the SW4RM protocol, including payload schemas, usage patterns, and examples.
+Reference for all message types supported by the SW4RM protocol, including
+payload guidance, usage patterns, and examples. Normative field definitions
+remain in [spec.md](spec.md) and the [canonical schema](../reference/protobuf.md);
+this page explains how an application agent recognizes and handles each type.
+
+> **How to read this page**: payload schemas here are **illustrative JSON shapes**. On the wire, `payload` is opaque bytes whose interpretation follows `content_type` (canonical Envelope in [reference/protobuf.md](../reference/protobuf.md#commonproto)); the normative wire contract is generated from `protos/` and versioned with the SDKs.
 
 ## Message Type Enumeration
 
@@ -32,22 +37,23 @@ enum MessageType {
 - `application/octet-stream` - Binary data
 - `application/protobuf` - Protocol buffer messages
 
-**Example**:
+**Example** (flat Envelope per the canonical proto; `payload` is opaque bytes
+whose interpretation follows `content_type`):
+
 ```json
 {
-  "envelope": {
-    "message_type": 2,
-    "content_type": "application/json",
-    "payload": {
-      "task_id": "analyze-logs-001",
-      "input_files": ["app.log", "error.log"],
-      "analysis_type": "error_detection",
-      "parameters": {
-        "lookback_hours": 24,
-        "severity_threshold": "WARNING"
-      }
-    }
-  }
+  "message_id": "3f2a1c…-uuidv4",
+  "idempotency_token": "token-001",
+  "producer_id": "agent-1",
+  "correlation_id": "corr-9",
+  "sequence_number": 1021,
+  "retry_count": 0,
+  "message_type": "DATA",
+  "content_type": "application/json",
+  "content_length": 0,
+  "timestamp": "2026-08-09T12:00:00Z",
+  "payload": "ewogdW9j … (JSON document)",
+  "state": "SENT"
 }
 ```
 
@@ -58,6 +64,58 @@ enum MessageType {
 - Data processing pipeline intermediates
 - Agent-to-agent coordination data
 - Response payloads from service calls
+
+## Transport and tool message types
+
+These types use the same `Envelope` as `DATA`; their payload schemas are owned
+by the service or tool that handles them. They are included here so an agent
+can recognize the complete enumeration without treating them as ordinary
+application data.
+
+| Type | Typical producer | Handling guidance |
+|---|---|---|
+| `HEARTBEAT` (3) | Registry or agent | Periodic liveness signal; keep the payload small and do not treat it as work. |
+| `NEGOTIATION` (8) | Negotiation client/room | Carry a proposal, vote, or decision using the negotiation content types; correlate the exchange with the room ID. |
+| `TOOL_RESULT` (10) | Tool runner | Return the result for a `TOOL_CALL`; preserve the request correlation and identify the result content type. |
+| `TOOL_ERROR` (11) | Tool runner | Return a structured failure and actionable error details; callers should apply their retry policy rather than retry every tool error. |
+
+The concrete RPC methods and generated field types remain authoritative in the
+[canonical schema](../reference/protobuf.md). A message-type value alone does
+not define a payload schema.
+
+### HEARTBEAT
+
+Heartbeat traffic is for liveness and registration expiry. A receiver should
+update its health view and return the service-specific response; it should not
+enqueue heartbeat payloads as business work. Use the registry heartbeat
+configuration and service contract for intervals and expiry rather than baking a
+fixed interval into an agent.
+
+### NEGOTIATION, TOOL_RESULT, and TOOL_ERROR
+
+Negotiation messages normally use `application/vnd.sw4rm.negotiation.*+json`
+content types. Tool calls and results use the corresponding
+`application/vnd.sw4rm.tool.*+json` types. A minimal result/error pair is:
+
+```json
+{
+  "request_id": "tool-request-17",
+  "status": "succeeded",
+  "result": {"rows": 12}
+}
+```
+
+```json
+{
+  "request_id": "tool-request-17",
+  "status": "failed",
+  "error": {"code": "TIMEOUT", "message": "database did not respond"},
+  "retryable": true
+}
+```
+
+These are illustrative payloads; producers must follow the registered schema
+for the selected content type.
 
 ## CONTROL Messages (Type 1)
 
@@ -127,7 +185,7 @@ message Ack {
 {
   "ack_for_message_id": "msg-abc123",
   "ack_stage": 3,  // FULFILLED
-  "error_code": 0, // NO_ERROR
+  "error_code": "ERROR_CODE_UNSPECIFIED", // 0
   "note": "Task completed successfully in 2.3s"
 }
 ```
@@ -158,7 +216,7 @@ message Ack {
     "risk_level": "HIGH",
     "affected_files": ["/data/customer_pii.csv", "/data/financial.xlsx"]
   },
-  "approval_required_by": "2024-08-09T12:00:00Z",
+  "approval_required_by": "2026-08-09T12:00:00Z",
   "approver_roles": ["security_admin", "data_steward"],
   "auto_timeout_action": "DENY"
 }
@@ -278,7 +336,7 @@ message Ack {
   "parameters": {
     "connection_string": "${DB_CONNECTION}",
     "query": "SELECT * FROM transactions WHERE status = ? AND created_at > ?",
-    "parameters": ["PENDING", "2024-08-08T00:00:00Z"],
+    "parameters": ["PENDING", "2026-08-08T00:00:00Z"],
     "timeout_seconds": 30
   }
 }
@@ -309,7 +367,7 @@ message Ack {
 {
   "event_type": "AGENT_LIFECYCLE",
   "event_name": "AGENT_STARTED",
-  "timestamp": "2024-08-08T15:30:00Z",
+  "timestamp": "2026-08-08T15:30:00Z",
   "details": {
     "agent_id": "log-analyzer-003",
     "version": "2.1.0",
@@ -368,7 +426,7 @@ All payload-carrying messages MUST declare an appropriate `content_type`. When a
 {
   "version": "1.0",
   "metadata": {
-    "timestamp": "2024-08-08T15:30:00Z",
+    "timestamp": "2026-08-08T15:30:00Z",
     "source": "agent-id",
     "schema": "task-request-v1"
   },
@@ -389,50 +447,33 @@ X-Compression: gzip
 
 ## Three-ID Model (Envelope Identification)
 
-The SW4RM protocol uses three distinct identifiers to track messages across their lifecycle. Understanding these identifiers is essential for implementing correct deduplication, correlation, and retry semantics.
+The normative rules are in [spec.md §11.3](spec.md#113-three-id-model-envelope-identification);
+the practical distinction is:
 
-| Identifier | Scope | Mutability | Purpose |
-|------------|-------|------------|---------|
-| `message_id` | Per attempt | New on each retry | Uniquely identifies a specific transmission attempt |
-| `correlation_id` | Per workflow/session | Stable across entire flow | Groups related messages for tracing and debugging |
-| `idempotency_token` | Per logical operation | Stable across retries | Enables exactly-once semantics via deduplication |
+| Identifier | Scope | Retry behavior | Use |
+|---|---|---|---|
+| `message_id` | One transmission attempt | MUST change for each retry | ACK target and per-attempt audit key |
+| `correlation_id` | Workflow, conversation, or request/response exchange | MUST remain stable for the exchange | Tracing and grouping related messages |
+| `idempotency_token` | One logical operation | MUST remain stable across retries | Consumer/router deduplication when supplied |
 
-### `message_id` (Required)
+`message_id` is required and is generated per attempt. `correlation_id` is
+required for grouping and responses MUST echo the request value. The
+`idempotency_token` is optional; when absent, an implementation cannot rely on
+token-based duplicate detection and should use its documented fallback.
 
-- MUST be a UUIDv4 generated for each message transmission.
-- MUST be unique across all messages in the system.
-- Retry attempts MUST generate new `message_id` values.
-- Used for acknowledgment targeting (`ack_for_message_id`).
+### Worked retry example
 
-### `correlation_id` (Required)
-
-- MUST be a UUIDv4 that groups related operations.
-- For workflows: Set to `workflow_id` to correlate all workflow messages.
-- For negotiations: Set to `negotiation_id` for room-based correlation.
-- For request-response pairs: Response MUST echo the request's `correlation_id`.
-- Enables end-to-end distributed tracing and log aggregation.
-
-### `idempotency_token` (Optional)
-
-- MUST remain constant across all retries of the same logical operation.
-- Used by the Router/Scheduler for deduplication.
-- Format: `{producer_id}:{operation_type}:{deterministic_hash}`
-- When present, duplicate tokens return cached results instead of re-execution.
-- Absence of token falls back to `(producer_id, sequence_number)` deduplication.
-
-### Relationship Example
-
-```
-Logical operation: Create user "alice"
-  Attempt 1: message_id=m1, correlation_id=wf123, idempotency_token=agent1:create:abc
-    → Times out, retry scheduled
-  Attempt 2: message_id=m2, correlation_id=wf123, idempotency_token=agent1:create:abc
-    → Router detects duplicate token, returns cached result from attempt 1
+```text
+Create user "alice"
+  attempt 1: message_id=m1, correlation_id=wf123, idempotency_token=agent1:create:abc
+    -> delivery timeout; retry scheduled
+  attempt 2: message_id=m2, correlation_id=wf123, idempotency_token=agent1:create:abc
+    -> consumer finds the token and returns the recorded outcome
 ```
 
-- `message_id` changes per attempt (m1 vs m2) for ACK tracking.
-- `correlation_id` stays the same (wf123) for end-to-end tracing.
-- `idempotency_token` stays the same (agent1:create:abc) for deduplication.
+The ACK for attempt 2 names `m2`, while tracing still groups both attempts by
+`wf123` and deduplication recognizes the shared token. A token is a duplicate
+signal, not a transaction that can make an external side effect exactly once.
 
 ## Validation Rules
 

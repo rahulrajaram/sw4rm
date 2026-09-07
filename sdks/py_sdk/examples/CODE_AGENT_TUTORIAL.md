@@ -134,5 +134,5 @@ To connect to live SW4RM services, pass a gRPC channel to each client:
 ```python
 import grpc
 channel = grpc.insecure_channel("localhost:50051")
-handoff_client = HandoffClient(channel=channel)
+handoff_client = HandoffClient()  # Local helper; use ProtocolClient for remote handoffs.
 ```

@@ -13,7 +13,7 @@ with `VotingAggregator` to compute statistics and produce a weighted outcome.
 | `SimpleAverageAggregator` | Arithmetic mean of scores | Transparent baseline |
 | `ConfidenceWeightedAggregator` | Confidence-weighted mean | Default for mixed certainty |
 | `MajorityVoteAggregator` | Pass/fail majority mapping | Binary approval gates |
-| `BordaCountAggregator` | Rank-based points, normalized | Reduce outlier impact |
+| `BordaCountAggregator` | Score-derived rank points (Borda-weighted mean) | Reduce outlier impact, stay score-sensitive |
 
 ## AggregationStrategy Protocol
 
@@ -76,9 +76,11 @@ All implementations raise `ValueError` when `votes` is empty.
 
 - **Constructor:** `BordaCountAggregator()`
 
-- **`aggregate(votes)` behavior:** Ranks scores from highest to lowest, assigns
-  points `n..1`, averages the points per vote, and normalizes to a `0..10`
-  `weighted_mean`. Unweighted statistics are still computed from scores.
+- **`aggregate(votes)` behavior:** Ranks scores highest-first (stable for
+  ties), assigns Borda points `n..1` by rank, and sets
+  `weighted_mean = sum(points_i * score_i) / sum(points_i)` — the
+  Borda-weighted mean of the actual scores (no normalization). Unweighted
+  statistics are still computed from scores.
 
 - **Edge cases:** Empty vote lists raise `ValueError`. Ties are resolved by the
   input order of votes during ranking.

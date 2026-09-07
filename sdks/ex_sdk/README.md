@@ -1,14 +1,24 @@
 # SW4RM Elixir SDK
 
-Elixir SDK for the SW4RM Agentic Protocol. Provides typed gRPC clients for all 13 protocol services, conformance-tested proto stubs, and local coordination primitives (NegotiationRoom, Delegation, Cancellation).
+Elixir SDK for the SW4RM Agentic Protocol. Provides typed gRPC clients for all 15 canonical protocol services, conformance-tested proto stubs, and local coordination primitives (NegotiationRoom, Delegation, Cancellation).
+
+## Complete wire interface (0.7.0 development target)
+
+The generated `Sw4rm.Proto.<Service>.<ServiceName>.Stub` modules cover all 15
+canonical services and 57 RPCs. Use generated protobuf request structs.
+`Sw4rm.Envelope.to_proto/1` converts the local envelope helper into that wire form.
+
+See the [SDK parity contract](../../documentation/sdk-parity.md) for message
+representations, portable idempotency, local-only helpers and verification.
+
 
 ## Install
 
-Add `sw4rm` to your `mix.exs` dependencies:
+For this unpublished development tree, use a local path dependency:
 
 ```elixir
 def deps do
-  [{:sw4rm, "~> 0.1.0"}]
+  [{:sw4rm_sdk, path: "../sw4rm/sdks/ex_sdk"}]
 end
 ```
 
@@ -18,15 +28,16 @@ end
 alias Sw4rm.Clients.Registry
 
 # Register an agent
-{:ok, _} = Registry.register_agent(%{
+{:ok, _} = Registry.register_agent(%Sw4rm.Proto.Registry.RegisterAgentRequest{
+  agent: %Sw4rm.Proto.Registry.AgentDescriptor{
   agent_id: "my-agent",
   name: "My Agent",
   capabilities: ["code_review"],
   communication_class: :STANDARD
-})
+}})
 
 # Send heartbeat
-{:ok, _} = Registry.heartbeat(%{agent_id: "my-agent", state: :RUNNING})
+{:ok, _} = Registry.heartbeat(%Sw4rm.Proto.Registry.HeartbeatRequest{agent_id: "my-agent", state: :RUNNING})
 
 # Open a negotiation room
 alias Sw4rm.NegotiationRoom
@@ -49,8 +60,7 @@ NegotiationRoom.add_critique(room, "art-1", %Critique{
 
 ## Features
 
-- 13 gRPC service clients (Registry, Router, Scheduler, Negotiation, NegotiationRoom, Handoff, Workflow, Tool, HITL, Worktree, Connector, Reasoning, Activity)
-- SchedulerPolicy and Logging service clients
+- 15 gRPC service clients, including SchedulerPolicy and Logging
 - Local NegotiationRoom GenServer with Store registry
 - Quorum policies and vote collection timeouts (SW4-001)
 - Per-service timeout profiles with clamping (SW4-002)
@@ -59,6 +69,39 @@ NegotiationRoom.add_critique(room, "art-1", %Critique{
 - Interceptor hooks on Transport.Client
 - Envelope construction with Three-ID model (UUIDv4, correlation, idempotency)
 - Provider-agnostic LLM client (Groq, Anthropic, Mock) with adaptive rate limiting
+
+### Router consumer acknowledgements
+
+`Sw4rm.Clients.Router.stream_incoming/2` returns `StreamItem` values with the
+router delivery sequence in `seq`. A consumer must acknowledge a delivery
+after its side effect completes; unacknowledged rows can be redelivered after
+the router lease expires:
+
+```elixir
+{:ok, stream} = Sw4rm.Clients.Router.stream_incoming(
+  %Sw4rm.Proto.Router.StreamRequest{agent_id: "worker-1"}
+)
+Enum.each(stream, fn item ->
+  process(item.msg)
+  {:ok, _} = Sw4rm.Clients.Router.ack_delivery("worker-1", item.seq,
+    message_id: item.msg.message_id)
+end)
+```
+
+Pass `permanent_failure: true` when processing will never be retried. The
+generated bindings are sourced from the repository-level `protos/` directory;
+run `mix proto.gen` when protoc and the Elixir plugin are available.
+
+For negotiation score statistics, `Sw4rm.Voting.aggregate_votes/1` returns a
+`Sw4rm.Voting.ScoreSummary` with arithmetic mean, population standard
+deviation, and confidence-weighted mean. If all confidence values are zero,
+`weighted_mean` falls back to the arithmetic mean, matching the shared
+`score-summary-v1` vectors.
+
+The opt-in `Sw4rm.RouterReferenceIntegrationTest` starts the repository's
+Python reference router and verifies the Elixir stream/sequence/ACK wire
+contract. Run it with `SW4RM_RUN_REFERENCE_INTEGRATION=1 mix test` when the
+Python SDK's gRPC dependencies are available.
 
 ## LLM Client
 
@@ -181,6 +224,31 @@ All clients return `{:error, reason}` where `reason` is one of:
 - SW4-002: Timeout Profiles (per-service timeouts)
 - SW4-004: Connector Extension
 - SW4-005: Reasoning Proxy Extension
+
+## Generated protocol bindings
+
+`lib/sw4rm/proto/*.pb.ex` are generated from the repository-canonical
+`protos/` directory (`mix proto.gen`).  They are a documented superset of a
+fresh regeneration:
+
+- `Sw4rm.Proto.NegotiationRoom.NegotiationProposal` and
+  `Sw4rm.Proto.NegotiationRoom.NegotiationDecision` carry the hand-maintained
+  SW4-001 failure-semantics fields (vote collection timeout, quorum policy,
+  quorum bookkeeping on decisions).
+- `Sw4rm.Proto.Common.TimeoutProfile` and
+  `Sw4rm.Proto.Common.StreamingTimeoutPolicy` implement the SW4-002 timeout
+  profiles and have no canonical proto yet.
+
+These extension fields are marked with `# SW4-001 extension` / `# SW4-002
+extension` comments in the generated files.  Regenerating with `mix
+proto.gen` drops them, so after a regeneration re-apply them from git or by
+hand.  Promoting them into canonical `protos/` is a possible future protocol
+change.
+
+`scripts/check_elixir_proto_drift.py` (run in CI) verifies the containment
+property that a naive byte-diff cannot: every canonical message and field
+name/number from `protos/` is present in the committed bindings, and the
+documented hand-maintained extension fields are still present.
 
 ## Running Tests
 

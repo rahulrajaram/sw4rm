@@ -7,7 +7,7 @@ The Negotiation Room Client implements the producer-critic-coordinator pattern f
 - Aggregate votes and store final decisions.
 - Wait for decisions or inspect proposals.
 
-The client is SDK-local and backed by a pluggable `NegotiationRoomStore`. Python and JS/TS default to a shared in-memory store per process, while Rust `new()` creates an isolated store. For multi-process deployments, use a persistent store from `colony` or implement the store interface.
+The client is SDK-local and backed by a pluggable `NegotiationRoomStore`. Python and JS/TS default to a shared in-memory store per process, while Rust `new()` creates an isolated store. For remote `NegotiationRoomService` calls, use the [complete wire interface](../sdk-parity.md). The Python reference implementation supplies that service separately from the local helpers.
 
 ## 6.14.1. Data Model
 
@@ -112,12 +112,12 @@ Field names are snake_case in Python/Rust and camelCase in JS/TS.
 
 ### Default store helpers (Python)
 
-`get_default_negotiation_room_store() -> InMemoryNegotiationRoomStore`
+`get_default_store() -> InMemoryNegotiationRoomStore`
 
 - Returns the shared in-memory store used when constructing `NegotiationRoomClient()` without a store.
 - Useful for explicitly sharing state across multiple client instances in the same process.
 
-`reset_default_negotiation_room_store() -> None`
+`reset_default_store() -> None`
 
 - Clears the default store singleton (primarily for tests).
 - The next `NegotiationRoomClient()` without a store will allocate a fresh in-memory store.
@@ -212,6 +212,20 @@ Field names are snake_case in Python/Rust and camelCase in JS/TS.
 
 ## 6.14.4. Custom Coordinator Guide
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Pr as Producer
+    participant Cr as Critics (1..N)
+    participant Co as Coordinator
+    Pr->>Co: submit_proposal (NegotiationProposal)
+    Cr->>Co: submit_vote (NegotiationVote)
+    note over Co: aggregate votes via a<br/>VotingAggregator strategy
+    Co->>Co: store_decision (NegotiationDecision)
+    Pr->>Co: wait_for_decision (artifact_id, timeout)
+    Co-->>Pr: NegotiationDecision
+```
+
 Coordinator agents typically:
 
 - Fetch all votes for an artifact.
@@ -285,8 +299,13 @@ Score mapping:
 ### BordaCountAggregator
 
 - Use when you want to reduce outlier influence.
-- Ranks scores from highest to lowest and assigns position-based points.
-- Normalizes the points to a 0-10 scale.
+- Ranks scores from highest to lowest and assigns Borda points by position
+  (`n` points for the highest scored vote down to `1` for the lowest).
+- The resulting `weighted_mean` is the Borda-points-weighted mean of the
+  actual scores, so it depends on the vote scores, not just the vote count.
+- The Lisp and Elixir SDKs implement classic Borda over ranked preference
+  lists (`vote.choice`) — a distinct input format producing per-choice
+  winners.
 
 ### Strategy Selection Guide
 

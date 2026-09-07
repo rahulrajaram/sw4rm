@@ -27,24 +27,52 @@ The SW4RM SDK follows these deprecation practices:
 
 The `HandoffClient` was originally located in `sw4rm.handoff` alongside handoff protocol types. To provide a consistent API where all clients are accessible from `sw4rm.clients`, the client has been moved.
 
+### What actually breaks
+
+The import path change itself is a soft deprecation (see Compatibility below), but the constructor signature changed hard: `HandoffClient(channel)` **now raises `ValueError`** for any non-`None` channel. The client has always been local-only — it keeps an in-memory store of handoff requests and never talked to a remote `HandoffService` — so passing a channel was silently ignored before and is rejected loudly now. There is no DeprecationWarning for this; the call simply fails at construction.
+
 ### Deprecated Usage
 
 ```python
-# DEPRECATED - will show DeprecationWarning
+# DEPRECATED - soft warning on the import, but this call raises ValueError
 from sw4rm.handoff import HandoffClient
 
-client = HandoffClient(channel)
+client = HandoffClient(channel)   # ValueError: HandoffClient is local-only
 response = client.request_handoff(request)
 ```
 
 ### Recommended Usage
 
+For **local in-memory storage** (development and testing), construct with no
+arguments:
+
 ```python
-# NEW - preferred import
+# NEW - local storage, no channel
 from sw4rm.clients import HandoffClient
 
-client = HandoffClient(channel)
+client = HandoffClient()
 response = client.request_handoff(request)
+# accept_handoff / reject_handoff / complete_handoff / get_pending_handoffs
+```
+
+For a **remote handoff service**, use `ProtocolClient` and call the canonical
+`HandoffService` RPCs (the handoff protos ship independently of this helper):
+
+```python
+# NEW - remote HandoffService via the canonical wire client
+from sw4rm.clients import ProtocolClient
+from sw4rm.protos import handoff_pb2
+
+client = ProtocolClient(channel)
+response = client.call(
+    "/sw4rm.handoff.HandoffService/RequestHandoff",
+    handoff_pb2.HandoffRequest(
+        request_id="handoff-001",
+        from_agent="agent-a",
+        to_agent="agent-b",
+        reason="specialist review",
+    ),
+)
 ```
 
 ### Why Changed
@@ -63,20 +91,28 @@ from sw4rm.clients import (
 )
 ```
 
+Because `HandoffClient` never had a real gRPC backend, the misleading
+`channel` parameter was removed (rejected loudly) rather than kept as a
+no-op: callers that want a remote handoff should use the canonical
+`ProtocolClient`, and callers that want the lightweight local store use
+`HandoffClient()`.
+
 ### Migration Steps
 
-1. **Find usages:** Search for `from sw4rm.handoff import HandoffClient`
-2. **Replace import:** Change to `from sw4rm.clients import HandoffClient`
-3. **Verify:** The API is identical, only the import path changed
+1. **Find usages:** Search for `from sw4rm.handoff import HandoffClient` and
+   for `HandoffClient(` constructions that pass a channel.
+2. **Replace the import:** Change to `from sw4rm.clients import HandoffClient`.
+3. **Decide local vs remote:**
+   - Local store: drop the `channel` argument.
+   - Remote: replace the helper with `ProtocolClient` + the canonical
+     `HandoffService` RPC (see Recommended Usage).
+4. **Verify:** Re-run your tests; a surviving `HandoffClient(channel)` will
+   raise `ValueError` at construction, which makes leftover call sites easy
+   to find.
 
 ```bash
 # Find files to update
-grep -r "from sw4rm.handoff import.*HandoffClient" --include="*.py"
-
-# Use sed for batch replacement
-find . -name "*.py" -exec sed -i \
-    's/from sw4rm.handoff import HandoffClient/from sw4rm.clients import HandoffClient/g' \
-    {} \;
+rg "HandoffClient\(" --glob '*.py'
 ```
 
 ### Compatibility
@@ -87,6 +123,10 @@ The old import path continues to work but emits a warning:
 DeprecationWarning: Importing HandoffClient from sw4rm.handoff is deprecated.
 Use: from sw4rm.clients import HandoffClient
 ```
+
+The old **usage** does not warn: constructing with a `channel` raises
+`ValueError`, because the local-only client rejects the argument instead of
+silently ignoring it.
 
 ---
 
@@ -150,18 +190,22 @@ except Exception as exc:
 from sw4rm.error_mapping import DictErrorCodeMapper, DEFAULT_MAPPER
 from sw4rm import constants as C
 
+_UNMAPPED = -1  # sentinel: not a protocol error code, signals "no match"
+
 # Create custom mapper with fallback to default
 class CombinedMapper:
     def __init__(self):
-        self.custom = DictErrorCodeMapper({
-            MyCustomError: C.VALIDATION_ERROR,
-        })
+        self.custom = DictErrorCodeMapper(
+            {MyCustomError: C.VALIDATION_ERROR},
+            default=_UNMAPPED,
+        )
         self.default = DEFAULT_MAPPER
 
     def map_exception(self, exc: Exception) -> int:
-        # Try custom first
+        # Try custom first. The sentinel default distinguishes "no match"
+        # from a legitimate INTERNAL_ERROR mapping.
         code = self.custom.map_exception(exc)
-        if code != C.INTERNAL_ERROR:  # Custom found a match
+        if code != _UNMAPPED:
             return code
         # Fall back to default
         return self.default.map_exception(exc)
@@ -253,6 +297,20 @@ def check_file(filepath):
                             f"{filepath}:{node.lineno}: "
                             f"Deprecated import: {dep_module}.{dep_name}"
                         )
+        elif isinstance(node, ast.Call):
+            func = node.func
+            name = None
+            if isinstance(func, ast.Name):
+                name = func.id
+            elif isinstance(func, ast.Attribute):
+                name = func.attr
+            if name is not None:
+                for dep_module, dep_name in DEPRECATED_FUNCTIONS:
+                    if name == dep_name.split(".")[-1]:
+                        issues.append(
+                            f"{filepath}:{node.lineno}: "
+                            f"Deprecated call: {dep_module}.{dep_name}"
+                        )
     return issues
 
 if __name__ == "__main__":
@@ -270,7 +328,11 @@ if __name__ == "__main__":
 
 ## Version History
 
-### v0.5.0 (Current)
+### v0.5.0
+
+These deprecations were announced in 0.5.0 and remain deprecated in 0.6.0 and
+0.7.0; see [release status](../release-status.md) for the current release
+target.
 
 **Deprecated:**
 

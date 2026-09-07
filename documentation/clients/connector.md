@@ -39,7 +39,7 @@ The service exposes two RPCs:
 `new ConnectorClient(options: ClientOptions)`
 
 - `options.address`: `host:port` for the ConnectorService endpoint.
-- Optional: `deadlineMs`, `retry`, `userAgent`, `interceptors`, `errorMapper`.
+- `ClientOptions` also accepts optional `deadlineMs`, `retry`, `userAgent`, `interceptors`, and `errorMapper` fields — see [client conventions](index.md#61-conventions).
 
 ### Rust
 
@@ -173,5 +173,5 @@ The service exposes two RPCs:
 
 ## 6.7.5. Error Handling
 
-- Python raises `RuntimeError` if protobuf stubs are missing. Run `make protos`.
+- Missing protobuf stubs raise `RuntimeError` — see [Error Handling Patterns](error-handling.md#universal-pattern-protobuf-stub-validation).
 - JavaScript/TypeScript and Rust surface gRPC errors for connectivity and RPC failures.

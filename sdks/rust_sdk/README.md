@@ -2,6 +2,17 @@
 
 Reference Rust SDK for the SW4RM Agentic Protocol. This is one of five SDKs in this repository (Python, Rust, JavaScript, Elixir, Common Lisp) and provides high-performance gRPC clients and runtime utilities for building distributed autonomous agents.
 
+## Complete wire interface (0.7.0 development target)
+
+Every canonical RPC is available through the public generated clients under
+`sw4rm_sdk::proto::sw4rm`. They cover 15 services and 57 RPCs with typed Prost
+messages. Local handoff, workflow and negotiation-room helpers remain separate.
+`Envelope::from(&EnvelopeData)` preserves the parent correlation and timestamp.
+
+See the [SDK parity contract](../../documentation/sdk-parity.md) for message
+representations, portable idempotency, local-only helpers and verification.
+
+
 ## Features
 
 - **Type-safe gRPC clients** for all SW4RM protocol services
@@ -10,59 +21,26 @@ Reference Rust SDK for the SW4RM Agentic Protocol. This is one of five SDKs in t
 - **Envelope helpers** for message construction and parsing
 - **Built-in logging and tracing** via tracing crate
 - **Configurable endpoints** with sensible defaults
-- **Production-ready** error handling and resource management
+- Typed transport errors and explicit resource management
 - **CONTROL helpers** and content-types for CONTROL-only flows (scheduler command v1, agent report v1)
 - **LLM client abstraction** with Groq, Anthropic, and mock backends (feature `llm`)
 
 ## Install
 
-Add to your `Cargo.toml`:
+For this unpublished development tree, use a local path dependency:
 
 ```toml
 [dependencies]
-sw4rm-sdk = "0.6.0"
+sw4rm-sdk = { path = "../sw4rm/sdks/rust_sdk" }
 tokio = { version = "1.0", features = ["full"] }
 ```
 
-## Quick Start with Working Services
+## Running services
 
-🎉 **NEW**: Complete working example with services included! You can now run a full SW4RM setup locally.
-
-### 1. Start the Services
-
-**Option A: Python Services (Recommended for getting started)**
-```bash
-cd ../../examples/reference-services/
-./start_services_local.sh
-```
-
-**Option B: Rust Services**
-```bash
-cd ../../examples/reference-services/rust/
-cargo run --bin start-services
-```
-
-### 2. Run the Echo Agent
-
-```bash
-cargo run --example echo_agent
-```
-
-You should see:
-```
-✅ Registered agent successfully
-🚀 Starting message loop for echo-agent
-```
-
-### 3. Test the Setup
-
-```bash
-# In another terminal
-cd ../../examples/reference-services/
-python test_complete_setup.py
-```
-
-This will send a test message that your agent will receive and process!
+SDKs connect to separately running services. Follow the [Python reference service
+setup](../py_sdk/reference-services/README.md) for the services implemented in this repository, and
+use the [SDK parity examples](../../documentation/sdk-parity.md) for the complete
+wire interface. A generated client does not imply that its server is implemented.
 
 ### Basic Agent Example
 
@@ -133,7 +111,7 @@ The SDK is organized into several key modules:
 The SDK provides clients for all SW4RM protocol services:
 
 - **Registry** - Agent registration and discovery
-- **Router** - Message routing and delivery
+- **Router** - Message routing and delivery, including sequence-based consumer ACKs
 - **Scheduler** - Task scheduling and preemption
 - **HITL** - Human-in-the-loop decisions
 - **Worktree** - Code repository management
@@ -142,6 +120,23 @@ The SDK provides clients for all SW4RM protocol services:
 - **Negotiation** - Multi-agent negotiation
 - **Reasoning** - Parallelism and debate evaluation
 - **Logging** - Distributed logging and telemetry
+
+### Router delivery acknowledgements
+
+`stream_incoming` remains available for consumers that only need decoded
+envelopes. Consumers participating in the router's at-least-once contract
+should use `stream_incoming_with_seq`, process the returned envelope, then
+call `ack_delivery(agent_id, seq, message_id, false)`. Use
+`ack_permanent_failure` when a message cannot be processed; an acknowledgement
+whose `recorded` field is false refers to a row that was already acknowledged
+or expired.
+
+The Rust SDK's vote aggregation helpers are compatible with the Python
+confidence-weighted aggregation contract. `quorum::evaluate` provides the
+same pure quorum policy evaluation, including distinct requested-critic
+counting, ceiling-based fractions, and fail-closed, abstain, or available
+failure actions. The default policy requires at least half of the requested
+critics (`ceil(expected * 0.5)`) and escalates when that threshold is not met.
 
 ## Configuration
 

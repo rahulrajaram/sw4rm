@@ -66,7 +66,7 @@ Implementations SHOULD emit and persist structured records per round:
 | `contract_vN.json` | Versioned artifact snapshot |
 | `diff_v{N-1}_to_vN.json` | Structural diff between rounds |
 
-Use the [Activity Service](../protocol/services.md#activity-service) `AppendArtifact` RPC to persist these records.
+Use the [Activity Service](../protocol/services.md#contract-only-services) `AppendArtifact` RPC to persist these records.
 
 ---
 
@@ -117,12 +117,14 @@ A Producer submits artifacts via `SubmitProposal` RPC with:
 
 ```protobuf
 message NegotiationProposal {
-  string artifact_type = 1;        // REQUIREMENTS, PLAN, CODE, DEPLOYMENT
+  ArtifactType artifact_type = 1;  // REQUIREMENTS, PLAN, CODE, DEPLOYMENT
   string artifact_id = 2;          // Unique identifier
-  bytes artifact = 3;              // Binary content
-  string artifact_content_type = 4; // MIME type (e.g., application/json)
-  repeated string requested_critics = 5; // Critic agent IDs
-  string negotiation_room_id = 6;  // Session identifier
+  string producer_id = 3;          // Submitting agent
+  bytes artifact = 4;              // Binary content
+  string artifact_content_type = 5; // MIME type (e.g., application/json)
+  repeated string requested_critics = 6; // Critic agent IDs
+  string negotiation_room_id = 7;  // Session identifier
+  google.protobuf.Timestamp created_at = 8;
 }
 ```
 
@@ -249,7 +251,7 @@ message HandoffRequest {
   bytes context_snapshot = 5;      // Serialized execution context
   repeated string capabilities_required = 6; // Required capabilities
   int32 priority = 7;              // Priority level
-  int64 timeout_ms = 8;            // Maximum wait duration
+  google.protobuf.Duration timeout = 8; // Maximum wait duration
 }
 ```
 
@@ -318,7 +320,8 @@ A `WorkflowDefinition` comprises:
 message WorkflowDefinition {
   string workflow_id = 1;          // Unique identifier
   map<string, WorkflowNode> nodes = 2; // Node definitions
-  map<string, string> metadata = 3; // Workflow-level configuration
+  google.protobuf.Timestamp created_at = 3;
+  map<string, string> metadata = 4; // Workflow-level configuration
 }
 
 message WorkflowNode {
@@ -424,7 +427,8 @@ Implementations MUST validate workflow definitions to ensure they form valid Dir
 
 ## 3.11.4 Three-ID Model
 
-The SW4RM messaging model uses three distinct identifiers to enable reliable message processing with retry safety and correlation tracking.
+> Canonical three-ID semantics are normative in [spec.md §11.3](spec.md#113-three-id-model-envelope-identification)
+> and summarized in [messages.md](messages.md#three-id-model-envelope-identification). This section adds the advanced-pattern behavior not covered there (deduplication window, retry interplay).
 
 ### Identifier Types
 
@@ -432,7 +436,7 @@ The SW4RM messaging model uses three distinct identifiers to enable reliable mes
 |------------|---------|-------|------------|
 | `message_id` | Unique per transmission attempt | Per-attempt | New on each retry |
 | `correlation_id` | Links request-response pairs | Conversation/workflow | Stable across related messages |
-| `idempotency_token` | Enables exactly-once processing | Retry window | Stable across retries |
+| `idempotency_token` | Recognizes completed duplicate work | Retry window | Stable across retries |
 
 ### Message ID
 

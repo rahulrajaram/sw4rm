@@ -1,6 +1,17 @@
 # SW4RM JavaScript SDK
 
-Reference JavaScript SDK for the SW4RM Agentic Protocol. This is one of five SDKs in this repository (Python, Rust, JavaScript, Elixir, Common Lisp). 🚧 Under development: initial implementation includes a basic RegistryClient and core utilities.
+Reference JavaScript SDK for the SW4RM Agentic Protocol. This is one of five SDKs in this repository (Python, Rust, JavaScript, Elixir, Common Lisp). The 0.7.0 development tree includes the complete canonical wire interface and local coordination helpers.
+
+## Complete wire interface (0.7.0 development target)
+
+`ProtocolClient` provides `call()` and `stream()` for all 15 canonical services
+and 57 RPCs. Use proto field names, byte arrays, and decimal strings for full-range
+64-bit integers. The client rejects unsafe integer inputs before serialization.
+The local handoff, workflow and negotiation-room helpers retain their local APIs.
+
+See the [SDK parity contract](../../documentation/sdk-parity.md) for message
+representations, portable idempotency, local-only helpers and verification.
+
 
 ## Install
 
@@ -8,41 +19,19 @@ Reference JavaScript SDK for the SW4RM Agentic Protocol. This is one of five SDK
 npm install @sw4rm/js-sdk
 ```
 
-## Quick Start with Working Services
+## Running services
 
-🎉 **NEW**: Complete working example with services included! You can now run a full SW4RM setup locally.
-
-### 1. Start the Services
-
-```bash
-cd ../../examples/reference-services/
-./start_services_local.sh
-```
-
-### 2. Test the Setup
-
-```bash
-# Test the complete setup
-python test_complete_setup.py
-```
-
-### 3. Run JavaScript Examples
-
-```bash
-cd ../../examples/sdk-usage/
-npm install
-npm run register_agent    # Register an agent
-npm run router_send_receive  # Send and receive messages
-```
-
-You should see successful agent registration and message routing!
+SDKs connect to separately running services. Follow the [Python reference service
+setup](../py_sdk/reference-services/README.md) for the services implemented in this repository, and
+use the [SDK parity examples](../../documentation/sdk-parity.md) for the complete
+wire interface. A generated client does not imply that its server is implemented.
 
 ## Quick Start
 
 ```typescript
-import { RegistryClient, AgentState, CommunicationClass } from '@sw4rm/js-sdk';
+import { RegistryClient } from '@sw4rm/js-sdk';
 
-const client = new RegistryClient('localhost:50051');
+const client = new RegistryClient({ address: 'localhost:50052' });
 
 // Register agent
 await client.registerAgent({
@@ -50,13 +39,13 @@ await client.registerAgent({
   name: 'My Agent',
   description: 'Example agent implementation',
   capabilities: ['example'],
-  communication_class: CommunicationClass.STANDARD,
+  communication_class: 'STANDARD',
   modalities_supported: ['application/json'],
   reasoning_connectors: ['http://localhost:8080'],
 });
 
 // Send heartbeat
-await client.heartbeat('my-agent', AgentState.RUNNING);
+await client.heartbeat('my-agent', 'RUNNING');
 
 // Deregister
 await client.deregisterAgent('my-agent', 'Done');
@@ -69,7 +58,7 @@ await client.deregisterAgent('my-agent', 'Done');
 - ✅ LLM clients (Groq, Anthropic, Mock) with adaptive rate limiting
 - ✅ TypeScript type definitions
 - ✅ Unit tests
-- ⏳ Additional service clients (planned)
+- Complete canonical RPC access through `ProtocolClient`
 
 ## License
 
@@ -115,6 +104,38 @@ const env = buildEnvelope({
 // Example ACK extractor if server sends acknowledgements as envelopes
 const extractor = (item: { msg: any }) => ({ ackFor: item.msg?.ack_for_message_id, stage: item.msg?.ack_stage });
 await sendMessageWithAck(router, stream as any, env, ack, extractor, { receivedTimeoutMs: 10000 });
+```
+
+`streamIncoming` yields `StreamItem` objects with the envelope in `msg` and a
+lossless router delivery sequence in `seq` (represented as a string for int64
+compatibility). A consumer should acknowledge the item after its side effect:
+
+```ts
+stream.on('data', async (item) => {
+  try {
+    await processMessage(item.msg);
+    await router.ackStreamItem('agent-123', item);
+  } catch {
+    await router.ackStreamItem('agent-123', item, true); // permanent failure
+  }
+});
+```
+
+Unacknowledged rows can be redelivered by the router after its lease expires;
+use the envelope's `idempotency_token` to make consumer-side processing safe.
+
+## Quorum policy
+
+The runtime-neutral quorum helpers mirror the Python policy contract. They
+support minimum votes, a ceiling-based fraction, and require-all rules, with
+explicit fail-closed, abstain, and available-votes actions:
+
+```ts
+import { MinimumFraction, QuorumPolicy, evaluateQuorum } from '@sw4rm/js-sdk';
+
+const outcome = evaluateQuorum(votes, requestedCritics,
+  new QuorumPolicy(new MinimumFraction(0.5), 'fail_closed'));
+if (!outcome.met) console.log(outcome.action);
 ```
 
 ## CONTROL helpers

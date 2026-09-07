@@ -2,7 +2,7 @@
 
 Examples are organized by capability and labeled by fidelity. Python is the reference bar; other SDKs are shown where they have a comparable walkthrough. The `Mode` column uses `service-backed`, `local`, or `mock/stub` so readers can tell which demos require running services.
 
-## 4.1. Capability Matrix
+## 4.1 Capability Matrix
 
 | Capability | Python | JavaScript/TypeScript | Rust | Common Lisp | Elixir | Mode |
 |---|---|---|---|---|---|---|
@@ -16,7 +16,7 @@ Examples are organized by capability and labeled by fidelity. Python is the refe
 | Tool execution / streaming | [`tool_streaming_example.py`](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/py_sdk/examples/tool_streaming_example.py) | [`toolStreamingExample.ts`](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/js_sdk/examples/toolStreamingExample.ts) | [`tool_streaming.rs`](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/rust_sdk/examples/tool_streaming.rs) | [`tool-streaming.lisp`](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/cl_sdk/examples/tool-streaming.lisp) | [`tool_execution.exs`](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/ex_sdk/examples/tool_execution.exs) | local + mock/stub |
 | Secrets | [`secrets_example.py`](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/py_sdk/examples/secrets_example.py) | [`secretsExample.ts`](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/js_sdk/examples/secretsExample.ts) | [`secrets.rs`](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/rust_sdk/examples/secrets.rs) | [`secret-management.lisp`](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/cl_sdk/examples/secret-management.lisp) | `-` | local |
 
-## 4.2. Run These First
+## 4.2 Run These First
 
 ```bash
 # Python
@@ -45,17 +45,39 @@ mix run examples/basic_agent.exs
 mix run examples/handoff.exs
 ```
 
-## 4.3. Notes
+## 4.3 Notes
 
 - Python has the broadest walkthrough coverage and is the reference bar.
 - JS/TS and Rust examples are implemented, not planned, so the docs should not describe them as future work.
 - Common Lisp and Elixir examples emphasize local or reference-style demos where the walkthrough is not service-backed.
 - For protocol-backed APIs and SDK-specific helpers, see the client reference and SDK extensions pages.
 
-## 4.4. Per-SDK Example Guides
+## 4.4 Per-SDK Example Guides
 
 - [Python example README](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/py_sdk/examples/README.md)
 - [JavaScript/TypeScript example README](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/js_sdk/examples/README.md)
 - [Rust example README](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/rust_sdk/examples/README.md)
 - [Common Lisp example README](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/cl_sdk/examples/README.md)
 - [Elixir example README](https://github.com/rahulrajaram/sw4rm/blob/master/sdks/ex_sdk/examples/README.md)
+
+## Choosing an example
+
+Use the matrix's `Mode` column before running a demo. A service-backed example
+expects the corresponding Router, Registry, Scheduler, or coordination service
+to be running; a local example may only exercise SDK state and helpers; a
+mock/stub example illustrates an interface without proving wire compatibility.
+The Python examples are the reference walkthroughs, while the other language
+entries show the available surface for that SDK.
+
+| If you need to learn | Start with | Then read |
+|---|---|---|
+| delivery and duplicate handling | `echo_agent` / `three_id_demo` | [first agent](../quickstart/first-agent.md) and [messages](../protocol/messages.md) |
+| a durable local record | `activity_demo` | [persistence and recovery](../quickstart/persistence.md) |
+| review or approval flow | negotiation or HITL example | [negotiation client](../clients/negotiation.md) and [HITL client](../clients/hitl.md) |
+| repository-aware work | handoff or workflow example | [worktree client](../clients/worktree.md) |
+| production wiring | deployment guide | [implementation coverage](../protocol/implementation.md) |
+
+Examples are teaching material, not a substitute for a deployment review.
+Before adapting one, check its source README for required services, generated
+protobufs, environment variables, and whether its state is local, mocked, or
+persisted.

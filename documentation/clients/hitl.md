@@ -59,7 +59,7 @@ The HITL service provides the decision side of that workflow.
 `new HITLClient(options: ClientOptions)`
 
 - `options.address`: `host:port` for the HitlService endpoint.
-- Optional: `deadlineMs`, `retry`, `userAgent`, `interceptors`, `errorMapper`.
+- `ClientOptions` also accepts optional `deadlineMs`, `retry`, `userAgent`, `interceptors`, and `errorMapper` fields — see [client conventions](index.md#61-conventions).
 
 ### Rust
 
@@ -206,6 +206,24 @@ spec §15.4:
    made via fallback policy due to HITL unavailability, including the policy applied
    and timestamp.
 
+```mermaid
+flowchart TD
+    A["Negotiation timeout fires<br/>requiring HITL escalation"] --> B{"HITL component<br/>available?"}
+    B -- yes --> H[Decide via HITL]
+    B -- "no (detected within bounded time,<br/>RECOMMENDED 5 s)" --> P{"hitl_unavailable_policy"}
+    P -->|DENY_BY_DEFAULT| D["Abort with error_code=hitl_unavailable"]
+    P -->|AUTO_DECIDE_THRESHOLD| T{"Highest-scoring proposal above<br/>auto-approve threshold?"}
+    T -- yes --> AC[Accept proposal automatically]
+    T -- no --> D
+    P -->|EXTEND_TIMEOUT| E{"Retry count below max<br/>(RECOMMENDED 3)?"}
+    E -- yes --> X["Extend timeout (RECOMMENDED 1x original)<br/>and retry HITL escalation"]
+    X --> B
+    E -- no --> D
+    H --> L["Log event + preserve audit trail:<br/>fallback policy applied + timestamp"]
+    D --> L
+    AC --> L
+```
+
 ## Working Examples
 
 For complete runnable examples demonstrating HITL usage:
@@ -215,6 +233,6 @@ For complete runnable examples demonstrating HITL usage:
 
 ## 6.12.7. Error Handling
 
-- Python raises `RuntimeError` if protobuf stubs are missing. Run `make protos`.
+- Missing protobuf stubs raise `RuntimeError` — see [Error Handling Patterns](error-handling.md#universal-pattern-protobuf-stub-validation).
 - JavaScript/TypeScript methods reject with gRPC errors (wrapped as `Sw4rmError`).
 - Rust returns `Result<T>`; handle transport errors and status codes via `?`.

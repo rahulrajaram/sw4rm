@@ -35,7 +35,7 @@ Policy message types live in `policy.proto` (`NegotiationPolicy`, `PolicyProfile
 `new SchedulerPolicyClient(options: ClientOptions)`
 
 - `options.address`: `host:port` for the SchedulerPolicyService endpoint.
-- Optional: `deadlineMs`, `retry`, `userAgent`, `interceptors`, `errorMapper`.
+- `ClientOptions` also accepts optional `deadlineMs`, `retry`, `userAgent`, `interceptors`, and `errorMapper` fields — see [client conventions](index.md#61-conventions).
 
 ### Rust
 
@@ -113,7 +113,7 @@ Policy message types live in `policy.proto` (`NegotiationPolicy`, `PolicyProfile
 `get_effective_policy(negotiation_id: str) -> GetEffectivePolicyResponse`
 
 **JavaScript/TypeScript**
-`getEffectivePolicy(negotiationId: string): Promise<{ effective?: any }>`
+`getEffectivePolicy(negotiation_id: string): Promise<{ effective?: any }>`
 
 **Rust**
 `get_effective_policy(negotiation_id: &str) -> Result<Option<EffectivePolicy>>`
@@ -128,7 +128,7 @@ Policy message types live in `policy.proto` (`NegotiationPolicy`, `PolicyProfile
 `submit_evaluation(negotiation_id: str, report: EvaluationReport) -> SubmitEvaluationResponse`
 
 **JavaScript/TypeScript**
-`submitEvaluation(negotiationId: string, report: any): Promise<{ accepted: boolean; reason?: string }>`
+`submitEvaluation(negotiation_id: string, report: any): Promise<{ accepted: boolean; reason?: string }>`
 
 **Rust**
 `submit_evaluation(negotiation_id: &str, report: EvaluationReport) -> Result<bool>`
@@ -144,7 +144,7 @@ Policy message types live in `policy.proto` (`NegotiationPolicy`, `PolicyProfile
 `hitl_action(negotiation_id: str, action: str, rationale: str = "") -> HitlActionResponse`
 
 **JavaScript/TypeScript**
-`hitlAction(negotiationId: string, action: string, rationale?: string): Promise<{ ok: boolean; reason?: string }>`
+`hitlAction(negotiation_id: string, action: string, rationale?: string): Promise<{ ok: boolean; reason?: string }>`
 
 **Rust**
 `hitl_action(negotiation_id: &str, action: &str, rationale: &str) -> Result<bool>`
@@ -154,9 +154,8 @@ Policy message types live in `policy.proto` (`NegotiationPolicy`, `PolicyProfile
 - `ok` (bool): Whether the action was accepted.
 - `reason` (string): Optional rejection reason.
 
-Note: The JavaScript/TypeScript client previously used `setWagglePolicy` and
-`getWagglePolicy` naming (deprecated in v0.3.0). Use `setNegotiationPolicy` and
-`getNegotiationPolicy` instead. These map to the `SetNegotiationPolicy` and
+The JavaScript/TypeScript client maps `setNegotiationPolicy` and
+`getNegotiationPolicy` to the `SetNegotiationPolicy` and
 `GetNegotiationPolicy` RPCs on the service.
 
 ## 6.9.4. Usage Examples

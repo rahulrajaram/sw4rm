@@ -37,7 +37,7 @@ Artifacts are structured records that capture outputs from negotiations, debates
 `new ActivityClient(options: ClientOptions)`
 
 - `options.address`: `host:port` for the ActivityService endpoint.
-- Optional: `deadlineMs`, `retry`, `userAgent`, `interceptors`, `errorMapper`.
+- `ClientOptions` also accepts optional `deadlineMs`, `retry`, `userAgent`, `interceptors`, and `errorMapper` fields — see [client conventions](index.md#61-conventions).
 
 ### Rust
 
@@ -55,12 +55,18 @@ Appends a new artifact to the activity log.
 `append_artifact(negotiation_id: str, kind: str, version: str, content_type: str, content: bytes, created_at: str) -> AppendArtifactResponse`
 
 **Rust**
-`append_artifact(negotiation_id: &str, kind: &str, version: &str, content_type: &str, content: &[u8], created_at: &str) -> Result<AppendArtifactResponse>`
+`append_artifact(artifact: Artifact) -> Result<bool>`
 
 **Parameters**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
+| `artifact` | Artifact | The artifact struct (see fields below) |
+
+**Artifact fields**
+
+| Field | Type | Description |
+|-------|------|-------------|
 | `negotiation_id` | string | The negotiation or session this artifact belongs to |
 | `kind` | string | Artifact kind: `contract`, `diff`, `decision`, `score`, or `note` |
 | `version` | string | Version identifier (for example, `v1`, `v2`) |
@@ -81,7 +87,7 @@ Lists artifacts for a given negotiation, optionally filtered by kind.
 `list_artifacts(negotiation_id: str, kind: str | None = None) -> ListArtifactsResponse`
 
 **Rust**
-`list_artifacts(negotiation_id: &str, kind: Option<&str>) -> Result<ListArtifactsResponse>`
+`list_artifacts(negotiation_id: &str, kind: Option<&str>) -> Result<Vec<Artifact>>`
 
 **Parameters**
 
@@ -90,7 +96,11 @@ Lists artifacts for a given negotiation, optionally filtered by kind.
 | `negotiation_id` | string | The negotiation or session to query |
 | `kind` | string (optional) | Filter by artifact kind |
 
-**Response fields**
+**Response fields (Rust)**
+
+- Returns a sequence of `Artifact` structs (same fields as `append_artifact`).
+
+**Response fields (Python)**
 
 - `items` (list[Artifact]): List of matching artifacts.
 
@@ -141,9 +151,38 @@ Lists artifacts for a given negotiation, optionally filtered by kind.
     print(f"Found {len(decisions.items)} decision artifacts")
     ```
 
+=== "JavaScript/TypeScript"
+    ```typescript
+    import { ActivityClient } from 'sw4rm';
+
+    const client = new ActivityClient({ address: 'localhost:50061' });
+
+    // Append a decision artifact
+    const response = await client.appendArtifact({
+      negotiation_id: 'neg-001',
+      kind: 'decision',
+      version: 'v1',
+      content_type: 'application/json',
+      content: Buffer.from('{"approved": true, "by": "coordinator"}'),
+      created_at: new Date().toISOString(),
+    });
+    console.log(`Append succeeded: ${response.ok}`);
+
+    // List all artifacts for the negotiation
+    const artifacts = await client.listArtifacts('neg-001');
+    for (const artifact of artifacts.items) {
+      console.log(`${artifact.kind} ${artifact.version}: ${artifact.content.length} bytes`);
+    }
+
+    // Filter by kind
+    const decisions = await client.listArtifacts('neg-001', 'decision');
+    console.log(`Found ${decisions.items.length} decision artifacts`);
+    ```
+
 === "Rust"
     ```rust
     use sw4rm_sdk::clients::ActivityClient;
+    use sw4rm_sdk::proto::sw4rm::activity::Artifact;
     use chrono::Utc;
 
     #[tokio::main]
@@ -151,27 +190,26 @@ Lists artifacts for a given negotiation, optionally filtered by kind.
         let mut client = ActivityClient::new("http://localhost:50061").await?;
 
         // Append a decision artifact
-        let response = client
-            .append_artifact(
-                "neg-001",
-                "decision",
-                "v1",
-                "application/json",
-                br#"{"approved": true, "by": "coordinator"}"#,
-                &Utc::now().to_rfc3339(),
-            )
-            .await?;
-        println!("Append succeeded: {}", response.ok);
+        let artifact = Artifact {
+            negotiation_id: "neg-001".to_string(),
+            kind: "decision".to_string(),
+            version: "v1".to_string(),
+            content_type: "application/json".to_string(),
+            content: br#"{"approved": true, "by": "coordinator"}"#.to_vec(),
+            created_at: Utc::now().to_rfc3339(),
+        };
+        let ok = client.append_artifact(artifact).await?;
+        println!("Append succeeded: {}", ok);
 
         // List all artifacts
         let artifacts = client.list_artifacts("neg-001", None).await?;
-        for artifact in artifacts.items {
+        for artifact in &artifacts {
             println!("{} v{}: {} bytes", artifact.kind, artifact.version, artifact.content.len());
         }
 
         // Filter by kind
         let decisions = client.list_artifacts("neg-001", Some("decision")).await?;
-        println!("Found {} decision artifacts", decisions.items.len());
+        println!("Found {} decision artifacts", decisions.len());
 
         Ok(())
     }
@@ -215,7 +253,7 @@ For complete runnable examples demonstrating Activity usage:
 
 ## 6.6.6. Error Handling
 
-- Python raises `RuntimeError` if protobuf stubs are missing. Run `make protos` to generate them.
+- Missing protobuf stubs raise `RuntimeError` — see [Error Handling Patterns](error-handling.md#universal-pattern-protobuf-stub-validation).
 - If `append_artifact` returns `ok=False`, check the `reason` field for details.
 - JavaScript/TypeScript methods reject with gRPC errors (wrapped as `Sw4rmError`).
 - Rust returns `Result<T>`; handle transport errors and status codes via `?`.

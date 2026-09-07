@@ -1,405 +1,198 @@
-# Your First Agent
+# 2.2 Your First Agent
 
-Terminology: In SW4RM, an “Agent” is a supervised, process‑isolated participant (see “Agents and Agentic Interaction” in documentation/index.md), not just an LLM wrapper or library coroutine.
+This example uses the **0.7.0 source checkout** and the Python reference Router
+and Registry. Install the source SDK and generate its protobuf modules using the
+[installation guide](installation.md). Start the reference services first.
 
-Build a complete agent that handles messages, manages state, and demonstrates core SDK features.
+## Receive and acknowledge
 
-## Overview
-
-This guide creates an agent that:
-
-
-- Connects to SW4RM services (Router and Registry)
-- Registers itself with service discovery
-- Processes incoming DATA messages with automatic ACK handling
-- Maintains persistent message history
-- Handles graceful shutdown
-
-## Basic Agent Structure
-
-Create `my_first_agent.py`:
+Run this consumer before sending a message:
 
 ```python
-#!/usr/bin/env python3
-"""My first SW4RM - demonstrates core SDK features."""
-
 import grpc
-import json
-import signal
-import sys
-from pathlib import Path
-
 from sw4rm.clients.registry import RegistryClient
 from sw4rm.clients.router import RouterClient
-from sw4rm.activity_buffer import PersistentActivityBuffer
-from sw4rm.ack_integration import ACKLifecycleManager, MessageProcessor
-from sw4rm import constants as C
 
-class MyFirstAgent:
-    def __init__(self, agent_id: str):
-        self.agent_id = agent_id
-        self.stop_requested = False
-        
-        # Initialize persistent activity buffer
-        self.buffer = PersistentActivityBuffer(max_items=500)
-        
-    def connect(self, router_addr: str, registry_addr: str):
-        """Connect to SW4RM services."""
-        print(f"🔌 Connecting to router: {router_addr}, registry: {registry_addr}")
-        
-        # Create gRPC connections
-        router_ch = grpc.insecure_channel(router_addr)
-        registry_ch = grpc.insecure_channel(registry_addr)
-        
-        # Initialize clients
-        self.registry = RegistryClient(registry_ch)
-        self.router = RouterClient(router_ch)
-        
-        # Set up ACK lifecycle management
-        self.ack_manager = ACKLifecycleManager(
-            router_client=self.router,
-            activity_buffer=self.buffer,
-            agent_id=self.agent_id
-        )
-        
-        # Set up message processor with handlers
-        self.processor = MessageProcessor(self.ack_manager)
-        self.processor.register_handler(C.DATA, self.handle_data)
-        self.processor.set_default_handler(self.handle_unknown)
+agent_id = "example-consumer"
+registry = RegistryClient(grpc.insecure_channel("localhost:50052"))
+router = RouterClient(grpc.insecure_channel("localhost:50051"))
+registry.register({"agent_id": agent_id, "name": "Example consumer",
+                   "capabilities": ["display"]})
+
+for item in router.stream_incoming(agent_id):
+    # Printing is the work in this example. An interrupted delivery may print twice.
+    print(item.msg.message_id, item.msg.payload)
+    ack = router.ack_delivery(agent_id, item.seq, item.msg.message_id)
+    if not ack.recorded:
+        print("Delivery was already released or is no longer in flight")
 ```
 
-## Message Handlers
-
-Add message processing logic:
-
-```python
-    def handle_data(self, envelope):
-        """Handle DATA messages."""
-        message_id = envelope.get("message_id", "")
-        payload = envelope.get("payload", b"")
-        
-        print(f"📨 Processing DATA message {message_id}")
-        print(f"   Payload size: {len(payload)} bytes")
-        
-        # Process the message (echo back with metadata)
-        response = {
-            "original_id": message_id,
-            "agent_id": self.agent_id,
-            "status": "processed",
-            "payload_size": len(payload),
-            "timestamp": int(time.time())
-        }
-        
-        # Send response using ACK manager
-        from sw4rm.envelope import build_envelope
-        response_env = build_envelope(
-            producer_id=self.agent_id,
-            message_type=C.DATA,
-            content_type="application/json", 
-            payload=json.dumps(response).encode()
-        )
-        # Note: SDK helpers populate required envelope fields such as
-        # `correlation_id`, `sequence_number`, and `content_length`. An
-        # `idempotency_token` may be attached for exactly-once effects.
-        
-        result = self.ack_manager.send_message_with_ack(response_env)
-        print(f"✅ Response sent: {result.success}")
-        
-        return "data_processed"
-    
-    def handle_unknown(self, envelope):
-        """Handle unknown message types."""
-        msg_type = envelope.get("message_type", "unknown")
-        print(f"❓ Unknown message type: {msg_type}")
-        return "unknown_handled"
-```
-
-## Registration and Main Loop
-
-Add service registration and message processing:
-
-```python
-    def register(self):
-        """Register with the registry service."""
-        descriptor = {
-            "agent_id": self.agent_id,
-            "name": "MyFirstAgent",
-            "description": "Learning the SW4RM SDK",
-            "capabilities": ["echo", "processing"],
-            "communication_class": C.STANDARD,
-            "modalities_supported": ["application/json"],
-        }
-        
-        try:
-            response = self.registry.register(descriptor)
-            accepted = getattr(response, 'accepted', False)
-            reason = getattr(response, 'reason', '')
-            
-            if accepted:
-                print(f"✅ Registered successfully: {reason}")
-            else:
-                print(f"❌ Registration failed: {reason}")
-            
-            return accepted
-        except Exception as e:
-            print(f"❌ Registration error: {e}")
-            return False
-    
-    def run(self):
-        """Main message processing loop."""
-        print(f"🚀 Starting message loop for {self.agent_id}")
-        
-        try:
-            for item in self.router.stream_incoming(self.agent_id):
-                if self.stop_requested:
-                    break
-                
-                # Convert protobuf message to dict
-                envelope_msg = getattr(item, "msg", item)
-                envelope = {
-                    "message_id": getattr(envelope_msg, "message_id", ""),
-                    "message_type": getattr(envelope_msg, "message_type", 0),
-                    "content_type": getattr(envelope_msg, "content_type", ""),
-                    "payload": getattr(envelope_msg, "payload", b""),
-                    "producer_id": getattr(envelope_msg, "producer_id", ""),
-                }
-                
-                # Process with automatic ACK handling
-                result = self.processor.process_message(envelope)
-                print(f"📋 Processed: {result.success}")
-                
-        except KeyboardInterrupt:
-            print("🛑 Stopped by user")
-        except Exception as e:
-            print(f"❌ Error in message loop: {e}")
-```
-
-## Graceful Shutdown
-
-Add cleanup and shutdown logic:
-
-```python
-class MyFirstAgent:
-    def shutdown(self):
-        """Clean shutdown."""
-        print("🔄 Shutting down...")
-        self.stop_requested = True
-        
-        # Save state
-        self.buffer.flush()
-        
-        # Deregister
-        try:
-            self.registry.deregister(self.agent_id, reason="shutdown")
-            print("✅ Deregistered successfully")
-        except Exception as e:
-            print(f"⚠️ Deregister failed: {e}")
-        
-        # Show final stats
-        total = len(self.buffer._by_id)
-        unacked = len(self.buffer.unacked())
-        print(f"📊 Final stats: {total} total messages, {unacked} unacked")
-
-def main():
-    agent = MyFirstAgent("quickstart-agent")
-    
-    # Handle shutdown signals
-    def signal_handler(signum, frame):
-        print(f"\n📡 Received signal {signum}")
-        agent.shutdown()
-        sys.exit(0)
-    
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
-    # Connect and run
-    agent.connect("localhost:50051", "localhost:50052")
-    
-    if agent.register():
-        agent.run()
-    else:
-        print("❌ Failed to register, exiting")
-        return 1
-    
-    agent.shutdown()
-    return 0
-
-if __name__ == "__main__":
-    import sys
-    sys.exit(main())
-```
-
-## Test Your Agent
-
-Create a test client (`test_my_agent.py`):
-
-```python
-#!/usr/bin/env python3
-"""Test script for my first agent."""
-
-import grpc
-import json
-import time
-from sw4rm.clients.router import RouterClient
-from sw4rm.envelope import build_envelope
-from sw4rm import constants as C
-
-def test_agent():
-    # Connect to router
-    channel = grpc.insecure_channel("localhost:50051")
-    router = RouterClient(channel)
-    
-    # Send test message
-    test_data = {
-        "message": "Hello from test!", 
-        "timestamp": int(time.time())
-    }
-    
-    envelope = build_envelope(
-        producer_id="test-client",
-        message_type=C.DATA,
-        content_type="application/json",
-        payload=json.dumps(test_data).encode()
-    )
-    # Tip: `build_envelope(...)` will generate a `correlation_id` and
-    # compute `content_length`; you can inspect them on the returned object.
-    
-    # Send message
-    response = router.send_message(envelope)
-    accepted = getattr(response, 'accepted', False)
-    reason = getattr(response, 'reason', '')
-    
-    print(f"✅ Message sent: accepted={accepted}, reason={reason}")
-
-if __name__ == "__main__":
-    test_agent()
-```
-
-## Run Your Agent
-
-!!! tip "Two Terminal Setup"
-    You'll need two terminals - one for the agent and one for testing.
-
-**Terminal 1 - Start your agent:**
-
-
-```bash
-python my_first_agent.py
-```
-
-Expected output:
-```
-🔌 Connecting to router: localhost:50051, registry: localhost:50052
-✅ Registered successfully: 
-🚀 Starting message loop for quickstart-agent
-```
-
-**Terminal 2 - Test your agent:**
-
-
-```bash
-python test_my_agent.py
-```
-
-**Back in Terminal 1**, you should see:
-```
-📨 Processing DATA message msg-123
-   Payload size: 45 bytes
-✅ Response sent: True
-📋 Processed: True
-```
-
-## Understanding the Flow
-
-Here's what happens when you run your agent:
+`item.seq` identifies router delivery storage; it is not the envelope's sequence
+number. A failed handler should leave the item unacknowledged so it can be retried.
+Use a permanent-failure acknowledgement only when deliberately abandoning work.
 
 ```mermaid
 sequenceDiagram
-    participant Agent
-    participant Registry
-    participant Router
-    participant TestClient
-    
-    Agent->>Registry: Register("quickstart-agent")
-    Registry-->>Agent: Registration confirmed
-    
-    Agent->>Router: StreamIncoming("quickstart-agent")
-    Router-->>Agent: Stream established
-    
-    TestClient->>Router: SendMessage(DATA)
-    Router-->>TestClient: Message accepted
-    
-    Router->>Agent: Deliver message
-    Agent->>Agent: Process with handler
-    Agent->>Router: Send response
-    Agent->>Router: Send ACKs (RECEIVED, READ, FULFILLED)
+    autonumber
+    participant P as Producer
+    participant R as Router
+    participant A as Your agent
+    P->>R: SendMessage
+    R->>A: StreamItem (seq)
+    note over A: handler runs (prints)
+    alt crash before ack_delivery
+        note over R: pending row retained<br/>until lease expiry or reconnect
+        R->>A: StreamItem (seq) — delivered again
+    end
+    A->>R: ack_delivery (agent_id, seq, message_id)
+    R-->>A: recorded=true — delivery released
 ```
 
-## Key Concepts
+## Send a message
 
-### Automatic ACK Lifecycle
-
-The `MessageProcessor` automatically sends acknowledgments:
-
-
-1. **RECEIVED** - Immediately when message arrives
-2. **READ** - Before processing begins  
-3. **FULFILLED** - On successful processing
-4. **REJECTED/FAILED** - On processing errors
-
-### Activity Buffer
-
-The `PersistentActivityBuffer` tracks:
-
-
-- All incoming and outgoing messages
-- ACK progression for each message
-- Messages that need reconciliation
-- State persisted to `sw4rm_activity.json`
-
-### Message Handlers
-
-Handlers are functions that:
-
-
-- Receive envelope dictionaries
-- Return status strings
-- Are automatically wrapped with ACK logic
-- Can send responses through the ACK manager
-
-## Troubleshooting
-
-### "Connection refused"
-
-The most common issue is services not running:
+In another process:
 
 ```python
-# Update connection addresses if needed
-agent.connect("your-router:50051", "your-registry:50052")
+import grpc
+from sw4rm import constants as C
+from sw4rm.envelope import build_envelope
+from sw4rm.clients.router import RouterClient
+
+router = RouterClient(grpc.insecure_channel("localhost:50051"))
+envelope = build_envelope(producer_id="example-producer", message_type=C.DATA,
+                          content_type="text/plain", payload=b"hello")
+response = router.send_message(envelope)
+print(response.accepted, response.reason)
 ```
 
-### "Protobuf stubs not generated"
+The Python reference routing profile delivers to eligible known queues except
+the producer. It is not a general addressed task router. An accepted send means
+the router accepted delivery responsibility; it does not mean the consumer's
+work completed.
 
-```bash
-make protos
+## Add real work
+
+Replace printing with a bounded handler. If recovery must suppress already
+completed work, use an idempotency token and a persistent completion record;
+flush it before acknowledging delivery. If an external effect succeeds before
+that record is persisted, a crash can still cause the effect to repeat.
+Use a downstream idempotency key or an effect/completion transaction when needed.
+
+See [activity-buffer persistence](persistence.md),
+[delivery migration](../release-status.md), and
+[the router API](../clients/router.md). Application ACK envelopes report progress
+separately from the delivery acknowledgement shown here.
+
+## A complete handler skeleton
+
+The small loop below shows the boundaries that matter when turning the example
+into an application. It records an incoming envelope before work, uses the
+stable idempotency token when one is supplied, and releases the Router row only
+after the handler has reached its chosen completion point. The activity buffer
+is an application aid; it does not make an external database or API call
+atomic with the acknowledgement.
+
+```python
+import grpc
+from pathlib import Path
+
+from sw4rm import constants as C
+from sw4rm.activity_buffer import PersistentActivityBuffer
+from sw4rm.clients.registry import RegistryClient
+from sw4rm.clients.router import RouterClient
+from sw4rm.persistence import JSONFilePersistence
+
+agent_id = "example-consumer"
+state_dir = Path(".sw4rm-state")
+state_dir.mkdir(parents=True, exist_ok=True)
+buffer = PersistentActivityBuffer(
+    persistence=JSONFilePersistence(str(state_dir / "activity.json")),
+    dedup_window_s=3600,
+)
+registry = RegistryClient(grpc.insecure_channel("localhost:50052"))
+router = RouterClient(grpc.insecure_channel("localhost:50051"))
+registry.register({
+    "agent_id": agent_id,
+    "name": "Example consumer",
+    "description": "A bounded quickstart consumer",
+    "capabilities": ["display"],
+})
+
+for item in router.stream_incoming(agent_id):
+    envelope = item.msg
+    # Convert the generated message to the dict shape used by the buffer.
+    record = {field: getattr(envelope, field) for field in (
+        "message_id", "producer_id", "correlation_id", "idempotency_token",
+        "message_type", "content_type", "content_length", "payload",
+    ) if hasattr(envelope, field)}
+    token = record.get("idempotency_token", "")
+    existing = buffer.get_by_idempotency_token(token) if token else None
+    if existing and existing.ack_stage == C.FULFILLED:
+        router.ack_delivery(agent_id, item.seq, envelope.message_id)
+        continue
+    buffer.record_incoming(record)
+    buffer.flush()  # Retain the receipt before the handler runs.
+    print(envelope.payload)
+    buffer.ack({
+        "ack_for_message_id": envelope.message_id,
+        "ack_stage": C.FULFILLED,
+        "error_code": C.ERROR_CODE_UNSPECIFIED,
+    })
+    buffer.flush()
+    router.ack_delivery(agent_id, item.seq, envelope.message_id)
 ```
 
-### "Permission denied on files"
+The generated protobuf uses integer enum values; use the constants exported by
+`sw4rm.constants` rather than guessing numbers. If processing fails, leave the
+delivery unacknowledged so the Router can redeliver it. If the input is
+permanently invalid and will never succeed, retain the reason for operators
+before acknowledging with `permanent_failure=True`.
 
-```bash
-# Create directory with proper permissions
-mkdir -p ./agent_data
-chmod 755 ./agent_data
+## Sending a correlated response
+
+`build_envelope` is the safest starting point for an outgoing message because
+it fills the required identity and content metadata. Keep the request's
+`correlation_id` when the response belongs to that request and give retries a
+stable `idempotency_token`. This fragment belongs inside the handler above and
+uses its `envelope`, `agent_id`, and `router`:
+
+```python
+from sw4rm.envelope import build_envelope
+
+# Derive this from the incoming logical operation, not a fixed global token.
+request_key = envelope.idempotency_token or envelope.message_id
+reply = build_envelope(
+    producer_id=agent_id,
+    message_type=C.DATA,
+    content_type="text/plain",
+    payload=b"processed",
+    correlation_id=envelope.correlation_id,
+    idempotency_token=f"reply:{agent_id}:{request_key}",
+)
+sent = router.send_message(reply)
+if not sent.accepted:
+    raise RuntimeError(sent.reason)
 ```
 
-## What's Next?
+The exact destination and routing profile depend on the deployed reference
+service. Confirm the generated RPC contract and the [Router client reference](../clients/router.md)
+before treating an accepted send as proof that another agent completed work.
+If the request has no stable token, an application retry with a new message ID
+cannot be recognized as the same operation by this fallback key. Supply a
+logical request ID for that case. For reliable replies, persist the reply as an
+outgoing intent before marking the input complete, and reconcile unsent replies
+on restart; this fragment alone is not a durable request/response runtime.
 
-Your agent now handles basic message processing with persistent state! 
+## Troubleshooting the first run
 
-The next section adds more advanced features:
-
-- Worktree management
-- Custom control commands  
-- Cross-restart state recovery
-
-[Add Persistence Features →](persistence.md){ .md-button .md-button--primary }
+- `Protobuf stubs not generated`: run `make protos` from the repository root.
+- `UNAVAILABLE` or connection refused: start the Router and Registry on ports
+  50051 and 50052, or update the channel addresses.
+- No delivery arrives: ensure the consumer is registered with the exact
+  `agent_id` used by the stream and that the sender's envelope matches the
+  configured routing profile.
+- A message appears twice: this is expected when a process dies before
+  `ack_delivery`; use the idempotency token and persisted completion state.
+- State will not load: inspect the persistence error and restore the snapshot;
+  only opt into `load_failure_mode="empty"` when losing recovery history is
+  acceptable.

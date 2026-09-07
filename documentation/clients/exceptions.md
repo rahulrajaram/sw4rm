@@ -15,7 +15,8 @@ SW4RMError (base)
 ├── PreemptionError
 ├── WorktreeError
 ├── NegotiationError
-└── StateTransitionError
+├── StateTransitionError
+└── BufferFullError
 
 WorkflowEngineError (separate base)
 ├── CycleDetectedError
@@ -229,6 +230,51 @@ except StateTransitionError as e:
     if e.current_state == "INITIALIZING":
         agent.start()
         agent.schedule("task-123")
+```
+
+### BufferFullError
+
+Raised when the activity buffer is at capacity. Per spec §10.1,
+implementations MUST NOT silently drop entries when limits are reached; the
+buffer rejects new registrations with `error_code=BUFFER_FULL`.
+
+```python
+class BufferFullError(SW4RMError):
+    """Exception raised when the activity buffer is at capacity.
+
+    Attributes:
+        message: Human-readable error description
+        error_code: Protocol error code (BUFFER_FULL)
+        current_size: Current number of entries in the buffer
+        max_size: Maximum allowed entries
+    """
+
+    def __init__(
+        self,
+        message: str,
+        current_size: int,
+        max_size: int,
+        error_code: Optional[int] = None  # defaults to BUFFER_FULL
+    ) -> None: ...
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `message` | `str` | Required | Human-readable error description |
+| `current_size` | `int` | Required | Current number of entries in the buffer |
+| `max_size` | `int` | Required | Maximum allowed entries |
+| `error_code` | `int` | `BUFFER_FULL` | Protocol error code |
+
+**Usage:**
+
+```python
+from sw4rm.exceptions import BufferFullError
+
+try:
+    buffer.update_state(message_id, C.READ_ENVELOPE)
+except BufferFullError as e:
+    print(f"Buffer full: {e.current_size}/{e.max_size} entries")
+    # Persist or evict entries, then retry
 ```
 
 ### PolicyViolationError

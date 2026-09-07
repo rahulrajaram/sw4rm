@@ -122,12 +122,13 @@ async fn main() -> Result<()> {
     println!("Message sent: accepted={}, reason={}", result.accepted, result.reason);
 
     // Stream incoming messages for this agent
-    let mut stream = router.stream_incoming("receiver-agent").await?;
+    let mut stream = router.stream_incoming_with_seq("receiver-agent").await?;
     println!("Listening for incoming messages...");
 
     while let Some(envelope_result) = stream.next().await {
         match envelope_result {
-            Ok(envelope) => {
+            Ok(incoming) => {
+                let envelope = incoming.envelope;
                 println!("Received message: {} from {}", 
                         envelope.message_id, envelope.producer_id);
                 
@@ -143,6 +144,7 @@ async fn main() -> Result<()> {
                     constants::message_type::HEARTBEAT => handle_heartbeat(&envelope).await?,
                     _ => println!("Unknown message type: {}", envelope.message_type),
                 }
+                router.ack_delivered("receiver-agent", incoming.seq).await?;
             },
             Err(e) => {
                 eprintln!("Stream error: {}", e);
@@ -172,6 +174,35 @@ async fn handle_heartbeat(envelope: &EnvelopeData) -> Result<()> {
     Ok(())
 }
 ```
+
+### At-least-once router delivery with ACKs
+
+Keep the router sequence from each stream item and acknowledge only after the
+consumer has completed its side effect:
+
+```rust
+let mut stream = router.stream_incoming_with_seq("receiver-agent").await?;
+while let Some(result) = stream.next().await {
+    let incoming = result?;
+    let message_id = incoming.envelope.message_id.clone();
+
+    if let Err(error) = process_message(&incoming.envelope).await {
+        router
+            .ack_permanent_failure("receiver-agent", incoming.seq, &message_id)
+            .await?;
+        eprintln!("Dropped {}: {error}", message_id);
+        continue;
+    }
+
+    router
+        .ack_delivered("receiver-agent", incoming.seq)
+        .await?;
+}
+```
+
+The sequence is stable across lease based redelivery. Consumers should use
+the envelope idempotency token (or another durable deduplication key) before
+performing a side effect.
 
 ## Tool Execution with Streaming
 

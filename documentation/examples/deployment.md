@@ -1,11 +1,11 @@
-# 4. Deployment Patterns
+# 4.3 Deployment Patterns
 
-This guide is a pragmatic, step-by-step walkthrough for deploying SW4RM-based systems from local development to production. It includes actionable commands for macOS and Debian Linux, Python SDK usage snippets, and Infrastructure-as-Code examples with Docker Compose and Kubernetes. When a detail is ambiguous or environment-specific, we call it out explicitly and suggest a safe default. We also record outstanding ambiguities and assumptions in DEPLOYMENT_PATTERNS.md.
+This guide is a pragmatic, step-by-step walkthrough for deploying SW4RM-based systems from local development to production. It includes actionable commands for macOS and Debian Linux, Python SDK usage snippets, and Infrastructure-as-Code examples with Docker Compose and Kubernetes. When a detail is ambiguous or environment-specific, we call it out explicitly and suggest a safe default. Outstanding ambiguities and assumptions are called out inline where they arise.
 
 Important defaults used by the Python SDK (see `sdks/py_sdk/sw4rm/constants.py`):
 
-- Router address env var: `SW4RM_ROUTER_ADDR` (default `localhost:50051`)
-- Registry address env var: `SW4RM_REGISTRY_ADDR` (default `localhost:50052`)
+- Router address env var: `SW4RM_ROUTER_ADDR` (default `http://localhost:50051`)
+- Registry address env var: `SW4RM_REGISTRY_ADDR` (default `http://localhost:50052`)
 - Optional: `AGENT_ID`, `AGENT_NAME` for client identity; sensible defaults apply.
 
 Tip: After setup, validate SDK wiring:
@@ -14,7 +14,7 @@ Tip: After setup, validate SDK wiring:
 sw4rm-doctor
 ```
 
-## 4.1. Prerequisites
+## 4.3.1 Prerequisites
 
 Choose your OS to prepare a baseline environment for local development and operator workflows.
 
@@ -62,9 +62,9 @@ Choose your OS to prepare a baseline environment for local development and opera
 
 
 - `grpcurl` is optional but useful for quick gRPC health checks.
-- If your environment uses a proxy or corporate CA, ensure Docker and Python trust your CA (see `DEPLOYMENT_PATTERNS.md` for notes on custom CAs and mTLS).
+- If your environment uses a proxy or corporate CA, ensure Docker and Python trust your CA (custom CA and mTLS notes appear inline below where relevant).
 
-## 4.2. Local Development (Single Node)
+## 4.3.2 Local Development (Single Node)
 
 Run the core control plane services (Router, Registry, Scheduler) on localhost for fast iteration. Use file-backed persistence and allow insecure transport locally unless you are explicitly testing mTLS.
 
@@ -104,7 +104,7 @@ Option A — Python SDK only (connect to an existing control plane):
     ```
 4. Point SDK to local endpoints via environment variables (see the env block below).
 
-### Python: connecting to Router and Registry
+### 4.3.2.1 Python: connecting to Router and Registry
 
 Ensure stubs are generated before running clients:
 
@@ -127,8 +127,8 @@ from sw4rm.clients.router import RouterClient
 from sw4rm.clients.registry import RegistryClient
 
 # Optionally set env vars before import or in your shell:
-# export SW4RM_ROUTER_ADDR=localhost:50051
-# export SW4RM_REGISTRY_ADDR=localhost:50052
+# export SW4RM_ROUTER_ADDR=http://localhost:50051
+# export SW4RM_REGISTRY_ADDR=http://localhost:50052
 # export AGENT_ID=agent-1
 # export AGENT_NAME="Agent One"
 
@@ -180,115 +180,75 @@ except Exception as e:
     print("Stream failed; is Router running?", e)
 ```
 
-## 4.2.1. Build Your Own Images (Local Development)
+## 4.3.3 Build Your Own Images (Local Development)
 
-If you don't have published container images yet, build local images and reference them in Compose. Below are templates; replace paths/names with your implementation.
+If you don't have published container images yet, the repository ships ready-made
+Dockerfiles and a Compose file for the Python reference services:
 
-Example Dockerfile for a service (Python-based):
+```text
+sdks/py_sdk/reference-services/docker/Dockerfile.router
+sdks/py_sdk/reference-services/docker/Dockerfile.registry
+sdks/py_sdk/reference-services/docker/Dockerfile.scheduler
+sdks/py_sdk/reference-services/docker/docker-compose.yml
+```
+
+Build and start the canonical stack from the repository root:
+
+```bash
+cd sdks/py_sdk/reference-services/docker
+docker compose up -d --build
+```
+
+This publishes router (`50051`), registry (`50052`), and scheduler (`50053`)
+plus one metrics port each (`9100`–`9102`), and persists state to Docker
+volumes. (`sdks/js_sdk/reference-services/docker` and
+`sdks/rust_sdk/reference-services/docker` ship equivalent stacks for their
+SDKs.)
+
+If instead you are bringing your own service images, the minimal shape is:
+
+```yaml
+services:
+  router:
+    build: ./                 # path to your router source
+    image: sw4rm-router:dev
+    ports: ["50051:50051"]
+    restart: unless-stopped
+```
+
+For a service implementation that is not supplied by this repository, the
+equivalent local image can be built from a small Python service image and
+mounted state volume:
 
 ```dockerfile
 FROM python:3.11-slim
 WORKDIR /app
 COPY . /app
-RUN pip install --no-cache-dir -e .
+RUN python -m pip install --no-cache-dir -e .
 EXPOSE 50051
 CMD ["python", "-m", "your_service.entrypoint", "--addr", "0.0.0.0:50051"]
 ```
 
-Compose referencing local builds:
-
 ```yaml
-version: '3.9'
 services:
   router:
-    build: ./examples/reference-services/        # path to your router source
+    build: .
     image: sw4rm-router:dev
     ports: ["50051:50051"]
     volumes: ["router-data:/var/lib/sw4rm"]
     restart: unless-stopped
 
-  registry:
-    build: ./examples/reference-services/
-    image: sw4rm-registry:dev
-    ports: ["50052:50052"]
-    restart: unless-stopped
-
-  scheduler:
-    build: ./examples/reference-services/
-    image: sw4rm-scheduler:dev
-    ports: ["50053:50053"]
-    restart: unless-stopped
-
 volumes:
   router-data:
 ```
 
-Build and start:
+Replace the entry point, image, and state directory with the service's actual
+implementation. Keep state on a named volume or external store rather than in
+the container layer. A Compose file starts processes; it does not provide
+shared-state failover, TLS, authorization, backups, or a guarantee that two
+Router instances coordinate pending rows.
 
-```bash
-docker compose build
-docker compose up -d
-```
-
-### Docker Compose: local dev stack (single-node)
-
-The following Compose file builds Router, Registry, and Scheduler from your local sources, publishes standard ports, and persists Router state to a local volume.
-
-```yaml
-version: '3.9'
-services:
-  router:
-    build: ./examples/reference-services/
-    image: sw4rm-router:dev
-    container_name: sw4rm-router
-    ports:
-      - "50051:50051"  # Router
-    volumes:
-      - router-data:/var/lib/sw4rm
-    restart: unless-stopped
-
-  registry:
-    build: ./examples/reference-services/
-    image: sw4rm-registry:dev
-    container_name: sw4rm-registry
-    ports:
-      - "50052:50052"  # Registry
-    restart: unless-stopped
-
-  scheduler:
-    build: ./examples/reference-services/
-    image: sw4rm-scheduler:dev
-    container_name: sw4rm-scheduler
-    ports:
-      - "50053:50053"  # Scheduler
-    restart: unless-stopped
-
-volumes:
-  router-data:
-```
-
-Environment variables for your Python clients:
-
-```bash
-export SW4RM_ROUTER_ADDR=localhost:50051
-export SW4RM_REGISTRY_ADDR=localhost:50052
-export AGENT_ID=my-agent
-export AGENT_NAME="My Agent"
-```
-
-macOS specific notes:
-
-
-- Use Docker Desktop; `docker compose` is available as part of it.
-- For grpcurl installs via Homebrew, omit `sudo`. Use `grpcurl -plaintext` for local.
-
-Debian specific notes:
-
-
-- If `docker compose` subcommand is not present, use `docker-compose` or install the compose plugin (`docker-compose-plugin`).
-- If `grpcurl` is not available via apt, use the binary release or `go install`.
-
-## 4.3. Single-Node Production (VM/Bare metal)
+## 4.3.4 Single-Node Production (VM/Bare metal)
 
 Consolidate services on one host/VM for a small production footprint. Add supervision, persistence, and security hardening.
 
@@ -321,7 +281,7 @@ WantedBy=multi-user.target
 
 Note: Binary names and flags may differ depending on your distribution or packaging. If you rely on containers even on single-node hosts, prefer the Docker Compose approach with pinned image tags.
 
-## 4.4. Multi-Node, Highly Available
+## 4.3.5 Multi-Node, Highly Available
 
 Scale out the control plane horizontally behind L4/L7 load balancers; use HA backends for shared state where applicable.
 
@@ -333,7 +293,7 @@ Checklist:
 - Networking: enforce mTLS for all east-west traffic; segment networks by environment/tenant. Use security groups and network policies.
 - Capacity: set HPA or autoscaling policies and budget headroom for failover.
 
-## 4.5. Kubernetes Reference Manifests
+## 4.3.6 Kubernetes Reference Manifests
 
 The snippet below targets a minimal, non-mTLS dev cluster. Replace image tags with your approved versions. For production, add PodSecurity, NetworkPolicy, Secrets for TLS, resource quotas, and PodDisruptionBudgets.
 
@@ -486,8 +446,8 @@ Client configuration inside the cluster (Python SDK):
 
 ```bash
 # If your app runs in the cluster, target the ClusterIP services
-export SW4RM_ROUTER_ADDR=router.sw4rm.svc.cluster.local:50051
-export SW4RM_REGISTRY_ADDR=registry.sw4rm.svc.cluster.local:50052
+export SW4RM_ROUTER_ADDR=http://router.sw4rm.svc.cluster.local:50051
+export SW4RM_REGISTRY_ADDR=http://registry.sw4rm.svc.cluster.local:50052
 ```
 
 Health checks:
@@ -529,7 +489,7 @@ volumes:
 
 Client-side (Python SDK) would set `secure=True` when creating the channel and load CA/cert/key as needed.
 
-## 4.5.1. Build Your Own Images (Kubernetes)
+## 4.3.7 Build Your Own Images (Kubernetes)
 
 For dev clusters without published images, build and push images to a local registry, then reference them in the manifests:
 
@@ -541,14 +501,14 @@ docker push localhost:5000/sw4rm-router:dev
 # Update Deployment image: localhost:5000/sw4rm-router:dev
 ```
 
-## 4.6. Environment Configuration Cheatsheet
+## 4.3.8 Environment Configuration Cheatsheet
 
 Common environment variables used by the Python SDK and examples:
 
 ```bash
 # Endpoints
-export SW4RM_ROUTER_ADDR=localhost:50051
-export SW4RM_REGISTRY_ADDR=localhost:50052
+export SW4RM_ROUTER_ADDR=http://localhost:50051
+export SW4RM_REGISTRY_ADDR=http://localhost:50052
 
 # Agent identity (used by sdks/py_sdk/sw4rm/config.py)
 export AGENT_ID=agent-1
@@ -558,7 +518,7 @@ export AGENT_NAME="Agent"
 export LOG_LEVEL=DEBUG
 ```
 
-## 4.7. Rollout and Operations Checklist
+## 4.3.9 Rollout and Operations Checklist
 
 
 - Identity and transport: TLS/mTLS configured, cert rotation scheduled, authorization policies validated.
@@ -568,7 +528,7 @@ export LOG_LEVEL=DEBUG
 - Resilience: retry, DLQ, and backoff policies verified; chaos tests performed; runbooks documented and discoverable.
 - Release hygiene: pinned image tags; reproducible environment; automated rollbacks and change audit.
 
-## 4.8. Troubleshooting Quick Wins
+## 4.3.10 Troubleshooting Quick Wins
 
 
 - Python SDK errors about missing protobuf stubs:
@@ -581,7 +541,7 @@ export LOG_LEVEL=DEBUG
 - Kubernetes readiness flaps: relax initial delays, check CPU throttling, and ensure probes match actual listening ports.
 - Compose + macOS: ensure Docker Desktop is running and file sharing is permitted for the volume mount path.
 
-## 4.9. Storage Backends (Pluggable)
+## 4.3.11 Storage Backends (Pluggable)
 
 Implementers may choose storage backends per component using URI-style configuration. Examples (non-normative):
 
@@ -597,7 +557,7 @@ Implementers may choose storage backends per component using URI-style configura
 
 Document which backends each implementation supports; the protocol remains storage-agnostic.
 
-## 4.10. Observability (Optional)
+## 4.3.12 Observability (Optional)
 
 OpenTelemetry exporters (recommended neutral default):
 

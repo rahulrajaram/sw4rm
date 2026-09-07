@@ -2,13 +2,13 @@
 
 Pick the SDK you want to use, install that toolchain, and run one of the example agents. Python is the shortest path for first-time users; the other SDKs follow the same high-level flow.
 
-## 2.1. Fast Path
+## Fast Path
 
 1. Install the SDK from your checkout or package manager.
 2. Generate proto bindings if your language needs them.
 3. Run the smallest example first, then move to the capability-specific walkthroughs in `documentation/examples/index.md`.
 
-## 2.2. SDK Overview
+## SDK Overview
 
 | SDK | Install path | Example to start with |
 |---|---|---|
@@ -18,7 +18,7 @@ Pick the SDK you want to use, install that toolchain, and run one of the example
 | Common Lisp | Load the local ASDF system from `sdks/cl_sdk` | `sdks/cl_sdk/examples/echo-agent.lisp` |
 | Elixir | Run from the local `sdks/ex_sdk` checkout with `mix` | `sdks/ex_sdk/examples/basic_agent.exs` |
 
-## 2.3. What To Read Next
+## What To Read Next
 
 - [Installation](installation.md) for language-specific setup.
 - [Examples](../examples/index.md) for the capability matrix.

@@ -4,13 +4,17 @@ The Activity Buffer provides in-memory and persistent message tracking for SW4RM
 
 ## Overview
 
-The Activity Buffer serves as the durable log for message lifecycle management:
+The Activity Buffer tracks message lifecycle state. Persistence is optional and
+backend-specific; a snapshot is not a transaction with external effects. See
+[persistence and recovery](../quickstart/persistence.md).
+
+Its responsibilities are:
 
 - **Message Recording:** Track all incoming and outgoing messages
 - **ACK Tracking:** Monitor acknowledgment progression through stages
 - **Deduplication:** Prevent duplicate processing using idempotency tokens
 - **Persistence:** Survive restarts with optional persistent storage
-- **Pruning:** Manage memory with configurable eviction strategies
+- **Capacity:** max_items is enforced per spec §10.1; registrations beyond the limit are rejected with `error_code=activity_buffer_full` (no pluggable eviction API)
 
 **Source:** `sdks/py_sdk/sw4rm/activity_buffer.py`
 
@@ -80,35 +84,45 @@ class ActivityRecord:
 
 Messages progress through ACK stages as they are processed:
 
-```
-UNSPECIFIED (0) → RECEIVED (1) → READ (2) → FULFILLED (3)
-                                          ↘ REJECTED (4)
-                                          ↘ FAILED (5)
-                                          ↘ TIMED_OUT (6)
+```mermaid
+stateDiagram-v2
+    [*] --> UNSPECIFIED
+    UNSPECIFIED --> RECEIVED
+    RECEIVED --> READ
+    READ --> FULFILLED
+    READ --> REJECTED
+    READ --> FAILED
+    READ --> TIMED_OUT
+    FULFILLED --> [*]
+    REJECTED --> [*]
+    FAILED --> [*]
+    TIMED_OUT --> [*]
 ```
 
-| Stage | Value | Description |
+| Stage | Value | Description (canonical meaning in [acks.md](./acks.md)) |
 |-------|-------|-------------|
-| `ACK_STAGE_UNSPECIFIED` | 0 | Not yet acknowledged |
-| `RECEIVED` | 1 | Router durably accepted the message |
-| `READ` | 2 | Target validated and accepted for processing |
-| `FULFILLED` | 3 | Target completed processing successfully |
-| `REJECTED` | 4 | Target rejected the message (validation failure) |
-| `FAILED` | 5 | Processing failed (internal error) |
-| `TIMED_OUT` | 6 | Processing exceeded timeout |
+| `ACK_STAGE_UNSPECIFIED` | 0 | No stage specified |
+| `RECEIVED` | 1 | Received for processing |
+| `READ` | 2 | Read/validated by the consumer |
+| `FULFILLED` | 3 | Application reports successful processing |
+| `REJECTED` | 4 | Rejected by application or policy |
+| `FAILED` | 5 | Processing failed |
+| `TIMED_OUT` | 6 | Processing deadline expired |
 
 ### Terminal States
 
-Use `is_terminal_state()` to check if an envelope has reached a final state:
+Use `is_terminal_state()` to check if an envelope has reached a final state. The
+argument is an **envelope** state; use the `*_ENVELOPE` constants (the bare
+`C.FULFILLED` is an ACK-stage value and would be the wrong state):
 
 ```python
 from sw4rm.activity_buffer import is_terminal_state
 from sw4rm import constants as C
 
-# Terminal states: FULFILLED, REJECTED, FAILED, TIMED_OUT
-is_terminal_state(C.FULFILLED)    # True
-is_terminal_state(C.REJECTED)     # True
-is_terminal_state(C.READ)         # False - still processing
+# Terminal envelope states: FULFILLED_ENVELOPE, REJECTED_ENVELOPE, FAILED_ENVELOPE, TIMED_OUT_ENVELOPE
+is_terminal_state(C.FULFILLED_ENVELOPE)   # True
+is_terminal_state(C.REJECTED_ENVELOPE)    # True
+is_terminal_state(C.READ_ENVELOPE)        # False - still processing
 ```
 
 ## ActivityBuffer (In-Memory)
@@ -120,15 +134,13 @@ class ActivityBuffer:
     def __init__(
         self,
         *,
-        max_items: int = 1000,
-        strategy: Optional[BufferStrategy] = None,
+        max_items: int = 10000,
         dedup_window_s: int = 3600
     ) -> None:
         """Create an in-memory activity buffer.
 
         Args:
-            max_items: Maximum records before pruning (default: 1000)
-            strategy: Pruning strategy (default: FIFOBufferStrategy)
+            max_items: Maximum records before capacity is enforced (default: 10000)
             dedup_window_s: Deduplication window in seconds (default: 3600)
         """
 ```
@@ -258,17 +270,15 @@ class PersistentActivityBuffer:
     def __init__(
         self,
         *,
-        max_items: int = 1000,
+        max_items: int = 10000,
         persistence: Optional[PersistenceBackend] = None,
-        strategy: Optional[BufferStrategy] = None,
         dedup_window_s: int = 3600
     ) -> None:
         """Create a persistent activity buffer.
 
         Args:
-            max_items: Maximum records before pruning (default: 1000)
+            max_items: Maximum records before capacity is enforced (default: 10000)
             persistence: Storage backend (default: JSONFilePersistence)
-            strategy: Pruning strategy (default: FIFOBufferStrategy)
             dedup_window_s: Deduplication window in seconds (default: 3600)
         """
 ```
@@ -317,53 +327,46 @@ with PersistentActivityBuffer(persistence=JSONFilePersistence("./data")) as buff
 # Buffer is automatically flushed on exit
 ```
 
-## Buffer Strategies
+## Capacity and overflow handling
 
-Buffer strategies determine which records to evict when capacity is exceeded:
+The old `FIFOBufferStrategy`, `LIFOBufferStrategy`, and custom-victim API are
+not part of the current message Activity Buffer contract. Capacity handling is
+deliberate and differs from the SDKs' advisory task-history buffers:
 
-| Strategy | Class | Behavior | Use Case |
-|----------|-------|----------|----------|
-| FIFO | `FIFOBufferStrategy` | Remove oldest first | Default, most predictable |
-| LIFO | `LIFOBufferStrategy` | Remove newest first | Prioritize older messages |
-| Random | `RandomBufferStrategy` | Random eviction | Load balancing |
+| Runtime | Current behavior when full | Practical response |
+|---|---|---|
+| Python `ActivityBuffer` / `PersistentActivityBuffer` | Reject a new message with `BufferFullError`; existing records are preserved | Reconcile or explicitly purge completed records, or increase `max_items`; never silently discard an unacknowledged record |
+| Rust message buffer | Return `Error::BufferFull` | Apply the same explicit reconciliation/purge policy at the caller |
+| Elixir activity buffer | Return `{:error, %BufferFull{}}` for a new key; updates to an existing key remain possible | Remove or reconcile entries, then retry the upsert |
+| JavaScript advisory task history | Apply a count cap by dropping the oldest history records | Treat this as local history, separate from router delivery state |
 
-### Using Custom Strategies
-
-```python
-from sw4rm.buffer_strategy import LIFOBufferStrategy, RandomBufferStrategy
-
-# Prioritize older messages
-buffer = ActivityBuffer(max_items=500, strategy=LIFOBufferStrategy())
-
-# Random eviction with reproducible seed
-buffer = ActivityBuffer(
-    max_items=500,
-    strategy=RandomBufferStrategy(seed=42)
-)
-```
-
-### Creating Custom Strategies
-
-Implement the `BufferStrategy` protocol:
+For Python, a bounded consumer can make the overflow path explicit:
 
 ```python
-from sw4rm.buffer_strategy import BufferStrategy, ItemId
-from typing import Sequence, Iterable
+from sw4rm import constants as C
+from sw4rm.exceptions import BufferFullError
 
-class PriorityBufferStrategy:
-    """Remove low-priority items first."""
-
-    def __init__(self, get_priority):
-        self._get_priority = get_priority
-
-    def victims(self, order: Sequence[ItemId], excess: int) -> Iterable[ItemId]:
-        if excess <= 0:
-            return ()
-
-        # Sort by priority (lowest first)
-        sorted_items = sorted(order, key=self._get_priority)
-        return sorted_items[:excess]
+try:
+    record = buffer.record_incoming(envelope)
+except BufferFullError:
+    # Reconcile completed/terminal records under application policy.
+    terminal_stages = {C.FULFILLED, C.REJECTED, C.FAILED, C.TIMED_OUT}
+    terminal = [r for r in buffer.recent() if r.ack_stage in terminal_stages]
+    raise RuntimeError(
+        f"activity buffer full; {len(terminal)} recent terminal records to inspect"
+    )
 ```
+
+This fragment uses the consumer's existing `buffer` and envelope dictionary.
+`recent()` defaults to the most recent 50 records, so this diagnostic is not
+a count of every terminal record. A terminal record may still be needed for
+deduplication or late-ACK reconciliation; inspect its age and operation outcome
+before purging it.
+
+Capacity is a local bookkeeping limit. It does not release a Router pending
+delivery row, and purging a local activity record does not acknowledge or
+redeliver a message. Keep the router's delivery ACK and the activity buffer's
+recovery record coordinated explicitly.
 
 ## Usage Examples
 

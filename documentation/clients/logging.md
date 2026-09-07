@@ -28,20 +28,20 @@ The service exposes one RPC:
 
 `LoggingClient(channel: grpc.Channel)`
 
-- `channel`: A gRPC channel connected to the LoggingService endpoint (default port: 50066).
+- `channel`: A gRPC channel connected to the LoggingService endpoint (default port: 50060).
 
 ### JavaScript/TypeScript
 
 `new LoggingClient(options: ClientOptions)`
 
 - `options.address`: `host:port` for the LoggingService endpoint.
-- Optional: `deadlineMs`, `retry`, `userAgent`, `interceptors`, `errorMapper`.
+- `ClientOptions` also accepts optional `deadlineMs`, `retry`, `userAgent`, `interceptors`, and `errorMapper` fields — see [client conventions](index.md#61-conventions).
 
 ### Rust
 
 `LoggingClient::new(endpoint: &str) -> Result<LoggingClient>`
 
-- `endpoint`: Full gRPC URL (for example, `http://host:50066`).
+- `endpoint`: Full gRPC URL (for example, `http://host:50060`).
 
 ## 6.10.3. Key Methods
 
@@ -75,7 +75,7 @@ The service exposes one RPC:
     from google.protobuf.timestamp_pb2 import Timestamp
     from sw4rm.clients import LoggingClient
 
-    channel = grpc.insecure_channel("localhost:50066")
+    channel = grpc.insecure_channel("localhost:50060")
     client = LoggingClient(channel)
 
     ts = Timestamp()
@@ -101,7 +101,7 @@ The service exposes one RPC:
     ```ts
     import { LoggingClient } from '@sw4rm/js-sdk';
 
-    const client = new LoggingClient({ address: 'localhost:50066' });
+    const client = new LoggingClient({ address: 'localhost:50060' });
 
     const nowMs = Date.now();
     const evt = {
@@ -129,7 +129,7 @@ The service exposes one RPC:
 
     #[tokio::main]
     async fn main() -> sw4rm_sdk::Result<()> {
-        let mut client = LoggingClient::new("http://localhost:50066").await?;
+        let mut client = LoggingClient::new("http://localhost:50060").await?;
 
         let event = LogEvent::new(
             "agent-1".to_string(),
