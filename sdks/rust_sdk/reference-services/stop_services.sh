@@ -33,6 +33,7 @@ fi
 
 echo "🛑 Stopping Rust reference services (Local)"
 
+# shellcheck disable=SC1091
 source ../scripts/lib.sh
 kill_from_pidfiles_then_patterns .registry.pid .router.pid .scheduler.pid -- \
   "/target/.*/registry-service" "/target/.*/router-service" "/target/.*/scheduler-service"

@@ -99,7 +99,7 @@ class AsyncRouterClient:
         try:
             response = await self._stub.SendMessage(req)
             self.logger.debug(f"Sent {envelope.get('message_id', '')[:8]}...")
-            return {"success": True, "message_id": env_msg.message_id}
+            return {"success": response.accepted, "message_id": env_msg.message_id, "reason": response.reason}
         except grpc.aio.AioRpcError as e:
             self.logger.error(f"Send failed: {e.code()}")
             return {"success": False, "error": str(e)}
@@ -119,10 +119,17 @@ class AsyncRouterClient:
                     "payload": env.payload,
                     "correlation_id": env.correlation_id,
                     "sequence_number": env.sequence_number,
+                    "delivery_seq": response.seq,
                 }
         except grpc.aio.AioRpcError as e:
             if e.code() != grpc.StatusCode.CANCELLED:
                 self.logger.error(f"Stream error: {e.code()}")
+
+
+    async def ack_delivery(self, agent_id: str, seq: int, message_id: str):
+        return await self._stub.AckDelivery(router_pb2.DeliveryAckRequest(
+            agent_id=agent_id, seq=seq, message_id=message_id,
+        ))
 
 
 class AsyncRegistryClient:
@@ -334,15 +341,18 @@ class SW4RMAgent(ABC):
                 # Check for shutdown
                 if isinstance(envelope.get("payload"), dict):
                     if envelope["payload"].get("command") == "shutdown":
+                        await self.router.ack_delivery(self.agent_id, envelope["delivery_seq"], envelope["message_id"])
                         break
 
                     # Filter by target (router broadcasts, we filter)
                     target = envelope["payload"].get("_target", "")
                     if target and target != self.agent_id:
+                        await self.router.ack_delivery(self.agent_id, envelope["delivery_seq"], envelope["message_id"])
                         continue  # Not for us
 
                 # Process message
-                await self._process_envelope(envelope)
+                if await self._process_envelope(envelope):
+                    await self.router.ack_delivery(self.agent_id, envelope["delivery_seq"], envelope["message_id"])
 
         except asyncio.CancelledError:
             pass
@@ -366,9 +376,11 @@ class SW4RMAgent(ABC):
             record.ack(C.READ)
             await self.handle_message(envelope)
             record.ack(C.FULFILLED)
+            return True
         except Exception as e:
             record.ack(C.FAILED, error_code=C.VALIDATION_ERROR, note=str(e))
             self.logger.error(f"Failed to process message: {e}")
+            return False
 
     async def send_to(self, recipient: str, message_type: int, payload: Any, correlation_id: str = ""):
         """Send a message to another agent."""

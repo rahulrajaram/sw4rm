@@ -10,6 +10,7 @@ import protoLoader from '@grpc/proto-loader';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
+import { validateRunCmdString } from '../agents/run_policy.ts';
 
 // SDK clients and helpers
 import { RegistryClient, RouterClient, buildEnvelope, MessageType } from '@sw4rm/js-sdk';
@@ -358,22 +359,39 @@ async function orchestrateControlFlow(): Promise<void> {
         if (frontendPrompt) await send('frontend', mk('frontend', frontendPrompt));
         console.log('[scheduler] dispatched generate to agents');
       } else if (stage === 'run') {
+        // Campaign R2: commands are validated argv arrays; the caller's
+        // params.commands pass-through must survive the same allowlist.
         let commands = params?.commands;
         if (!commands) {
           // Ask LLM for canonical commands JSON ONLY {"commands": { backend:{run_cmd}, frontend:{run_cmd} }}
           const guidance = params?.prompt || '';
           const runPrompt =
             'Return JSON ONLY as {"commands": { backend: { run_cmd }, frontend: { run_cmd } } }.' +
-            'Execution cwd for agents is ./generated_app. Do not prefix with generated_app. ' +
-            'Backend should use "cd backend && python3 server.py"; Frontend should use "cd frontend && python3 -m http.server 5173".\n\n' +
+            'Execution cwd for agents is ./generated_app. Single program + arguments only (no shell compounds, no cd). ' +
+            'Backend example: "python3 backend/server.py"; Frontend example: "python3 -m http.server 5173 --directory frontend".\n\n' +
             (guidance ? `Guidance: ${JSON.stringify(guidance)}` : '');
           const runObj = await runClaudeStreamJson(runPrompt);
           commands = runObj?.commands;
         }
         if (!commands) { console.warn('[scheduler] no commands derived for run'); return; }
-        const backendCmd = String(commands?.backend?.run_cmd || 'cd backend && python3 server.py');
-        const frontendCmd = String(commands?.frontend?.run_cmd || 'cd frontend && python3 -m http.server 5173');
-        const mkRun = (to: string, cmd: string) => ({ schema_version: 1, to, stage: 'run', params: { cmd } });
+        const resolveArgv = (rawCmd: unknown): { argv?: string[]; error?: string } => {
+          if (typeof rawCmd === 'string' && rawCmd.trim()) {
+            const parsed = validateRunCmdString(rawCmd);
+            return parsed.ok ? { argv: parsed.argv } : { error: parsed.error };
+          }
+          return { error: 'missing run_cmd' };
+        };
+        const backendResolved = resolveArgv(commands?.backend?.run_cmd);
+        const frontendResolved = resolveArgv(commands?.frontend?.run_cmd);
+        if (!backendResolved.argv || !frontendResolved.argv) {
+          console.warn('[scheduler] run command rejected by allowlist:', {
+            backend: backendResolved.error, frontend: frontendResolved.error,
+          });
+          return;
+        }
+        const mkRun = (to: string, argv: string[]) => ({
+          schema_version: 1, to, stage: 'run', params: { cmd_argv: argv, confirm: true },
+        });
         const send = async (to: string, cmd: any) => {
           const env = buildEnvelope({
             producer_id: agentId, message_type: MessageType.CONTROL,
@@ -382,8 +400,8 @@ async function orchestrateControlFlow(): Promise<void> {
           });
           await router.sendMessage(env).catch(()=>{});
         };
-        await send('backend', mkRun('backend', backendCmd));
-        await send('frontend', mkRun('frontend', frontendCmd));
+        await send('backend', mkRun('backend', backendResolved.argv));
+        await send('frontend', mkRun('frontend', frontendResolved.argv));
         console.log('[scheduler] dispatched run commands to agents');
       }
     } catch (e: any) {
