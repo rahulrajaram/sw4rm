@@ -69,14 +69,34 @@ fn enforce_file_perms(_path: &PathBuf) -> Result<()> {
     Ok(())
 }
 
+// The temp file holds bare secret plaintext.  On unix it is pinned to 0600
+// at creation so the umask cannot grant group/other read access before the
+// rename and the post-rename chmod (R33).  Single-statement chain so the
+// &mut borrow returned by mode() cannot dangle past the temporary.
+#[cfg(unix)]
+fn open_secret_tmp(path: &PathBuf) -> std::io::Result<std::fs::File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)
+}
+
+#[cfg(not(unix))]
+fn open_secret_tmp(path: &PathBuf) -> std::io::Result<std::fs::File> {
+    OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(path)
+}
+
 fn write_atomic(path: &PathBuf, data: &Json) -> Result<()> {
     let tmp = path.with_extension("tmp");
     {
-        let mut f = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(&tmp)
+        let mut f = open_secret_tmp(&tmp)
             .map_err(|e| SecretError::Permission(e.to_string()))?;
         let s =
             serde_json::to_string_pretty(data).map_err(|e| SecretError::Backend(e.to_string()))?;
@@ -84,7 +104,12 @@ fn write_atomic(path: &PathBuf, data: &Json) -> Result<()> {
             .map_err(|e| SecretError::Backend(e.to_string()))?;
         f.flush().map_err(|e| SecretError::Backend(e.to_string()))?;
     }
-    fs::rename(&tmp, path).map_err(|e| SecretError::Backend(e.to_string()))?;
+    fs::rename(&tmp, path)
+        .map_err(|e| {
+            // Never leave a plaintext secret temp file behind (R33).
+            let _ = fs::remove_file(&tmp);
+            SecretError::Backend(e.to_string())
+        })?;
     enforce_file_perms(path)?;
     Ok(())
 }

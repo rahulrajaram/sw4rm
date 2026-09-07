@@ -130,6 +130,90 @@ def test_rate_limit_interceptor_rejects_messages_over_limit() -> None:
         interceptor._enforce("SendMessage", request, context)
 
 
+def test_rate_limit_with_auth_meters_verified_subjects_only(monkeypatch) -> None:
+    monkeypatch.setenv("REFERENCE_AUTH_JWT_SECRET", "secret")
+    now_state = {"time": 0.0}
+
+    def now() -> float:
+        return now_state["time"]
+
+    policy = ReferenceRateLimitPolicy(
+        enabled=True,
+        messages_per_second=1.0,
+        burst_size=1,
+        target_methods={"SendMessage"},
+        now_fn=now,
+    )
+    interceptor = ReferenceRateLimitInterceptor(policy, auth_enabled=True)
+    token = issue_reference_token("agent-a", "secret", ttl_seconds=60)
+    request = router_pb2.SendMessageRequest(
+        msg=common_pb2.Envelope(
+            producer_id="agent-a",
+            message_type=common_pb2.MessageType.DATA,
+        )
+    )
+
+    # Verified subject gets its own bucket.
+    authed = _FakeContext(metadata=[("authorization", f"Bearer {token}")])
+    interceptor._enforce("SendMessage", request, authed)
+    with pytest.raises(RuntimeError, match="message limit exceeded"):
+        interceptor._enforce("SendMessage", request, authed)
+
+    # An unauthenticated request that claims a different (victim) producer
+    # id must hit the shared anonymous bucket, not the victim's bucket.
+    now_state["time"] = 0.0
+    anonymous = _FakeContext()
+    victim_request = router_pb2.SendMessageRequest(
+        msg=common_pb2.Envelope(
+            producer_id="victim-b",
+            message_type=common_pb2.MessageType.DATA,
+        )
+    )
+    interceptor._enforce("SendMessage", victim_request, anonymous)
+    with pytest.raises(RuntimeError, match="message limit exceeded"):
+        interceptor._enforce("SendMessage", victim_request, anonymous)
+
+    # The victim's own bucket was never drained: a verified victim request
+    # still passes.
+    victim_token = issue_reference_token("victim-b", "secret", ttl_seconds=60)
+    verified_victim = _FakeContext(
+        metadata=[("authorization", f"Bearer {victim_token}")]
+    )
+    interceptor._enforce("SendMessage", router_pb2.SendMessageRequest(
+        msg=common_pb2.Envelope(
+            producer_id="victim-b",
+            message_type=common_pb2.MessageType.DATA,
+        )
+    ), verified_victim)
+
+
+def test_rate_limit_without_auth_keeps_request_derived_actor() -> None:
+    now_state = {"time": 0.0}
+
+    def now() -> float:
+        return now_state["time"]
+
+    policy = ReferenceRateLimitPolicy(
+        enabled=True,
+        messages_per_second=1.0,
+        burst_size=1,
+        target_methods={"SendMessage"},
+        now_fn=now,
+    )
+    # auth_enabled defaults to False: legacy request-derived metering.
+    interceptor = ReferenceRateLimitInterceptor(policy)
+    request = router_pb2.SendMessageRequest(
+        msg=common_pb2.Envelope(
+            producer_id="agent-a",
+            message_type=common_pb2.MessageType.DATA,
+        )
+    )
+    context = _FakeContext()
+    interceptor._enforce("SendMessage", request, context)
+    with pytest.raises(RuntimeError, match="message limit exceeded"):
+        interceptor._enforce("SendMessage", request, context)
+
+
 def test_tracing_interceptor_resolves_trace_from_metadata() -> None:
     interceptor = ReferenceTracingInterceptor(service_name="router")
     context = _FakeContext(

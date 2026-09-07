@@ -61,6 +61,34 @@ fn file_backend_enforces_0600() {
         .unwrap();
     let mode2 = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode2, 0o600);
+    // a successful write must not leave the plaintext temp behind
+    assert_eq!(
+        std::fs::metadata(&path.with_extension("tmp")).is_ok(),
+        false,
+        "a successful write must not leave the plaintext temp behind"
+    );
+}
+
+#[test]
+#[cfg(unix)]
+fn rename_failure_does_not_leak_secret_tmp_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("secrets.json");
+    let fb = FileBackend::new(Some(path.clone())).expect("file backend");
+    // Replace the target with a directory: renaming a file over it fails
+    // (EISDIR), which must surface the error and not leave the plaintext
+    // secrets.json.tmp behind (R33).
+    std::fs::remove_file(&path).unwrap();
+    std::fs::create_dir(&path).unwrap();
+    let key = SecretKey::new("provider.example.api_key");
+    let result =
+        fb.set(&Scope::global(), &key, &SecretValue::new("secret").unwrap());
+    assert!(result.is_err(), "renaming a file over a directory must fail");
+    assert_eq!(
+        std::fs::metadata(&path.with_extension("tmp")).is_ok(),
+        false,
+        "plaintext temp file must be cleaned up on rename failure"
+    );
 }
 
 #[test]

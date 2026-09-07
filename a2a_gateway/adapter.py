@@ -322,6 +322,7 @@ def a2a_message_to_sw4rm_envelope(
     message: dict[str, Any],
     target_agent_id: str,
     task_id: str,
+    producer_id: str = "a2a-gateway",
 ) -> dict[str, Any]:
     """Convert an A2A Message to a SW4RM Envelope dict.
 
@@ -332,12 +333,17 @@ def a2a_message_to_sw4rm_envelope(
         message: A2A Message dict with role, parts, etc.
         target_agent_id: The SW4RM agent_id to route to.
         task_id: The A2A task ID for correlation.
+        producer_id: Server-derived producer identity for the envelope.
+            Callers cannot set this; the gateway derives it from the
+            authenticated caller, never from message metadata.
 
     Returns:
         SW4RM Envelope dict ready for RouterClient.send_message().
     """
-    # Extract sender from metadata or default to "a2a-client"
-    sender = message.get("metadata", {}).get("sw4rm.sender", "a2a-gateway")
+    # SECURITY: producer identity is server-derived. Caller-supplied
+    # `sw4rm.sender` metadata is deliberately ignored: an unauthenticated
+    # A2A caller must not be able to choose the SW4RM producer identity.
+    sender = producer_id
 
     # Serialize parts as JSON payload
     parts = message.get("parts", [])
@@ -482,6 +488,7 @@ class A2AToSW4RMAdapter:
         message: dict[str, Any],
         target_agent_id: str,
         context_id: str | None = None,
+        producer_id: str = "a2a-gateway",
     ) -> dict[str, Any]:
         """Handle A2A SendMessage — create task + route to SW4RM agent.
 
@@ -494,6 +501,8 @@ class A2AToSW4RMAdapter:
             message: A2A Message dict.
             target_agent_id: SW4RM agent to route to.
             context_id: Optional context for grouping related tasks.
+            producer_id: Server-derived producer identity (never taken
+                from caller-supplied message metadata).
 
         Returns:
             A2A Task dict with status SUBMITTED or WORKING.
@@ -511,6 +520,7 @@ class A2AToSW4RMAdapter:
             message=message,
             target_agent_id=target_agent_id,
             task_id=task_id,
+            producer_id=producer_id,
         )
 
         try:

@@ -16,6 +16,7 @@ import {
   buildEnvelope,
   MessageType,
 } from '../../../../sdks/js_sdk/src/index.ts';
+import { executeRunStage } from './run_policy.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -240,7 +241,8 @@ async function main() {
     if (ct !== 'application/vnd.sw4rm.scheduler.command+json;v=1') return;
     let cmd: any = {};
     try { cmd = JSON.parse(Buffer.from(msg.payload || new Uint8Array()).toString('utf8')); } catch {}
-    const to = cmd?.to; if (to && to !== agentId) return;
+    const to = cmd?.to;
+    if (to !== agentId) { log(`command rejected: missing or mismatched target '${to ?? ''}'`); return; }
     const stage = cmd?.stage;
     const params = cmd?.params || cmd?.input || {};
     const corr = String(msg.correlation_id || '');
@@ -265,29 +267,22 @@ async function main() {
       logSuccess(`completed generate: status=ok files=${filesWritten.length} [${preview}]`);
       processed.add(key);
     } else if (stage === 'run') {
-      const suggested = String(params?.cmd || '');
-      const llmPrompt = (
-        'You are the frontend run orchestrator. A suggested command was provided. ' +
-        'Return JSON ONLY as {"run_cmd": string}. Execution cwd is ./generated_app. ' +
-        "Use 'cd frontend && python3 -m http.server 5173'. Do NOT include 'generated_app' in paths.\n\n" +
-        `Suggested: ${JSON.stringify(suggested)}`
-      );
-      log('run: invoking claude to confirm command…');
-      const resultObj = await runClaude(llmPrompt);
-      const cmdline = (resultObj && typeof resultObj.run_cmd === 'string' && resultObj.run_cmd) || suggested;
+      // Campaign R2: no shell, no unmediated fallback, explicit confirmation.
       const baseDir = path.join(ROOT, 'generated_app');
       const logPath = path.join(GEN_ROOT, 'service.log');
-      let status = 'ok';
-      let info: any = { cmd: cmdline };
-      try {
-        const out = fs.createWriteStream(logPath, { flags: 'a' });
-        const child = spawn(cmdline, { cwd: baseDir, shell: true, stdio: ['ignore', out, out] });
-        fs.writeFileSync(path.join(GEN_ROOT, '.service.pid'), String(child.pid), 'utf8');
-        info.pid = child.pid;
-      } catch (e: any) {
-        status = 'error';
-        info.error = String(e?.message || e);
-      }
+      const result = await executeRunStage(params, {
+        runClaude,
+        spawnFn: (program, args, options) => {
+          const out = fs.createWriteStream(logPath, { flags: 'a' });
+          return spawn(program, args, { cwd: options.cwd, stdio: ['ignore', out, out] });
+        },
+        baseDir,
+        logPath,
+        writePid: (pid) => fs.writeFileSync(path.join(GEN_ROOT, '.service.pid'), pid, 'utf8'),
+        appendLog: () => fs.createWriteStream(logPath, { flags: 'a' }),
+      });
+      const status = result.status;
+      const info = result.info;
       const report = { schema_version: 1, stage: 'run', status, info };
       const env = buildEnvelope({
         producer_id: agentId,
@@ -297,8 +292,8 @@ async function main() {
         correlation_id: corr,
       });
       await router.sendMessage(env).catch(() => {});
-      if (status === 'ok') logSuccess(`completed run: started pid=${info.pid} cmd='${cmdline}'`);
-      else logError(`completed run: failed error='${info.error || ''}' cmd='${cmdline}'`);
+      if (status === 'ok') logSuccess(`completed run: started pid=${info.pid} cmd='${info.cmd}'`);
+      else logError(`completed run: failed error='${info.error || ''}'`);
       processed.add(key);
     }
   });

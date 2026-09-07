@@ -1741,3 +1741,52 @@
 ;;; =======================================================================
 
 (in-suite sw4rm-suite)
+;;; =======================================================================
+;;;  7. Secrets Backend permissions
+;;; =======================================================================
+;;;
+;;; File-backend secrets are plaintext on disk, so the write path must
+;;; enforce 0600 and load must tighten pre-existing permissive files
+;;; (security finding 3 / R31).
+
+(in-suite sw4rm-suite)
+
+(defun %secret-file-mode (path)
+  "Return the permission bits of PATH (POSIX mode masked to rwxrwxrwx)."
+  (logand #o777 (sb-posix:stat-mode (sb-posix:stat (namestring path)))))
+
+(test secret-file-is-written-0600
+  "A freshly written secret file must be 0600, not umask-derived."
+  (let* ((path (merge-pathnames
+                (format nil "sw4rm-secrets-write-~A-~A.json"
+                        (get-universal-time) (random 1000000))
+                #p"/tmp/"))
+         (backend (make-file-backend path)))
+    (unwind-protect
+         (progn
+           (set-secret backend "k" "v")
+           (is (= #o600 (%secret-file-mode path))
+               "secret file permissions are 0600"))
+      (when (probe-file path)
+        (delete-file path)))))
+
+(test existing-permissive-secret-file-is-tightened-on-load
+  "Loading a permissive secret file must tighten it to 0600."
+  (let* ((path (merge-pathnames
+                (format nil "sw4rm-secrets-load-~A-~A.json"
+                        (get-universal-time) (random 1000000))
+                #p"/tmp/"))
+         (backend (make-file-backend path)))
+    (unwind-protect
+         (progn
+           (set-secret backend "k" "v")
+           ;; Simulate an old deployment's umask-derived permissions.
+           (sb-posix:chmod (namestring path) #o644)
+           (is (= #o644 (%secret-file-mode path))
+               "sanity: the file really is permissive before the reload")
+           (let ((reloaded (make-file-backend path)))
+             (get-secret reloaded "k"))
+           (is (= #o600 (%secret-file-mode path))
+               "load tightens an existing permissive file"))
+      (when (probe-file path)
+        (delete-file path)))))
