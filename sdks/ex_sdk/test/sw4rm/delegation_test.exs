@@ -27,6 +27,7 @@ defmodule Sw4rm.DelegationTest do
       result =
         Delegation.delegate_to_swarm(%{
           send_handoff_fn: send_fn,
+          budget: %{deadline_epoch_ms: System.system_time(:millisecond) + 3_600_000, wall_time_remaining_ms: 10_000},
           to_agent: "gateway-a",
           from_agent: "parent",
           request_id: "req-1"
@@ -46,6 +47,7 @@ defmodule Sw4rm.DelegationTest do
       result =
         Delegation.delegate_to_swarm(%{
           send_handoff_fn: send_fn,
+          budget: %{deadline_epoch_ms: System.system_time(:millisecond) + 3_600_000, wall_time_remaining_ms: 10_000},
           to_agent: "gateway-a",
           from_agent: "parent",
           request_id: "req-loop",
@@ -69,6 +71,7 @@ defmodule Sw4rm.DelegationTest do
       result =
         Delegation.delegate_to_swarm(%{
           send_handoff_fn: send_fn,
+          budget: %{deadline_epoch_ms: System.system_time(:millisecond) + 3_600_000, wall_time_remaining_ms: 10_000},
           to_agent: "gateway-a",
           from_agent: "parent",
           request_id: "req-bound",
@@ -89,6 +92,7 @@ defmodule Sw4rm.DelegationTest do
       result =
         Delegation.delegate_to_swarm(%{
           send_handoff_fn: send_fn,
+          budget: %{deadline_epoch_ms: System.system_time(:millisecond) + 3_600_000, wall_time_remaining_ms: 10_000},
           to_agent: "gateway-a",
           from_agent: "parent",
           request_id: "req-no-spillover",
@@ -125,6 +129,7 @@ defmodule Sw4rm.DelegationTest do
       result =
         Delegation.delegate_to_swarm(%{
           send_handoff_fn: send_fn,
+          budget: %{deadline_epoch_ms: System.system_time(:millisecond) + 3_600_000, wall_time_remaining_ms: 10_000},
           to_agent: "gateway-a",
           from_agent: "parent",
           request_id: "req-blank",
@@ -172,7 +177,7 @@ defmodule Sw4rm.DelegationTest do
           to_agent: "gateway-a",
           from_agent: "parent",
           request_id: "req-budget",
-          budget: %{wall_time_remaining_ms: 10_000},
+          budget: %{deadline_epoch_ms: System.system_time(:millisecond) + 3_600_000, wall_time_remaining_ms: 10_000},
           delegation_policy: %{allow_spillover_routing: true, max_redirects: 3},
           now_ms_fn: now_ms_fn
         })
@@ -198,6 +203,7 @@ defmodule Sw4rm.DelegationTest do
       result =
         Delegation.delegate_to_swarm(%{
           send_handoff_fn: send_fn,
+          budget: %{deadline_epoch_ms: System.system_time(:millisecond) + 3_600_000, wall_time_remaining_ms: 10_000},
           to_agent: "a",
           from_agent: "parent",
           request_id: "req-explicit",

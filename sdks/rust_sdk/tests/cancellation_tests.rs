@@ -39,6 +39,8 @@ struct CancellationExpected {
     acknowledged: bool,
     effective_grace_period_ms: u64,
     cancelled: Vec<String>,
+    #[serde(default)]
+    not_cancelled: Vec<String>,
     grace_expiry_checks: Vec<CancellationExpiryCheck>,
     forced_preemption_checks: Vec<CancellationForcedCheck>,
     collect_forced: Option<CancellationCollectForced>,
@@ -135,6 +137,17 @@ fn shared_cancellation_conformance_vectors() {
             assert!(
                 manager.is_cancelled(correlation_id),
                 "vector '{}' expected '{}' to be cancelled",
+                vector.id,
+                correlation_id
+            );
+        }
+
+        // Negative assertions: correlations outside the direct-children
+        // cascade must remain active (R21).
+        for correlation_id in &vector.expected.not_cancelled {
+            assert!(
+                !manager.is_cancelled(correlation_id),
+                "vector '{}' expected '{}' to remain uncancelled",
                 vector.id,
                 correlation_id
             );

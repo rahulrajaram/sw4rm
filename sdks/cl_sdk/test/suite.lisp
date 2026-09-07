@@ -1199,6 +1199,8 @@
     (cond
       ((string= normalized "VALIDATION_ERROR") sw4rm-sdk::+validation-error+)
       ((string= normalized "REDIRECT") sw4rm-sdk::+redirect+)
+      ((string= normalized "ACK_TIMEOUT") sw4rm-sdk::+ack-timeout+)
+      ((string= normalized "NONE") 0)
       (t (error "Unsupported vector rejection code: ~A" name)))))
 
 (defun %shared-cancellation-vector-file-path ()
@@ -1452,20 +1454,28 @@
            (policy (%json-object-get vector "policy"))
            (expected (%json-object-get vector "expected"))
            (redirect-map (%json-object-get vector "redirect_map"))
+           (accept-agents (%json-array->list (%json-object-get vector "accept_agents" '())))
            (attempts '())
            (response
              (sw4rm-sdk::delegate-to-swarm
               (lambda (request)
                 (let* ((to-agent (getf request :to-agent))
                        (target-agent (%json-object-get redirect-map to-agent)))
-                  (unless target-agent
-                    (error "Vector ~A missing redirect target for ~A" vector-id to-agent))
                   (push to-agent attempts)
-                  (list :request-id (getf request :request-id)
-                        :accepted nil
-                        :status :rejected
-                        :rejection-code sw4rm-sdk::+redirect+
-                        :redirect-to-agent-id target-agent)))
+                  (cond
+                    ((member to-agent accept-agents :test #'string=)
+                     (list :request-id (getf request :request-id)
+                           :accepted t
+                           :status :accepted
+                           :rejection-code 0))
+                    (target-agent
+                     (list :request-id (getf request :request-id)
+                           :accepted nil
+                           :status :rejected
+                           :rejection-code sw4rm-sdk::+redirect+
+                           :redirect-to-agent-id target-agent))
+                    (t
+                     (error "Vector ~A missing redirect target for ~A" vector-id to-agent)))))
               :request-id (%json-object-get vector "request_id")
               :from-agent (%json-object-get vector "from_agent")
               :to-agent (%json-object-get vector "to_agent")
@@ -1475,7 +1485,8 @@
               :delegation-policy (list :allow-spillover-routing
                                        (not (null (%json-object-get policy "allow_spillover_routing")))
                                        :max-redirects (%json-object-get policy "max_redirects"))
-              :now-ms-fn (let ((now-ms (- (%json-object-get budget "deadline_epoch_ms") 1000)))
+              :now-ms-fn (let ((now-ms (%json-object-get vector "now_ms_epoch_ms"
+                                                          (- (%json-object-get budget "deadline_epoch_ms") 1000))))
                            (lambda () now-ms))
               :sleep-seconds-fn (lambda (_seconds) (declare (ignore _seconds)) nil)
               :rand-uniform-fn (lambda (low _high) (declare (ignore _high)) low))))
@@ -1712,6 +1723,11 @@
 
           (dolist (correlation-id (%json-array->list (%json-object-get expected "cancelled")))
             (is (sw4rm-sdk::cancelled-delegation-p c correlation-id)))
+
+          ;; Negative assertions: correlations outside the direct-children
+          ;; cascade must remain active (R21).
+          (dolist (correlation-id (%json-array->list (%json-object-get expected "not_cancelled" '())))
+            (is (not (sw4rm-sdk::cancelled-delegation-p c correlation-id))))
 
           (dolist (check (%json-array->list (%json-object-get expected "grace_expiry_checks")))
             (let* ((correlation-id (%json-object-get check "correlation_id"))

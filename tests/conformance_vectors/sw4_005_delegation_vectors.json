@@ -100,6 +100,81 @@
         "reason_contains": "non-empty",
         "attempts": ["gateway-a", "gateway-b"]
       }
+    },
+    {
+     "id": "accepts_within_budget",
+     "request_id": "vec-accept",
+     "from_agent": "parent",
+     "to_agent": "gateway-a",
+     "reason": "delegate",
+     "budget": {
+      "deadline_epoch_ms": 1000000,
+      "wall_time_remaining_ms": 10000
+     },
+     "policy": {
+      "allow_spillover_routing": true,
+      "max_redirects": 4
+     },
+     "redirect_map": {
+      "gateway-a": "gateway-b"
+     },
+     "accept_agents": ["gateway-a"],
+     "now_ms_epoch_ms": 999000,
+     "expected": {
+      "accepted": true,
+      "rejection_code": "NONE",
+      "attempts": ["gateway-a"]
+     }
+    },
+    {
+     "id": "deadline_expired_rejected",
+     "request_id": "vec-deadline",
+     "from_agent": "parent",
+     "to_agent": "gateway-a",
+     "reason": "delegate",
+     "budget": {
+      "deadline_epoch_ms": 1000000,
+      "wall_time_remaining_ms": 10000
+     },
+     "policy": {
+      "allow_spillover_routing": true,
+      "max_redirects": 4
+     },
+     "redirect_map": {
+      "gateway-a": "gateway-b"
+     },
+     "now_ms_epoch_ms": 1000001,
+     "expected": {
+      "accepted": false,
+      "rejection_code": "ACK_TIMEOUT",
+      "reason_contains": "deadline",
+      "attempts": []
+     }
+    },
+    {
+     "id": "wall_time_exhausted_rejected",
+     "request_id": "vec-wall",
+     "from_agent": "parent",
+     "to_agent": "gateway-a",
+     "reason": "delegate",
+     "budget": {
+      "deadline_epoch_ms": 1000000,
+      "wall_time_remaining_ms": 0
+     },
+     "policy": {
+      "allow_spillover_routing": true,
+      "max_redirects": 4
+     },
+     "redirect_map": {
+      "gateway-a": "gateway-b"
+     },
+     "now_ms_epoch_ms": 999000,
+     "expected": {
+      "accepted": false,
+      "rejection_code": "ACK_TIMEOUT",
+      "reason_contains": "deadline",
+      "attempts": []
+     }
     }
   ]
 }

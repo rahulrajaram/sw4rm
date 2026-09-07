@@ -156,6 +156,14 @@ export class CancellationManager {
     this.childDelegations.get(parent)!.add(child);
   }
 
+  /**
+   * Set cancellation flags for the correlation and its DIRECT children.
+   *
+   * Helper boundary (SW4-004 §5.3): this helper cancels the requested
+   * correlation and any directly registered child delegations only.
+   * Recursive cascade forwarding across deeper delegation trees is the
+   * gateway's job — grandchildren are intentionally not cancelled here.
+   */
   handleCancelDelegation(
     cancel: CancelDelegationRequest
   ): CancelDelegationResponse {
