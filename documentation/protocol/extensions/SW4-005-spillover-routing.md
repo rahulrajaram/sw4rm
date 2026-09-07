@@ -135,6 +135,21 @@ For each delegation attempt where spillover is enabled:
 
 Callers MUST preserve correlation and idempotency metadata across redirect hops.
 
+```mermaid
+flowchart TD
+    A["Send handoff attempt (correlation + idempotency metadata carried)" ] --> B{"Response"}
+    B -- accepted --> OK([complete normally])
+    B -- "rejected REDIRECT" --> V{"Validate target + policy limits<br/>canonicalize redirect_to_agent_id"}
+    V -- invalid --> TF([terminal validation failure])
+    V -- valid --> L{"redirects so far<br/>< effective max_redirects?<br/>(unset/0 behaves as 2)"}
+    L -- no --> LR([terminal: redirect limit reached])
+    L -- yes --> W{"wall_time_remaining_ms > 0 AND<br/>stricter of wall_time/deadline not exhausted?"}
+    W -- no --> BE([terminal: budget/deadline exhausted])
+    W -- yes --> D["Deduct elapsed wall time from budget envelope"]
+    D --> A
+    B -- "rejected OVERLOADED (no REDIRECT)" --> O([terminal: non-redirect rejection])
+```
+
 ## 10. Observability Requirements
 
 Implementations claiming SW4-005 conformance MUST emit:

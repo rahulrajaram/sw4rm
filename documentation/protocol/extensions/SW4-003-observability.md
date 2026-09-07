@@ -51,7 +51,7 @@ sw4rm_rpc_in_flight{service}
 #### Agent Metrics
 
 ```
-sw4rm_agents_registered_total
+sw4rm_agents_registered
   Gauge: Number of currently registered agents
 
 sw4rm_agent_state{agent_id, state}
@@ -64,7 +64,7 @@ sw4rm_agent_heartbeat_age_seconds{agent_id}
 #### Scheduler Metrics
 
 ```
-sw4rm_tasks_queued_total{priority}
+sw4rm_tasks_queued{priority}
   Gauge: Tasks currently queued by priority
 
 sw4rm_tasks_completed_total{status}
@@ -77,7 +77,7 @@ sw4rm_preemption_total{type}
 #### Negotiation Metrics
 
 ```
-sw4rm_negotiations_active_total
+sw4rm_negotiations_active
   Gauge: Currently active negotiation rooms
 
 sw4rm_negotiation_decisions_total{outcome}
@@ -175,7 +175,7 @@ Implementations MUST expose a health check endpoint:
 ```json
 {
   "status": "healthy|degraded|unhealthy",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "uptime_seconds": 3600,
   "checks": {
     "registry_connection": "healthy",
@@ -250,7 +250,7 @@ Implementations SHOULD alert on:
 
 | Condition | Severity | Description |
 |-----------|----------|-------------|
-| `sw4rm_agents_registered_total == 0` | Critical | No agents registered |
+| `sw4rm_agents_registered == 0` | Critical | No agents registered |
 | `sw4rm_agent_heartbeat_age_seconds > 60` | Warning | Agent may be unhealthy |
 | `sw4rm_rpc_requests_total{status="INTERNAL"} increase > 10/min` | Critical | Internal errors spike |
 | `sw4rm_negotiation_quorum_failures_total increase > 5/hour` | Warning | Quorum problems |

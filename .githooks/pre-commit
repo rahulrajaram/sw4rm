@@ -48,10 +48,13 @@ if [[ "$PY" != "$SPEC" || "$JS" != "$SPEC" || "$RS" != "$SPEC" ]]; then
   exit 1
 fi
 
-# Optional stricter checks: if certain paths changed, ensure bump vs HEAD
+# Optional stricter checks: if certain paths changed, ensure bump vs HEAD.
+# Repo policy: tracked proposal drafts under documentation/protocol/extensions/SW4-*.md
+# do not, by themselves, require a spec version bump. Shipped release files such as
+# documentation/protocol/extensions/v0.N.0.md, the core protocol spec, and protos do.
 if git rev-parse --verify HEAD >/dev/null 2>&1; then
   CHANGED=$(git diff --cached --name-only)
-  NORMATIVE_PROTOCOL_CHANGED=$(echo "$CHANGED" | grep -E '^(documentation/protocol/|protos/)' | grep -Ev '^(documentation/protocol/sdk_extensions\.md|documentation/protocol/extensions/index\.md)$' || true)
+  NORMATIVE_PROTOCOL_CHANGED=$(echo "$CHANGED" | grep -E '^(documentation/protocol/|protos/)' | grep -Ev '^(documentation/protocol/sdk_extensions\.md|documentation/protocol/extensions/index\.md|documentation/protocol/extensions/SW4-[0-9]{3}[-a-z0-9]*\.md)$' || true)
   VERSIONED_PY_CHANGED=$(echo "$CHANGED" | grep -E '^sdks/py_sdk/sw4rm/' || true)
   VERSIONED_JS_CHANGED=$(echo "$CHANGED" | grep -E '^sdks/js_sdk/(src/|protos/|package\.json$)' || true)
   JS_EXAMPLE_CHANGED=$(echo "$CHANGED" | grep -E '^sdks/js_sdk/examples/.*\.ts$' || true)
