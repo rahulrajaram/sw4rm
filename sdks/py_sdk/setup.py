@@ -8,13 +8,13 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 
 setup(
     name="sw4rm-sdk",
-    version="0.6.0",
+    version="0.7.0",
     author="SW4RM",
     description="Python SDK for the SW4RM Agentic Protocol",
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=find_packages(),
-    python_requires=">=3.7",
+    python_requires=">=3.9",
     install_requires=requirements,
     extras_require={
         "dev": [
@@ -39,8 +39,6 @@ setup(
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",

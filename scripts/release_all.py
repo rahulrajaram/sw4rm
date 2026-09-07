@@ -67,12 +67,11 @@ def read_rs_version() -> str:
 
 
 def ensure_versions_equal(expected: str):
-    spec = read_spec_version()
-    py = read_py_version()
-    js = read_js_version()
-    rs = read_rs_version()
-    if not (spec == py == js == rs == expected):
-        die(f"Version mismatch. expected={expected} spec={spec} py={py} js={js} rs={rs}")
+    from release_contract import inventory, version_errors
+    rows = inventory(lambda path: (ROOT / path).read_text())
+    errors = version_errors(rows)
+    if errors or rows[0][1] != expected:
+        die(f"Version mismatch: expected={expected}; {errors or rows}")
 
 
 def create_tag(tag: str):
@@ -96,7 +95,7 @@ def main():
 
     ensure_versions_equal(args.version)
 
-    tags = [f"py-v{args.version}", f"npm-v{args.version}", f"rs-v{args.version}"]
+    tags = [f"{prefix}-v{args.version}" for prefix in ("py", "npm", "rs", "ex", "cl")]
     for t in tags:
         create_tag(t)
     if args.push:

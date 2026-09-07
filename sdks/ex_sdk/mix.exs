@@ -1,7 +1,7 @@
 defmodule Sw4rm.MixProject do
   use Mix.Project
 
-  @version "0.6.0"
+  @version "0.7.0"
 
   def project do
     [
@@ -13,7 +13,7 @@ defmodule Sw4rm.MixProject do
       aliases: aliases(),
       name: "SW4RM SDK",
       description: "Elixir SDK for the SW4RM multi-agent coordination protocol",
-      source_url: "https://github.com/sw4rm/sw4rm-sdk-elixir",
+      source_url: "https://github.com/rahulrajaram/sw4rm",
       package: package(),
       docs: [main: "Sw4rm", extras: ["README.md"]]
     ]
