@@ -274,6 +274,18 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:voting-round-strategy-name
    #:voting-round-votes)
 
+  ;; Persistence backends
+  (:export
+   #:persistence-error
+   #:json-file-persistence
+   #:in-memory-persistence
+   #:make-json-file-persistence
+   #:make-in-memory-persistence
+   #:save-records
+   #:load-records
+   #:clear-records
+   #:list-namespaces)
+
   ;; Secrets
   (:export
    #:make-file-backend

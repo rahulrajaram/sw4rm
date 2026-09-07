@@ -19,9 +19,26 @@ export class JSONFilePersistence implements PersistenceBackend {
 
   private async safeWrite(file: string, data: string) {
     await fsp.mkdir(path.dirname(file), { recursive: true });
-    const tmp = `${file}.tmp-${Date.now()}`;
-    await fsp.writeFile(tmp, data, 'utf8');
-    await fsp.rename(tmp, file);
+    const tmp = `${file}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    let handle: Awaited<ReturnType<typeof fsp.open>> | undefined;
+    try {
+      handle = await fsp.open(tmp, 'w');
+      await handle.writeFile(data, 'utf8');
+      await handle.sync();
+      await handle.close();
+      handle = undefined;
+      await fsp.rename(tmp, file);
+      const dir = await fsp.open(path.dirname(file), 'r');
+      try {
+        await dir.sync();
+      } finally {
+        await dir.close();
+      }
+    } catch (error) {
+      if (handle) await handle.close().catch(() => undefined);
+      await fsp.unlink(tmp).catch(() => undefined);
+      throw error;
+    }
   }
 
   async saveActivity(records: any[]): Promise<void> {
@@ -54,4 +71,3 @@ export class JSONFilePersistence implements PersistenceBackend {
     }
   }
 }
-

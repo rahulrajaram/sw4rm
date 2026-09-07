@@ -308,6 +308,33 @@
 
 
 ;;; =======================================================================
+;;;  1c. File persistence durability
+;;; =======================================================================
+
+(def-suite persistence-suite :description "Persistence durability tests"
+  :in sw4rm-suite)
+(in-suite persistence-suite)
+
+(test persistence-atomic-roundtrip
+  "A saved snapshot round-trips and does not leave its temporary sibling."
+  (let* ((dir (merge-pathnames
+               (format nil "sw4rm-cl-test-~D/" (random 1000000))
+               (uiop:temporary-directory)))
+         (backend (sw4rm-sdk:make-json-file-persistence dir))
+         (path (merge-pathnames "default.json" dir))
+         (tmp (merge-pathnames ".default.tmp" dir)))
+    (unwind-protect
+         (progn
+           (is (= 1 (sw4rm-sdk:save-records backend '((:id 1)))))
+           (is (= 1 (length (sw4rm-sdk:load-records backend))))
+           (is (probe-file path))
+           (is (not (probe-file tmp))))
+      (when (probe-file path) (delete-file path))
+      (when (probe-file tmp) (delete-file tmp))
+      (when (probe-file dir) (uiop:delete-empty-directory dir)))))
+
+
+;;; =======================================================================
 ;;;  2. ACK Manager
 ;;; =======================================================================
 

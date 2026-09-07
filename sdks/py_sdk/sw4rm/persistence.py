@@ -8,6 +8,115 @@ from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Protocol
 
+from sw4rm.exceptions import SW4RMError
+
+
+class ActivityBufferLoadError(SW4RMError):
+    """Raised when activity-buffer persistence exists but cannot be loaded.
+
+    A corrupted persistence file previously failed silently and reset the
+    buffer to empty, erasing the recovery story. Callers now decide the
+    policy (fail closed by default, or catch and degrade explicitly).
+    """
+
+
+_BYTE_FIELDS = ("payload", "audit_proof")
+_BYTE_FIELDS_MARKER = "_bytes_fields"
+
+
+def _encode_envelope(envelope: Any) -> Any:
+    """Encode the byte fields in an envelope for JSON storage.
+
+    The marker is deliberately part of the snapshot representation so an
+    ordinary string payload remains a string when loaded.  ``payload`` and
+    ``audit_proof`` are the protocol's canonical byte fields; other envelope
+    values are left untouched.
+    """
+    if not isinstance(envelope, dict):
+        return envelope
+
+    encoded = envelope.copy()
+    byte_fields = []
+    for field_name in _BYTE_FIELDS:
+        value = encoded.get(field_name)
+        if isinstance(value, bytes):
+            encoded[field_name] = base64.b64encode(value).decode("ascii")
+            byte_fields.append(field_name)
+    if byte_fields:
+        encoded[_BYTE_FIELDS_MARKER] = byte_fields
+    return encoded
+
+
+def _decode_envelope(envelope: Any) -> Any:
+    """Decode current and legacy base64 envelope byte fields.
+
+    Older JSON snapshots used ``_payload_is_b64``.  Accept that marker while
+    writing the shared ``_bytes_fields`` representation for both JSON and
+    SQLite.  Invalid marked data is corruption and must fail loudly.
+    """
+    if not isinstance(envelope, dict):
+        raise ValueError("envelope must be an object")
+
+    decoded = envelope.copy()
+    marked = decoded.pop(_BYTE_FIELDS_MARKER, [])
+    if not isinstance(marked, list) or any(
+        not isinstance(field_name, str) or field_name not in _BYTE_FIELDS
+        for field_name in marked
+    ):
+        raise ValueError("invalid envelope byte-field marker")
+
+    marked = list(marked)
+    for field_name in _BYTE_FIELDS:
+        legacy_marker = decoded.pop(f"_{field_name}_is_b64", False)
+        if not isinstance(legacy_marker, bool):
+            raise ValueError("invalid legacy byte-field marker")
+        if legacy_marker:
+            marked.append(field_name)
+
+    for field_name in dict.fromkeys(marked):
+        value = decoded.get(field_name)
+        if not isinstance(value, str):
+            raise ValueError(f"encoded envelope field {field_name!r} must be a string")
+        try:
+            decoded[field_name] = base64.b64decode(value, validate=True)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"invalid base64 in envelope field {field_name!r}") from exc
+    return decoded
+
+
+def _validated_snapshot(data: Any) -> tuple[Dict[str, Dict[str, Any]], List[str]]:
+    """Validate and decode an activity-buffer snapshot without dropping data."""
+    if not isinstance(data, dict):
+        raise ValueError("snapshot must be an object")
+    if "records" not in data or "order" not in data:
+        raise ValueError("snapshot requires records and order")
+
+    records = data["records"]
+    order = data["order"]
+    if not isinstance(records, dict):
+        raise ValueError("snapshot records must be an object")
+    if not isinstance(order, list) or any(not isinstance(mid, str) for mid in order):
+        raise ValueError("snapshot order must be a list of message IDs")
+    if len(order) != len(set(order)):
+        raise ValueError("snapshot order contains duplicate message IDs")
+
+    decoded_records: Dict[str, Dict[str, Any]] = {}
+    for message_id, record in records.items():
+        if not isinstance(message_id, str) or not isinstance(record, dict):
+            raise ValueError("snapshot records must map string IDs to objects")
+        required = {"message_id", "direction", "envelope"}
+        if not required.issubset(record):
+            raise ValueError(f"record {message_id!r} is missing required fields")
+        if record["message_id"] != message_id:
+            raise ValueError(f"record key {message_id!r} does not match message_id")
+        decoded = record.copy()
+        decoded["envelope"] = _decode_envelope(decoded["envelope"])
+        decoded_records[message_id] = decoded
+
+    if set(order) != set(decoded_records):
+        raise ValueError("snapshot order and records contain different message IDs")
+    return decoded_records, order
+
 
 class PersistenceBackend(Protocol):
     """Interface for activity buffer persistence backends."""
@@ -32,39 +141,45 @@ class JSONFilePersistence:
         self.file_path = Path(file_path)
 
     def save_records(self, records: Dict[str, Dict[str, Any]], order: List[str]) -> None:
-        """Save records to JSON file."""
-        # Convert bytes to base64 for JSON serialization
-        serializable_records = {}
-        for msg_id, record in records.items():
-            serializable_record = record.copy()
-            # Handle bytes payload in envelope
-            if 'envelope' in serializable_record and isinstance(serializable_record['envelope'], dict):
-                envelope = serializable_record['envelope'].copy()
-                if 'payload' in envelope and isinstance(envelope['payload'], bytes):
-                    envelope['payload'] = base64.b64encode(envelope['payload']).decode('utf-8')
-                    envelope['_payload_is_b64'] = True
-                serializable_record['envelope'] = envelope
-            serializable_records[msg_id] = serializable_record
+        """Save records to JSON file with fsync-durable atomic write."""
+        serializable_records = {
+            message_id: {**record, "envelope": _encode_envelope(record["envelope"])}
+            for message_id, record in records.items()
+        }
         
         data = {
             "records": serializable_records,
             "order": order,
             "version": "1.0"
         }
+        _validated_snapshot(data)
         
-        # Atomic write: write to temp file, then rename
+        # Durable atomic write: write temp -> fsync file -> rename -> fsync dir.
         temp_path = self.file_path.with_suffix('.tmp')
         try:
             with open(temp_path, 'w') as f:
                 json.dump(data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
             temp_path.rename(self.file_path)
+            # fsync the directory so the rename itself survives a crash.
+            dir_fd = os.open(str(self.file_path.parent), os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
         except Exception:
             if temp_path.exists():
                 temp_path.unlink()
             raise
 
     def load_records(self) -> tuple[Dict[str, Dict[str, Any]], List[str]]:
-        """Load records from JSON file."""
+        """Load records from JSON file.
+
+        Returns ({}, []) when the file does not exist (fresh start).
+        Raises ActivityBufferLoadError on corruption — callers decide the
+        failure policy; silent reset hides data loss.
+        """
         if not self.file_path.exists():
             return {}, []
 
@@ -72,24 +187,11 @@ class JSONFilePersistence:
             with open(self.file_path) as f:
                 data = json.load(f)
             
-            records = data.get("records", {})
-            order = data.get("order", [])
-            
-            # Convert base64 back to bytes for payload
-            for msg_id, record in records.items():
-                if 'envelope' in record and isinstance(record['envelope'], dict):
-                    envelope = record['envelope']
-                    if envelope.get('_payload_is_b64') and 'payload' in envelope:
-                        envelope['payload'] = base64.b64decode(envelope['payload'])
-                        del envelope['_payload_is_b64']
-            
-            # Validate data consistency
-            valid_order = [mid for mid in order if mid in records]
-            
-            return records, valid_order
-        except (json.JSONDecodeError, KeyError, OSError):
-            # If file is corrupted, start fresh
-            return {}, []
+            return _validated_snapshot(data)
+        except (ValueError, TypeError, KeyError, OSError) as e:
+            raise ActivityBufferLoadError(
+                f"Activity buffer persistence file is corrupted: {self.file_path}: {e}"
+            ) from e
 
     def clear(self) -> None:
         """Remove the persistence file."""
@@ -97,7 +199,8 @@ class JSONFilePersistence:
             self.file_path.unlink()
 
 
-# SQLite persistence would go here, but sqlite3 is not available in this environment
+# SQLitePersistence below is fully implemented (WAL, synchronous=FULL) but not yet
+# wired as the default backend; JSONFilePersistence remains the default.
 
 
 @dataclass
@@ -189,6 +292,11 @@ class SQLitePersistence:
         For low write rates this favors simplicity and correctness. Order is
         preserved by inserting rows following the provided order list.
         """
+        encoded_records = {
+            message_id: {**record, "envelope": _encode_envelope(record["envelope"])}
+            for message_id, record in records.items()
+        }
+        _validated_snapshot({"records": encoded_records, "order": order})
         con = self._connect()
         try:
             cur = con.cursor()
@@ -196,9 +304,7 @@ class SQLitePersistence:
             cur.execute("DELETE FROM activity_records;")
 
             for mid in order:
-                rec = records.get(mid)
-                if not rec:
-                    continue
+                rec = encoded_records[mid]
                 cur.execute(
                     """
                     INSERT INTO activity_records (
@@ -236,9 +342,11 @@ class SQLitePersistence:
         order: List[str] = []
         for (mid, ts_ms, direction, envelope_json, ack_stage, error_code, ack_note) in rows:
             try:
-                envelope = json.loads(envelope_json) if envelope_json else {}
-            except Exception:
-                envelope = {}
+                envelope = _decode_envelope(json.loads(envelope_json))
+            except (ValueError, TypeError) as exc:
+                raise ActivityBufferLoadError(
+                    f"Activity buffer SQLite record {mid!r} is corrupted: {exc}"
+                ) from exc
             data = {
                 "message_id": mid,
                 "ts_ms": int(ts_ms),

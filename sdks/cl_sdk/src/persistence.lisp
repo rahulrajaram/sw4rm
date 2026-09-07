@@ -3,6 +3,10 @@
 
 (in-package :sw4rm-sdk)
 
+#+sbcl
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (require :sb-posix))
+
 ;;; Condition Types
 
 (define-condition persistence-error (error)
@@ -74,6 +78,51 @@
   (let ((filename (format nil "~A.json" (or namespace "default"))))
     (merge-pathnames filename (base-directory backend))))
 
+(defun %sync-output-stream (stream)
+  "Flush STREAM to the operating system, including its file descriptor on SBCL.
+
+The SBCL path provides the same file durability guarantee as the Python and
+Elixir backends. Other implementations still get a flushed stream and retain
+the atomic rename guarantee, but cannot claim power-loss durability without a
+portable fsync API."
+  (force-output stream)
+  #+sbcl
+  (sb-posix:fsync (sb-sys:fd-stream-fd stream))
+  #-sbcl
+  t)
+
+(defun %sync-directory (directory)
+  "Sync DIRECTORY after a rename when the host exposes POSIX fsync."
+  #+sbcl
+  (let ((fd (sb-posix:open (namestring directory) sb-posix:o-rdonly)))
+    (unwind-protect
+         (sb-posix:fsync fd)
+      (sb-posix:close fd)))
+  #-sbcl
+  (declare (ignore directory)))
+
+(defun %atomic-json-write (path records)
+  "Write RECORDS through a synced sibling and atomic rename."
+  (let* ((tmp (merge-pathnames
+               (make-pathname :name (format nil ".~A" (pathname-name path))
+                              :type "tmp")
+               path)))
+    (handler-case
+        (progn
+          (with-open-file (stream tmp
+                                 :direction :output
+                                 :if-exists :supersede
+                                 :if-does-not-exist :create)
+            (json:encode-json records stream)
+            (%sync-output-stream stream))
+          (rename-file tmp path)
+          (%sync-directory (make-pathname :name nil :type nil :defaults path))
+          t)
+      (error (e)
+        (when (probe-file tmp)
+          (delete-file tmp))
+        (error e)))))
+
 (defmethod save-records ((backend json-file-persistence) records &key (namespace nil))
   "Save records to a JSON file.
 
@@ -92,11 +141,7 @@
       (handler-case
           (progn
             (ensure-directories-exist file-path)
-            (with-open-file (stream file-path
-                                   :direction :output
-                                   :if-exists :supersede
-                                   :if-does-not-exist :create)
-              (json:encode-json records stream))
+            (%atomic-json-write file-path records)
             (length records))
         (error (e)
           (error 'persistence-error

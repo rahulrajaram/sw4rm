@@ -253,6 +253,7 @@ mod tests {
     #[test]
     fn test_persistent_activity_buffer_creation() {
         let temp_file = NamedTempFile::new().unwrap();
+        std::fs::remove_file(temp_file.path()).unwrap();
         let persistence = Box::new(JsonFilePersistence::new(temp_file.path()));
         
         let buffer = PersistentActivityBuffer::new(50, Some(persistence));
@@ -266,6 +267,7 @@ mod tests {
     #[test]
     fn test_persistent_activity_buffer_persistence() {
         let temp_file = NamedTempFile::new().unwrap();
+        std::fs::remove_file(temp_file.path()).unwrap();
         let file_path = temp_file.path().to_path_buf();
         
         // Create buffer and add data
@@ -298,6 +300,7 @@ mod tests {
     #[test]
     fn test_persistent_buffer_flush_and_reload() {
         let temp_file = NamedTempFile::new().unwrap();
+        std::fs::remove_file(temp_file.path()).unwrap();
         let persistence = Box::new(JsonFilePersistence::new(temp_file.path()));
         let buffer = PersistentActivityBuffer::new(10, Some(persistence)).unwrap();
         

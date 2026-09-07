@@ -122,6 +122,7 @@ export * from './agentConfig.js';
 // Persistent Activity Buffer (Three-ID model)
 export {
   type EnvelopeRecord,
+  ActivityBufferLoadError,
   PersistentActivityBuffer,
   // Skip PersistenceBackend, JSONFilePersistence — canonical versions exported from persistence/persistence.js
 } from './persistentActivityBuffer.js';

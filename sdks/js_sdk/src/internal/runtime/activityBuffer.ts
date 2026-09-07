@@ -1,4 +1,11 @@
-// Advisory ActivityBuffer per spec §10
+// Advisory ActivityBuffer per spec §10.
+//
+// This tracks per-task activity records (task_id/repo/worktree/branch/…)
+// synced from PollActivityBuffer and persisted for the runtime.  There is no
+// pluggable eviction API: per spec §10.1, capacity is enforced by rejecting
+// at the service (error_code=activity_buffer_full) and the advisory history
+// cap here applies a hardcoded count-based drop-oldest policy, which §10.1
+// explicitly sanctions for completed/failed history entries.
 
 export interface ActivityRecord {
   task_id: string;
@@ -9,26 +16,12 @@ export interface ActivityRecord {
   timestamp: string; // ISO-8601
 }
 
-export interface BufferStrategy {
-  prune(records: ActivityRecord[], maxEntries: number): ActivityRecord[];
-}
-
-export class MaxEntriesStrategy implements BufferStrategy {
-  prune(records: ActivityRecord[], maxEntries: number): ActivityRecord[] {
-    if (records.length <= maxEntries) return records;
-    const overflow = records.length - maxEntries;
-    return records.slice(overflow); // drop oldest
-  }
-}
-
 export class ActivityBuffer {
   private records = new Map<string, ActivityRecord>();
   private maxEntries: number;
-  private strategy: BufferStrategy;
 
-  constructor(opts?: { maxEntries?: number; strategy?: BufferStrategy }) {
+  constructor(opts?: { maxEntries?: number }) {
     this.maxEntries = opts?.maxEntries ?? 1000;
-    this.strategy = opts?.strategy ?? new MaxEntriesStrategy();
   }
 
   upsert(rec: ActivityRecord) {
@@ -55,10 +48,13 @@ export class ActivityBuffer {
     }
   }
 
+  // Count-based cap for the advisory history window: drop the oldest records
+  // beyond maxEntries (§10.1 history-entry eviction SHOULD).
   private prune() {
     const arr = this.list();
-    const pruned = this.strategy.prune(arr, this.maxEntries);
-    if (pruned.length === arr.length) return;
+    if (arr.length <= this.maxEntries) return;
+    const overflow = arr.length - this.maxEntries;
+    const pruned = arr.slice(overflow);
     this.records.clear();
     for (const r of pruned) this.records.set(r.task_id, r);
   }
