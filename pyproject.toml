@@ -20,8 +20,8 @@ dependencies = [
 dev = [
   "grpcio-tools>=1.56,<2",
   "build>=1.0,<2",
-  "twine>=5,<6",
-  "pkginfo>=1.10,<2",
+  "twine>=6.1,<7",
+  "pkginfo>=1.12,<2",
 ]
 test = [
   "pytest>=7.0,<9",
