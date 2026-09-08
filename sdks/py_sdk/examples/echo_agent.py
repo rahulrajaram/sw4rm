@@ -92,9 +92,13 @@ def main() -> int:
                 )
                 try:
                     resp = router.send_message(env)
+                    if not resp.accepted:
+                        continue
                     print(f"[echo] accepted={getattr(resp, 'accepted', None)} reason={getattr(resp, 'reason', None)}")
                 except Exception as e:
                     print("[echo] send failed:", e, file=sys.stderr)
+                    continue
+            router.ack_delivery(args.agent_id, item.seq, msg.message_id)
     except KeyboardInterrupt:
         pass
     finally:

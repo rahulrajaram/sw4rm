@@ -213,7 +213,8 @@ pub async fn run() -> Result<()> {
         if env.content_type != CT_SCHED_CMD { continue; }
         let payload_s = String::from_utf8(env.payload.clone()).unwrap_or_default();
         let cmd: Value = serde_json::from_str(&payload_s).unwrap_or(Value::Null);
-        let to = cmd.get("to").and_then(|v| v.as_str()); if let Some(t) = to { if t != agent_id { continue; } }
+        let to = cmd.get("to").and_then(|v| v.as_str());
+        if to != Some(agent_id.as_str()) { warn!("command rejected: missing or mismatched target {:?}", to); continue; }
         let stage = cmd.get("stage").and_then(|v| v.as_str()).unwrap_or("");
         let params = cmd.get("params").or_else(|| cmd.get("input")).cloned().unwrap_or(Value::Object(serde_json::Map::new()));
         let corr = env.correlation_id.clone();
@@ -243,24 +244,75 @@ pub async fn run() -> Result<()> {
                 processed.insert(key);
             }
             "run" => {
-                let suggested = params.get("cmd").and_then(|v| v.as_str()).unwrap_or("");
-                let llm_prompt = format!(
-                    "{}{}{}",
-                    "You are the backend run orchestrator. A suggested command was provided. ",
-                    "Return JSON ONLY as {\"run_cmd\": string}. Execution cwd is ./generated_app. ",
-                    "Use 'cd backend && python3 server.py'. Do NOT include 'generated_app' in paths.\n\n",
-                ) + &format!("Suggested: {}", serde_json::to_string(&suggested).unwrap());
-                info!("run: invoking claude to confirm command…");
-                let result_obj = run_claude(&llm_prompt);
-                let cmdline = result_obj.get("run_cmd").and_then(|v| v.as_str()).unwrap_or(suggested);
+                // Campaign R2: no shell, no unmediated fallback, explicit confirmation.
+                let params_confirm = params.get("confirm").and_then(|v| v.as_bool()).unwrap_or(false);
+                if !params_confirm {
+                    let report = json!({"schema_version":1, "stage":"run", "status":"error",
+                        "info": {"error": "run_not_confirmed"}});
+                    let env_out = EnvelopeBuilder::new(agent_id.clone(), constants::message_type::NOTIFICATION)
+                        .with_payload(serde_json::to_vec(&report).unwrap())
+                        .with_content_type(CT_AGENT_REPORT.to_string())
+                        .with_correlation_id(corr.clone())
+                        .build();
+                    let _ = router.send_message(&env_out).await;
+                    processed.insert(key);
+                    continue;
+                }
+                let resolution = if let Some(argv_value) = params.get("cmd_argv") {
+                    let parsed: Vec<String> = match serde_json::from_value(argv_value.clone()) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            let report = json!({"schema_version":1, "stage":"run", "status":"error",
+                                "info": {"error": "run command must be an array of strings"}});
+                            let env_out = EnvelopeBuilder::new(agent_id.clone(), constants::message_type::NOTIFICATION)
+                                .with_payload(serde_json::to_vec(&report).unwrap())
+                                .with_content_type(CT_AGENT_REPORT.to_string())
+                                .with_correlation_id(corr.clone())
+                                .build();
+                            let _ = router.send_message(&env_out).await;
+                            processed.insert(key);
+                            continue;
+                        }
+                    };
+                    super::run_policy::validate_run_argv(&parsed)
+                } else {
+                    let suggested = params.get("cmd").and_then(|v| v.as_str()).unwrap_or("");
+                    let llm_prompt = format!(
+                        "{}{}{}",
+                        "You are the backend run orchestrator. A suggested command was provided. ",
+                        "Return JSON ONLY as {\"run_cmd\": string}. Execution cwd is ./generated_app. ",
+                        "The command must be a single program with arguments (no shell compounds, no cd).\n\n",
+                    ) + &format!("Suggested: {}", serde_json::to_string(&suggested).unwrap());
+                    info!("run: invoking claude to confirm command…");
+                    let result_obj = run_claude(&llm_prompt);
+                    match result_obj.get("run_cmd").and_then(|v| v.as_str()) {
+                        Some(run_cmd) => super::run_policy::validate_run_cmd_string(run_cmd)
+                            .map_err(|e| serde_json::json!({"error": e, "cmd": run_cmd})),
+                        None => Err(super::run_policy::confirmation_failed(suggested)),
+                    }
+                };
+                let argv = match resolution {
+                    Ok(argv) => argv,
+                    Err(err_info) => {
+                        let report = json!({"schema_version":1, "stage":"run", "status":"error", "info": err_info});
+                        let env_out = EnvelopeBuilder::new(agent_id.clone(), constants::message_type::NOTIFICATION)
+                            .with_payload(serde_json::to_vec(&report).unwrap())
+                            .with_content_type(CT_AGENT_REPORT.to_string())
+                            .with_correlation_id(corr.clone())
+                            .build();
+                        let _ = router.send_message(&env_out).await;
+                        processed.insert(key);
+                        continue;
+                    }
+                };
                 let base_dir = demo_root().join("generated_app");
                 let log_path = gen_root().join("service.log");
                 let mut status = "ok".to_string();
-                let mut info_map = json!({"cmd": cmdline});
+                let mut info_map = json!({"cmd": argv.join(" "), "argv": argv});
                 match File::options().create(true).append(true).open(&log_path) {
                     Ok(file) => {
                         let _ = fs::write(gen_root().join(".service.pid"), "");
-                        match Command::new("sh").arg("-c").arg(cmdline)
+                        match Command::new(&argv[0]).args(&argv[1..])
                             .current_dir(&base_dir)
                             .stdout(Stdio::from(file.try_clone().unwrap()))
                             .stderr(Stdio::from(file))

@@ -7,7 +7,7 @@ use crate::proto::sw4rm::common::AgentState;
 use crate::runtime::preemption::PreemptionManager;
 use crate::{Error, Result};
 use async_trait::async_trait;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
@@ -214,7 +214,7 @@ impl AgentRuntime {
                 interval.tick().await;
 
                 if let Ok(mut client) = RegistryClient::new(&registry_endpoint).await {
-                    let health = HashMap::from([
+                    let health = BTreeMap::from([
                         ("status".to_string(), "healthy".to_string()),
                         ("timestamp".to_string(), crate::types::now_hlc_stub()),
                     ]);
@@ -250,12 +250,18 @@ impl AgentRuntime {
                 10,
             );
 
-            let mut stream = router_client.stream_incoming(&self.config.agent_id).await?;
+            let mut stream = router_client
+                .stream_incoming_with_seq(&self.config.agent_id)
+                .await?;
+            let mut delivery_ack_client = router_client.clone();
+            let delivery_agent_id = self.config.agent_id.clone();
 
             let handle = tokio::spawn(async move {
                 while let Some(envelope_result) = stream.next().await {
                     match envelope_result {
-                        Ok(envelope) => {
+                        Ok(incoming) => {
+                            let envelope = incoming.envelope;
+                            let delivery_seq = incoming.seq;
                             // Send RECEIVED ACK immediately
                             let _ = ack_manager.auto_ack_received(&envelope).await;
 
@@ -274,6 +280,16 @@ impl AgentRuntime {
                                 let _ = ack_manager
                                     .auto_ack_fulfilled(message_id.clone(), Some(note.to_string()))
                                     .await;
+                                if let Err(error) = delivery_ack_client
+                                    .ack_delivered(&delivery_agent_id, delivery_seq)
+                                    .await
+                                {
+                                    tracing::error!(
+                                        "Failed to acknowledge router delivery seq {}: {}",
+                                        delivery_seq,
+                                        error
+                                    );
+                                }
                             }
 
                             // Check for preemption

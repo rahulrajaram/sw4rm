@@ -29,7 +29,7 @@ def demo_basic_envelope_lifecycle():
     )
 
     print(f"1. Created envelope: message_id={env['message_id'][:8]}...")
-    print(f"   Initial state: {env['state']} (CREATED)")
+    print(f"   Initial state: {env['state']} (SENT)")
     print(f"   Terminal? {is_terminal_state(env['state'])}")
 
     update_envelope_state(env, C.PENDING)

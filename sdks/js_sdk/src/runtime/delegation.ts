@@ -166,7 +166,10 @@ export async function delegateToSwarm(
   const redirectBound = effectiveMaxRedirects(policy);
   const visitedAgents = new Set<string>([request.toAgent]);
 
-  while (true) {
+  // Loop while at least one more retry or redirect hop is possible; all
+  // terminal outcomes (accepted, budget exhausted, non-retryable rejection,
+  // caps reached) return from inside the loop body.
+  while (retryIndex <= maxRetriesOnOverloaded && redirectHops <= redirectBound) {
     const startMs = nowMs();
     if (budgetExhausted(request.budget!, startMs)) {
       return deadlineExhaustedResponse(request.requestId);
@@ -238,4 +241,8 @@ export async function delegateToSwarm(
     const afterSleepMs = nowMs();
     deductWallTime(request, Math.max(afterSleepMs - beforeSleepMs, 0));
   }
+
+  // Defensive: the loop condition can only be exhausted if caps changed between
+  // checks; every normal path returns above. Treat escape as deadline exhaustion.
+  return deadlineExhaustedResponse(request.requestId);
 }

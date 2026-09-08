@@ -49,7 +49,7 @@ The service exposes three RPCs:
 `new RegistryClient(options: ClientOptions)`
 
 - `options.address`: `host:port` for the RegistryService endpoint.
-- Optional: `deadlineMs`, `retry`, `userAgent`, `interceptors`, `errorMapper`.
+- `ClientOptions` also accepts optional `deadlineMs`, `retry`, `userAgent`, `interceptors`, and `errorMapper` fields — see [client conventions](index.md#61-conventions).
 
 ### Rust
 
@@ -84,7 +84,7 @@ The service exposes three RPCs:
 `heartbeat(agentId: string, state: string, health?: Record<string, string>): Promise<boolean>`
 
 **Rust**
-`heartbeat(&mut self, agent_id: &str, state: AgentState, health: Option<HashMap<String, String>>) -> Result<HeartbeatResponse>`
+`heartbeat(&mut self, agent_id: &str, state: AgentState, health: Option<BTreeMap<String, String>>) -> Result<HeartbeatResponse>`
 
 **Response fields**
 
@@ -167,7 +167,7 @@ The service exposes three RPCs:
 
 === "Rust"
     ```rust
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
     use sw4rm_sdk::clients::RegistryClient;
     use sw4rm_sdk::proto::sw4rm::common::AgentState;
     use sw4rm_sdk::types::AgentDescriptor;
@@ -188,8 +188,9 @@ The service exposes three RPCs:
         let response = client.register(&agent).await?;
         println!("Registered: {}", response.accepted);
 
-        let mut health = HashMap::new();
-        health.insert("uptime".to_string(), "120s".to_string());
+        let mut health = BTreeMap::from([
+            "uptime".to_string() => "120s".to_string(),
+        ]);
         let hb = client
             .heartbeat("agent-1", AgentState::Running, Some(health))
             .await?;

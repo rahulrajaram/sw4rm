@@ -24,15 +24,16 @@ export interface EnvelopeInput {
   payload?: Uint8Array | Buffer;
   content_type?: string; // required if payload present
   correlation_id?: string; // default: generated UUIDv4
+  parent_correlation_id?: string; // parent workflow for delegated work
   idempotency_token?: string; // optional but preserved across retries
-  sequence_number?: number; // monotonic per producer stream
+  sequence_number?: number | string; // decimal string for values above 2^53-1
   retry_count?: number; // incremented by caller on retry
   repo_id?: string;
   worktree_id?: string;
   hlc_timestamp?: string;
-  ttl_ms?: number;
+  ttl_ms?: number | string;
   timestamp?: Date; // default now (UTC)
-  state?: number; // EnvelopeState (default: CREATED = 1)
+  state?: number; // EnvelopeState (default: SENT = 1)
   effective_policy_id?: string; // ID of effective policy governing this operation
   audit_proof?: Uint8Array; // cryptographic proof for audit trail
   audit_policy_id?: string; // ID of audit policy governing this envelope
@@ -43,7 +44,8 @@ export interface EnvelopeBuilt {
   idempotency_token?: string;
   producer_id: string;
   correlation_id: string;
-  sequence_number: number;
+  parent_correlation_id: string;
+  sequence_number: number | string;
   retry_count: number;
   message_type: MessageType;
   content_type: string; // Always present (aligns with Python/Rust)
@@ -51,7 +53,7 @@ export interface EnvelopeBuilt {
   repo_id?: string;
   worktree_id?: string;
   hlc_timestamp: string; // Always present (aligns with Python/Rust)
-  ttl_ms?: number;
+  ttl_ms?: number | string;
   timestamp: Timestamp;
   payload?: Uint8Array;
   state: number; // EnvelopeState lifecycle
@@ -63,7 +65,7 @@ export interface EnvelopeBuilt {
 export function nowTimestamp(date = new Date()): Timestamp {
   const ms = date.getTime();
   const seconds = Math.floor(ms / 1000);
-  const nanos = (ms % 1000) * 1e6;
+  const nanos = (ms - seconds * 1000) * 1e6;
   return { seconds, nanos };
 }
 
@@ -80,6 +82,7 @@ export function nowHlcStub(date = new Date()): string {
   let node = 'unknown';
   try {
     // Node.js environment
+    // eslint-disable-next-line @typescript-eslint/no-var-requires -- lazy env probe; keeps bundlers from pulling node:os into browser builds
     const os = require('node:os');
     node = os.hostname() || 'unknown';
   } catch {
@@ -107,6 +110,14 @@ function uuidv4(): string {
 }
 
 export function buildEnvelope(input: EnvelopeInput): EnvelopeBuilt {
+  for (const [name, value] of [['sequence_number', input.sequence_number], ['ttl_ms', input.ttl_ms]] as const) {
+    if (value === undefined) continue;
+    if ((typeof value === 'number' && !Number.isSafeInteger(value))
+        || (typeof value === 'string' && !/^\d+$/.test(value))
+        || BigInt(value) < 0n || BigInt(value) > 18446744073709551615n) {
+      throw new RangeError(`${name} requires a uint64 decimal string or safe integer`);
+    }
+  }
   const hasPayload = input.payload !== undefined;
   // Always set content_type to align with Python/Rust behavior
   const content_type = input.content_type ?? 'application/json';
@@ -123,6 +134,7 @@ export function buildEnvelope(input: EnvelopeInput): EnvelopeBuilt {
     idempotency_token: input.idempotency_token,
     producer_id: input.producer_id,
     correlation_id,
+    parent_correlation_id: input.parent_correlation_id ?? '',
     sequence_number,
     retry_count,
     message_type: input.message_type,
@@ -132,7 +144,7 @@ export function buildEnvelope(input: EnvelopeInput): EnvelopeBuilt {
     hlc_timestamp, // Always set hlc_timestamp (aligns with Python/Rust)
     ttl_ms: input.ttl_ms,
     timestamp: ts,
-    state: input.state ?? 1, // EnvelopeState.CREATED
+    state: input.state ?? 1, // EnvelopeState.SENT
     effective_policy_id: input.effective_policy_id ?? '',
     audit_proof: input.audit_proof ?? new Uint8Array(0),
     audit_policy_id: input.audit_policy_id ?? '',
@@ -150,4 +162,3 @@ export function buildEnvelope(input: EnvelopeInput): EnvelopeBuilt {
 
   return built;
 }
-

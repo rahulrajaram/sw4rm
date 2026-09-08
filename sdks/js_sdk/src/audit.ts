@@ -21,7 +21,6 @@
 
 import crypto from 'node:crypto';
 import { nowHlcStub } from './internal/envelope.js';
-import { EnvelopeState } from './constants/index.js';
 
 /**
  * Represents a cryptographic or logical proof for an audit event.
@@ -241,9 +240,6 @@ export function verifyAuditProof(envelope: EnvelopeAuditable, proof: AuditProof)
       return false;
     }
 
-    // Compute expected hash for verification
-    const envelopeHash = computeEnvelopeHash(envelope);
-
     // In a real implementation, we would reconstruct the proof
     // and compare it with the provided proof_data
     // For now, we do a basic check that the hash is consistent
@@ -274,7 +270,7 @@ export class NoOpAuditor implements Auditor {
    * @param action - The action (ignored)
    * @returns A minimal no-op proof
    */
-  createProof(envelope: EnvelopeAuditable, action: string): AuditProof {
+  createProof(_envelope: EnvelopeAuditable, _action: string): AuditProof {
     return {
       proof_id: uuidv4(),
       proof_type: 'noop',
@@ -290,7 +286,7 @@ export class NoOpAuditor implements Auditor {
    * @param proof - The proof (ignored)
    * @returns Always true
    */
-  verifyProof(proof: AuditProof): boolean {
+  verifyProof(_proof: AuditProof): boolean {
     return true;
   }
 
@@ -319,7 +315,7 @@ export class NoOpAuditor implements Auditor {
    * @param envelope_id - The envelope ID (ignored)
    * @returns Empty array
    */
-  query(envelope_id: string): AuditRecord[] {
+  query(_envelope_id: string): AuditRecord[] {
     return [];
   }
 }
@@ -347,7 +343,7 @@ export class InMemoryAuditor implements Auditor {
    * @param action - The action being performed
    * @returns A simple hash-based proof
    */
-  createProof(envelope: EnvelopeAuditable, action: string): AuditProof {
+  createProof(envelope: EnvelopeAuditable, _action: string): AuditProof {
     return createSimpleProof(envelope, envelope.producer_id ?? 'unknown');
   }
 

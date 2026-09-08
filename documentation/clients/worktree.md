@@ -15,6 +15,19 @@ Worktree bindings follow a simple state machine:
 - `SWITCH_PENDING` -> `BOUND_HOME` via `reject_switch`.
 - Any state -> `UNBOUND` via `unbind`.
 
+```mermaid
+stateDiagram-v2
+    [*] --> UNBOUND
+    UNBOUND --> BOUND_HOME: bind (home worktree)
+    UNBOUND --> BIND_FAILED: bind fails
+    BOUND_HOME --> SWITCH_PENDING: request_switch
+    SWITCH_PENDING --> BOUND_NON_HOME: approve_switch
+    SWITCH_PENDING --> BOUND_HOME: reject_switch
+    BOUND_HOME --> UNBOUND: unbind
+    BOUND_NON_HOME --> UNBOUND: unbind
+    BIND_FAILED --> [*]
+```
+
 ## 6.18.1. Service Overview
 
 The service exposes six RPCs:
@@ -107,7 +120,7 @@ The service exposes six RPCs:
 `new WorktreeClient(options: ClientOptions)`
 
 - `options.address`: `host:port` for the WorktreeService endpoint (default port: 50062).
-- Optional: `deadlineMs`, `retry`, `userAgent`, `interceptors`, `errorMapper`.
+- `ClientOptions` also accepts optional `deadlineMs`, `retry`, `userAgent`, `interceptors`, and `errorMapper` fields — see [client conventions](index.md#61-conventions).
 
 ### Rust
 
@@ -240,7 +253,7 @@ The default policy allows all binds, unbinds, and switches. Provide a custom
 
 === "Rust"
     ```rust
-    use sw4rm::clients::WorktreeClient;
+    use sw4rm_sdk::clients::worktree::WorktreeClient;
 
     let mut client = WorktreeClient::new("http://localhost:50062").await?;
     client.bind_worktree("dev-agent-1", "repo-main", "wt-feature-123").await?;

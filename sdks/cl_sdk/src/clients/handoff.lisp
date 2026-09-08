@@ -528,7 +528,11 @@ Returns two values: normalized-request and handoff-id."
   t)
 
 (defgeneric cancel-delegation (client cancel-request)
-  (:documentation "Set cancellation flags for a correlation and known children."))
+  (:documentation "Set cancellation flags for a correlation and its DIRECT children.
+
+Helper boundary (SW4-004 §5.3): recursive cascade forwarding across deeper
+delegation trees is the gateway's job — grandchildren are intentionally not
+cancelled here."))
 
 (defmethod cancel-delegation ((client handoff-client) cancel-request)
   (ensure-connected client)

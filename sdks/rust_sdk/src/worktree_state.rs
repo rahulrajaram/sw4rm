@@ -403,7 +403,7 @@ impl PersistentWorktreeState {
     /// # Arguments
     ///
     /// * `ttl_ms` - Time-to-live in milliseconds before auto-reverting to BOUND_HOME.
-    ///              Defaults to 300000 (5 minutes) if 0 is passed.
+    ///   Defaults to 300000 (5 minutes) if 0 is passed.
     pub fn approve_switch(&mut self, ttl_ms: u64) -> bool {
         if self.state != "SWITCH_PENDING" {
             return false;

@@ -2,7 +2,7 @@
 
 (asdf:defsystem #:sw4rm-sdk
   :description "SW4RM Protocol SDK for Common Lisp - Full peer implementation"
-  :version "0.6.0"
+  :version "0.7.0"
   :author "SW4RM Team"
   :license "Apache-2.0"
   :depends-on (#:alexandria         ; Common utilities
@@ -30,6 +30,7 @@
                              (:file "activity-buffer")
                              (:file "worktree-state")
                              (:file "voting")
+                             (:file "quorum-policy")
                              (:file "audit")
                              (:file "secrets")
                              (:file "persistence")
@@ -44,12 +45,15 @@
                 :serial t
                 :components ((:file "grpc-ffi")
                              (:file "protobuf-codec")
+                             (:file "protocol-bindings")
+                             (:file "protocol-codec")
                              (:file "grpc-transport")))
                (:module "clients"
                 :pathname "src/clients"
                 :depends-on ("src" "transport")
                 :serial t
                 :components ((:file "base")
+                             (:file "protocol")
                              (:file "router")
                              (:file "registry")
                              (:file "scheduler")
@@ -87,10 +91,14 @@
                 :serial t
                 :components ((:file "suite")
                              (:file "transport-test")
+                             (:file "protocol-client-test")
                              (:file "llm-test"))))
   :perform (test-op (o c)
              (let* ((suite-package (or (find-package :sw4rm-test)
                                        (error "SW4RM test package missing")))
                     (suite-symbol (or (find-symbol "SW4RM-SUITE" suite-package)
                                       (error "SW4RM suite symbol missing"))))
-               (symbol-call :fiveam '#:run! suite-symbol))))
+               (let ((results (symbol-call :fiveam '#:run suite-symbol)))
+                 (symbol-call :fiveam '#:explain! results)
+                 (unless (symbol-call :fiveam '#:results-status results)
+                   (error "SW4RM SDK tests failed"))))))

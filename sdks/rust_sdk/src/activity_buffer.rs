@@ -395,25 +395,16 @@ impl PersistentActivityBuffer {
 
 impl PersistentActivityBufferInner {
     fn load_from_persistence(&mut self) -> Result<()> {
-        match self.persistence.load_records() {
-            Ok((records_data, order)) => {
-                self.by_id = records_data;
-                self.order = order;
-                // Truncate to max_items if persisted data exceeds capacity
-                while self.order.len() > self.max_items {
-                    let oldest = self.order.remove(0);
-                    self.by_id.remove(&oldest);
-                }
-                tracing::info!("Loaded {} records from persistence", self.by_id.len());
-                Ok(())
-            }
-            Err(e) => {
-                tracing::warn!("Failed to load from persistence: {}", e);
-                self.by_id.clear();
-                self.order.clear();
-                Ok(())
-            }
+        let (records_data, order) = self.persistence.load_records()?;
+        self.by_id = records_data;
+        self.order = order;
+        // Truncate to max_items if persisted data exceeds capacity.
+        while self.order.len() > self.max_items {
+            let oldest = self.order.remove(0);
+            self.by_id.remove(&oldest);
         }
+        tracing::info!("Loaded {} records from persistence", self.by_id.len());
+        Ok(())
     }
 
     fn save_to_persistence(&mut self) -> Result<()> {
@@ -511,6 +502,7 @@ mod tests {
     #[test]
     fn test_persistent_activity_buffer_creation() {
         let temp_file = NamedTempFile::new().unwrap();
+        std::fs::remove_file(temp_file.path()).unwrap();
         let persistence = Box::new(JsonFilePersistence::new(temp_file.path()));
 
         let buffer = PersistentActivityBuffer::new(50, Some(persistence));

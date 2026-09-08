@@ -39,3 +39,21 @@ jobs:
       - name: Run Python unit tests
         run: |
           pytest -q sdks/py_sdk/tests
+
+      - name: Run crash-conformance harness checks
+        run: |
+          timeout 180 python -m pytest -q tests/crash_conformance
+
+      - name: Record all six crash-conformance outcomes
+        if: always()
+        run: |
+          timeout 120 python tests/crash_conformance/run_scenarios.py \
+            --scorecard artifacts/crash-conformance/crash_scorecard.json
+
+      - name: Upload crash-conformance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-conformance-evidence
+          path: artifacts/crash-conformance/
+          if-no-files-found: error

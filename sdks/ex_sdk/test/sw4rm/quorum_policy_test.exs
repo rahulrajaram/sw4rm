@@ -3,6 +3,46 @@ defmodule Sw4rm.QuorumPolicyTest do
 
   alias Sw4rm.QuorumPolicy
 
+  test "matches shared quorum vectors" do
+    path = Path.expand("../../../../tests/conformance_vectors/quorum_vectors.json", __DIR__)
+    vectors = path |> File.read!() |> Jason.decode!() |> Map.fetch!("vectors")
+
+    Enum.each(vectors, fn vector ->
+      rule = Map.fetch!(vector, "rule")
+      rule_value = Map.fetch!(rule, "value")
+
+      rule_tuple =
+        case Map.fetch!(rule, "kind") do
+          "minimum_votes" -> {:minimum_votes, rule_value}
+          "minimum_fraction" -> {:minimum_fraction, rule_value}
+          "require_all" -> {:require_all, rule_value}
+        end
+
+      policy = %{rule: rule_tuple, on_failure: String.to_atom(Map.fetch!(vector, "on_failure"))}
+      votes = Enum.map(Map.fetch!(vector, "votes"), &%{critic_id: Map.fetch!(&1, "critic_id")})
+      result = QuorumPolicy.evaluate(votes, Map.fetch!(vector, "requested"), policy)
+      expected = Map.fetch!(vector, "expected")
+      met = Map.fetch!(expected, "met")
+      expected_status = if met, do: :quorum_met, else: :quorum_not_met
+      assert {^expected_status, _} = result
+      {_status, details} = result
+      assert details.votes_received == expected["received"]
+      assert details.votes_expected == expected["expected"]
+      assert details.threshold == expected["threshold"]
+      assert length(details.all_votes) == expected["all_vote_count"]
+
+      action =
+        cond do
+          met -> "none"
+          policy.on_failure == :fail_closed -> "escalate_hitl"
+          policy.on_failure == :fail_with_available -> "decided_with_available"
+          true -> "decided_with_abstains"
+        end
+
+      assert action == expected["action"]
+    end)
+  end
+
   defp vote(critic_id), do: %{critic_id: critic_id, score: 8.0, confidence: 0.9, passed: true}
 
   describe "default_policy/0" do

@@ -42,6 +42,11 @@ defmodule Sw4rm.Delegation do
     policy = Map.get(opts, :delegation_policy, %{})
     now_ms_fn = Map.get(opts, :now_ms_fn, fn -> System.system_time(:millisecond) end)
 
+    # Mirror the Python contract: cross-swarm delegation requires a deadline.
+    if budget_deadline_ms(budget) <= 0 do
+      raise ArgumentError, "budget.deadline_epoch_ms is required for cross-swarm delegation"
+    end
+
     allow_spillover = Map.get(policy, :allow_spillover_routing, false)
     max_redirects_raw = Map.get(policy, :max_redirects, 0)
 
@@ -79,88 +84,119 @@ defmodule Sw4rm.Delegation do
          now_ms_fn
        ) do
     hop_start = now_ms_fn.()
-    attempts = attempts ++ [current_target]
-    response = send_fn.(%{request | to_agent: current_target})
 
-    cond do
-      response.accepted ->
-        %{
-          accepted: true,
-          rejection_code: 0,
-          rejection_reason: "",
-          redirect_to_agent_id: "",
-          attempts: attempts
-        }
+    # Exhaustion checks mirror the Python SDK (R11): before sending, and
+    # again after consuming the hop's wall time.
+    if budget_exhausted?(request.budget, hop_start) do
+      deadline_exhausted_result(attempts)
+    else
+      attempts = attempts ++ [current_target]
+      response = send_fn.(%{request | to_agent: current_target})
 
-      not is_redirect?(response) ->
-        %{
-          accepted: false,
-          rejection_code: Map.get(response, :rejection_code, 0),
-          rejection_reason: Map.get(response, :rejection_reason, ""),
-          redirect_to_agent_id: "",
-          attempts: attempts
-        }
+      # Deduct wall-time elapsed during this hop from the budget
+      hop_elapsed = now_ms_fn.() - hop_start
+      budget = deduct_wall_time(request.budget, hop_elapsed)
+      request = %{request | budget: budget}
 
-      not allow_spillover ->
-        %{
-          accepted: false,
-          rejection_code: Sw4rm.ErrorCodes.redirect(),
-          rejection_reason: Map.get(response, :rejection_reason, ""),
-          redirect_to_agent_id: Map.get(response, :redirect_to_agent_id, ""),
-          attempts: attempts
-        }
+      cond do
+        response.accepted ->
+          %{
+            accepted: true,
+            rejection_code: 0,
+            rejection_reason: "",
+            redirect_to_agent_id: "",
+            attempts: attempts
+          }
 
-      true ->
-        redirect_target = Map.get(response, :redirect_to_agent_id, "")
-        visited = MapSet.put(visited, current_target)
+        budget_exhausted?(budget, now_ms_fn.()) ->
+          deadline_exhausted_result(attempts)
 
-        # Deduct wall-time elapsed during this hop from the budget
-        hop_elapsed = now_ms_fn.() - hop_start
-        budget = request.budget
-        updated_budget = deduct_wall_time(budget, hop_elapsed)
-        request = %{request | budget: updated_budget}
+        not is_redirect?(response) ->
+          %{
+            accepted: false,
+            rejection_code: Map.get(response, :rejection_code, 0),
+            rejection_reason: Map.get(response, :rejection_reason, ""),
+            redirect_to_agent_id: "",
+            attempts: attempts
+          }
 
-        cond do
-          String.trim(redirect_target) == "" ->
-            %{
-              accepted: false,
-              rejection_code: Sw4rm.ErrorCodes.validation_error(),
-              rejection_reason: "redirect target must be non-empty",
-              redirect_to_agent_id: "",
-              attempts: attempts
-            }
+        not allow_spillover ->
+          %{
+            accepted: false,
+            rejection_code: Sw4rm.ErrorCodes.redirect(),
+            rejection_reason: Map.get(response, :rejection_reason, ""),
+            redirect_to_agent_id: Map.get(response, :redirect_to_agent_id, ""),
+            attempts: attempts
+          }
 
-          MapSet.member?(visited, redirect_target) ->
-            %{
-              accepted: false,
-              rejection_code: Sw4rm.ErrorCodes.validation_error(),
-              rejection_reason: "redirect loop detected",
-              redirect_to_agent_id: "",
-              attempts: attempts
-            }
+        true ->
+          redirect_target = Map.get(response, :redirect_to_agent_id, "")
+          visited = MapSet.put(visited, current_target)
 
-          length(attempts) >= max_redirects + 1 ->
-            %{
-              accepted: false,
-              rejection_code: Sw4rm.ErrorCodes.redirect(),
-              rejection_reason: Map.get(response, :rejection_reason, ""),
-              redirect_to_agent_id: redirect_target,
-              attempts: attempts
-            }
+          cond do
+            String.trim(redirect_target) == "" ->
+              %{
+                accepted: false,
+                rejection_code: Sw4rm.ErrorCodes.validation_error(),
+                rejection_reason: "redirect target must be non-empty",
+                redirect_to_agent_id: "",
+                attempts: attempts
+              }
 
-          true ->
-            do_delegate(
-              send_fn,
-              request,
-              redirect_target,
-              allow_spillover,
-              max_redirects,
-              visited,
-              attempts,
-              now_ms_fn
-            )
-        end
+            MapSet.member?(visited, redirect_target) ->
+              %{
+                accepted: false,
+                rejection_code: Sw4rm.ErrorCodes.validation_error(),
+                rejection_reason: "redirect loop detected",
+                redirect_to_agent_id: "",
+                attempts: attempts
+              }
+
+            length(attempts) >= max_redirects + 1 ->
+              %{
+                accepted: false,
+                rejection_code: Sw4rm.ErrorCodes.redirect(),
+                rejection_reason: Map.get(response, :rejection_reason, ""),
+                redirect_to_agent_id: redirect_target,
+                attempts: attempts
+              }
+
+            true ->
+              do_delegate(
+                send_fn,
+                request,
+                redirect_target,
+                allow_spillover,
+                max_redirects,
+                visited,
+                attempts,
+                now_ms_fn
+              )
+          end
+      end
     end
+  end
+
+  defp budget_deadline_ms(budget) when is_map(budget),
+    do: Map.get(budget, :deadline_epoch_ms, 0)
+
+  defp budget_deadline_ms(_), do: 0
+
+  defp budget_exhausted?(budget, now_ms) when is_map(budget) do
+    wall = Map.get(budget, :wall_time_remaining_ms)
+    (is_integer(wall) and wall <= 0) or now_ms > budget_deadline_ms(budget)
+  end
+
+  defp budget_exhausted?(_, _), do: false
+
+  defp deadline_exhausted_result(attempts) do
+    %{
+      accepted: false,
+      rejection_code: Sw4rm.ErrorCodes.ack_timeout(),
+      rejection_reason: "Delegation deadline exhausted before handoff acceptance",
+      redirect_to_agent_id: "",
+      attempts: attempts
+    }
   end
 
   defp deduct_wall_time(budget, elapsed_ms) when is_map(budget) do

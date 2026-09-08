@@ -5,6 +5,25 @@
 
 (in-package #:sw4rm-sdk)
 
+(define-condition grpc-call-error (error)
+  ((call-function
+    :initarg :call-function
+    :reader grpc-call-error-function
+    :documentation "The libgrpc C function that failed.")
+   (call-status
+    :initarg :call-status
+    :reader grpc-call-error-status
+    :documentation "The C-level error code (not a gRPC wire status)."))
+  (:report (lambda (condition stream)
+             (format stream "libgrpc call error in ~A (C error code ~D)"
+                     (grpc-call-error-function condition)
+                     (grpc-call-error-status condition))))
+  (:documentation "A libgrpc C-API invocation failed.
+
+This is distinct from RPC-ERROR: the wire status codes reported there come
+from the remote service, while GRPC-CALL-ERROR means the local C call itself
+was rejected before anything reached the network."))
+
 ;;; -----------------------------------------------------------------------
 ;;;  Library availability
 ;;; -----------------------------------------------------------------------
@@ -13,7 +32,7 @@
   "T when libgrpc was successfully loaded; NIL otherwise.")
 
 (cffi:define-foreign-library libgrpc
-  (:unix "libgrpc.so")
+  (:unix (:or "libgrpc.so" "libgrpc.so.29"))
   (t (:default "libgrpc")))
 
 (handler-case
@@ -98,32 +117,37 @@
   (success :int32)    ;; bool
   (tag     :pointer))
 
-;; grpc_slice — opaque 32-byte union; we treat it as a blob
+;; gRPC 1.51 C ABI: pointer followed by an aligned, 24-byte data union.
+;; Scalar words avoid CFFI's unsupported array-member translation by value.
 (cffi:defcstruct grpc-slice
-  (blob :uint8 :count 32))
+  (refcount :pointer)
+  (data-0 :uint64)
+  (data-1 :uint64)
+  (data-2 :uint64))
+
+(cffi:defcstruct grpc-metadata
+  (key (:struct grpc-slice))
+  (value (:struct grpc-slice))
+  (internal-data :pointer :count 4))
 
 ;; grpc_byte_buffer_reader
 (cffi:defcstruct grpc-byte-buffer-reader
   (buffer-in  :pointer)
   (buffer-out :pointer)
-  (current    :uint32)
-  (pad        :uint8 :count 28))
+  (current    :uint32))
 
 (cffi:defcstruct grpc-ssl-pem-key-cert-pair
   (private-key :string)
   (cert-chain :string))
 
-;; grpc_op — 40-byte struct per operation
-;; Due to the complex union layout, we allocate raw memory and fill
-;; fields at known byte offsets.  The offsets below assume grpc >= 1.50
-;; with standard System V AMD64 ABI alignment:
-;;
-;;   offset 0:  op (int32)
-;;   offset 4:  flags (uint32)
-;;   offset 8:  reserved (pointer)
-;;   offset 16: data union (24 bytes)
-;;   Total: 40 bytes
-(defconstant +grpc-op-size+ 40)
+;; The union reserves EIGHT pointers, including members unused by this client.
+;; grpc_types.h therefore specifies an 80-byte grpc_op on 64-bit platforms.
+(cffi:defcstruct grpc-op
+  (op :int32)
+  (flags :uint32)
+  (reserved :pointer)
+  (data :pointer :count 8))
+(defconstant +grpc-op-size+ 80)
 (defconstant +grpc-op-data-offset+ 16)
 
 ;;; -----------------------------------------------------------------------
@@ -147,11 +171,14 @@
 ;;;  Channel
 ;;; -----------------------------------------------------------------------
 
-(cffi:defcfun ("grpc_insecure_channel_create" %grpc-insecure-channel-create)
-    :pointer   ;; grpc_channel*
+(cffi:defcfun ("grpc_insecure_credentials_create" %grpc-insecure-credentials-create)
+    :pointer)
+
+(cffi:defcfun ("grpc_channel_create" %grpc-channel-create)
+    :pointer
   (target :string)
-  (args   :pointer)     ;; grpc_channel_args* or NULL
-  (reserved :pointer))
+  (credentials :pointer)
+  (args :pointer))
 
 (cffi:defcfun ("grpc_ssl_credentials_create" %grpc-ssl-credentials-create)
     :pointer
@@ -186,20 +213,15 @@
   (try-to-connect :int32))
 
 (defun grpc-channel-create-supported-p ()
-  "True if the runtime has secure-channel constructor support." 
-  (not (null (or (ignore-errors (cffi:foreign-symbol-pointer "grpc_ssl_channel_create"))
-                 (ignore-errors (cffi:foreign-symbol-pointer "grpc_secure_channel_create"))))))
+  "True if the runtime provides the current channel constructor."
+  (not (null (ignore-errors (cffi:foreign-symbol-pointer "grpc_channel_create")))))
 
 (defun grpc-channel-create-secure-fn ()
-  "Return the secure-channel constructor function for this runtime, or NIL."
-  (cond
-    ((ignore-errors
-       (and (cffi:foreign-symbol-pointer "grpc_ssl_channel_create")
-            #'%grpc-ssl-channel-create)))
-    ((ignore-errors
-       (and (cffi:foreign-symbol-pointer "grpc_secure_channel_create")
-            #'%grpc-secure-channel-create)))
-    (t nil)))
+  "Return a compatibility wrapper around the current channel constructor."
+  (when (grpc-channel-create-supported-p)
+    (lambda (credentials target args reserved)
+      (declare (ignore reserved))
+      (%grpc-channel-create target credentials args))))
 
 (defun grpc-channel-tls-root-certs (tls)
   "Normalize TLS input into PEM text suitable for grpc_ssl_credentials_create.
@@ -233,16 +255,21 @@ When TLS is truthy, creates a secure channel using the supplied root certificate
 string, returning CHANNEL and CREDENTIALS as two values.
 "
   (ensure-grpc-available)
+  (unless (= (cffi:foreign-type-size :pointer) 8)
+    (error "The native gRPC bindings currently require a 64-bit platform."))
   (if (not tls)
-      (let ((channel (%grpc-insecure-channel-create target (cffi:null-pointer) (cffi:null-pointer))))
-        (if (cffi:null-pointer-p channel)
-            (error "Insecure channel creation failed: channel creation returned NULL")
-            (values channel nil)))
+      (let ((credentials (%grpc-insecure-credentials-create)))
+        (unwind-protect
+             (let ((channel (%grpc-channel-create target credentials (cffi:null-pointer))))
+               (if (cffi:null-pointer-p channel)
+                   (error "Insecure channel creation failed: channel creation returned NULL")
+                   (values channel nil)))
+          (%grpc-channel-credentials-release credentials)))
       (let ((root-certs (grpc-channel-tls-root-certs tls))
             (creator (grpc-channel-create-secure-fn))
             (credentials nil))
         (unless creator
-          (error "TLS channel support is unavailable: grpc_ssl_channel_create/grpc_secure_channel_create symbols were not found."))
+          (error "TLS channel support is unavailable: grpc_channel_create was not found."))
         (setf credentials (%grpc-ssl-credentials-create root-certs (cffi:null-pointer)
                                                        (cffi:null-pointer)))
         (when (or (null credentials) (cffi:null-pointer-p credentials))
@@ -290,8 +317,10 @@ string, returning CHANNEL and CREDENTIALS as two values.
   (%grpc-cq-create-for-next (cffi:null-pointer)))
 
 (defun grpc-cq-destroy (cq)
-  "Shut down and destroy a completion queue."
+  "Shut down, drain, and destroy a completion queue with no pending batches."
   (%grpc-cq-shutdown cq)
+  (loop until (= (getf (%grpc-cq-next cq (gpr-inf-future) (cffi:null-pointer)) 'type)
+                 +grpc-queue-shutdown+))
   (%grpc-cq-destroy cq))
 
 ;;; -----------------------------------------------------------------------
@@ -307,9 +336,17 @@ string, returning CHANNEL and CREDENTIALS as two values.
     (:struct gpr-timespec)
   (clock-type :int32))
 
+(cffi:defcfun ("gpr_now" %gpr-now) (:struct gpr-timespec)
+  (clock-type :int32))
+
+(cffi:defcfun ("gpr_time_add" %gpr-time-add) (:struct gpr-timespec)
+  (time (:struct gpr-timespec))
+  (span (:struct gpr-timespec)))
+
 (defun gpr-deadline-from-ms (ms)
   "Create a deadline timespec MS milliseconds from now (using REALTIME clock)."
-  (%gpr-time-from-millis ms +gpr-clock-realtime+))
+  (%gpr-time-add (%gpr-now +gpr-clock-realtime+)
+                 (%gpr-time-from-millis ms +gpr-timespan+)))
 
 (defun gpr-inf-future ()
   "Return an infinite-future timespec (block forever)."
@@ -360,54 +397,32 @@ string, returning CHANNEL and CREDENTIALS as two values.
             (%grpc-slice-unref slice)
             bb))))))
 
+(defun grpc-slice-to-bytes (slice-pointer)
+  "Copy a gRPC slice using the public grpc_slice layout."
+  (let* ((inline-p (cffi:null-pointer-p (cffi:mem-ref slice-pointer :pointer)))
+         (length (if inline-p (cffi:mem-ref slice-pointer :uint8 8)
+                     (cffi:mem-ref slice-pointer :size 8)))
+         (data (if inline-p (cffi:inc-pointer slice-pointer 9)
+                   (cffi:mem-ref slice-pointer :pointer 16)))
+         (bytes (make-array length :element-type '(unsigned-byte 8))))
+    (dotimes (i length bytes) (setf (aref bytes i) (cffi:mem-aref data :uint8 i)))))
+
 (defun grpc-byte-buffer-to-bytes (bb)
-  "Extract octets from a grpc_byte_buffer*. Returns an octet vector."
+  "Copy all slices and release each reference acquired by the reader."
   (when (cffi:null-pointer-p bb)
     (return-from grpc-byte-buffer-to-bytes (make-array 0 :element-type '(unsigned-byte 8))))
-  (cffi:with-foreign-object (reader :uint8 64) ;; grpc_byte_buffer_reader is <64 bytes
+  (cffi:with-foreign-object (reader '(:struct grpc-byte-buffer-reader))
     (when (zerop (%grpc-bb-reader-init reader bb))
-      (error 'rpc-error
-             :message "Failed to init byte buffer reader"
-             :status-code "INTERNAL" :details "grpc_byte_buffer_reader_init returned 0"))
-    (let ((result (make-array 0 :element-type '(unsigned-byte 8) :adjustable t :fill-pointer 0)))
-      (cffi:with-foreign-object (slice-out '(:struct grpc-slice))
-        (loop while (not (zerop (%grpc-bb-reader-next reader slice-out)))
-              do
-                 ;; Extract data pointer and length from the slice
-                 ;; grpc_slice layout: first 8 bytes are refcount/inline flag,
-                 ;; followed by data depending on whether it's inline or heap.
-                 ;; We use GRPC_SLICE_START_PTR / GRPC_SLICE_LENGTH macros via
-                 ;; grpc_slice_to_c_string alternative, but simpler: re-read via
-                 ;; a helper.  For portability, we use the byte-buffer-reader
-                 ;; which gives us slices sequentially.
-                 ;; Actually, for a simpler approach, use grpc_byte_buffer_length
-                 ;; and read all at once.  But the reader API is the official way.
-                 ;;
-                 ;; The slice struct has: refcount (ptr), data.refcounted.bytes (ptr),
-                 ;; data.refcounted.length (size_t), or inline data.
-                 ;; For safety, we read bytes via the inline/refcounted union.
-                 ;; Byte 0-7: refcount pointer (NULL for inline)
-                 ;; If refcount is NULL (inline slice):
-                 ;;   Byte 8: length, Bytes 9-31: data
-                 ;; Else (refcounted):
-                 ;;   Byte 8-15: bytes pointer, Byte 16-23: length
-                 (let* ((refcount-ptr (cffi:mem-ref slice-out :pointer 0)))
-                   (if (cffi:null-pointer-p refcount-ptr)
-                       ;; Inline slice
-                       (let ((inline-len (cffi:mem-ref slice-out :uint8 8)))
-                         (dotimes (j inline-len)
-                           (vector-push-extend
-                            (cffi:mem-ref slice-out :uint8 (+ 9 j))
-                            result)))
-                       ;; Refcounted slice
-                       (let* ((data-ptr (cffi:mem-ref slice-out :pointer 8))
-                              (data-len (cffi:mem-ref slice-out :size 16)))
-                         (dotimes (j data-len)
-                           (vector-push-extend
-                            (cffi:mem-aref data-ptr :uint8 j)
-                            result)))))))
-      (%grpc-bb-reader-destroy reader)
-      (coerce result '(simple-array (unsigned-byte 8) (*))))))
+      (error 'rpc-error :message "Cannot initialize byte buffer reader"
+             :status-code "INTERNAL" :details "grpc_byte_buffer_reader_init"))
+    (unwind-protect
+         (let ((parts nil))
+           (cffi:with-foreign-object (slice '(:struct grpc-slice))
+             (loop while (plusp (%grpc-bb-reader-next reader slice)) do
+               (unwind-protect (push (grpc-slice-to-bytes slice) parts)
+                 (%grpc-slice-unref (cffi:mem-ref slice '(:struct grpc-slice))))))
+           (apply #'concatenate '(simple-array (unsigned-byte 8) (*)) (nreverse parts)))
+      (%grpc-bb-reader-destroy reader))))
 
 ;;; -----------------------------------------------------------------------
 ;;;  Call
@@ -457,124 +472,89 @@ string, returning CHANNEL and CREDENTIALS as two values.
   (cffi:with-foreign-string (cstr method-string)
     (%grpc-slice-from-copied-buffer cstr (length method-string))))
 
-(defun %grpc-unary-call-raw (channel cq method-str request-bytes deadline-ms)
-  "Execute a raw unary gRPC call. Returns (values response-bytes status-code status-message).
-METHOD-STR is the full method path. REQUEST-BYTES is an octet vector.
-DEADLINE-MS is timeout in milliseconds (0 = infinite)."
-  (let* ((method-slice (%make-method-slice method-str))
-         (deadline (if (and deadline-ms (> deadline-ms 0))
-                       (gpr-deadline-from-ms deadline-ms)
-                       (gpr-inf-future)))
-         (call (%grpc-channel-create-call
-                channel (cffi:null-pointer) 0 cq
-                method-slice (cffi:null-pointer) deadline (cffi:null-pointer)))
-         (request-bb (bytes-to-grpc-byte-buffer request-bytes)))
-    (when (cffi:null-pointer-p call)
-      (%grpc-slice-unref method-slice)
-      (grpc-byte-buffer-destroy request-bb)
-      (error 'rpc-error
-             :message "Failed to create gRPC call"
-             :status-code "INTERNAL" :details "grpc_channel_create_call returned NULL"))
-    ;; Allocate ops array (6 ops × 40 bytes), metadata arrays, recv pointers
-    (let ((ops-size (* 6 +grpc-op-size+)))
-      (cffi:with-foreign-objects ((ops :uint8 ops-size)
-                                  (recv-initial-metadata '(:struct grpc-metadata-array))
-                                  (recv-message :pointer)
-                                  (recv-status  :int32)
-                                  (recv-status-details '(:struct grpc-slice))
-                                  (trailing-metadata '(:struct grpc-metadata-array)))
-        ;; Zero everything
-        (dotimes (i ops-size)
-          (setf (cffi:mem-aref ops :uint8 i) 0))
-        (%grpc-metadata-array-init recv-initial-metadata)
-        (%grpc-metadata-array-init trailing-metadata)
-        (setf (cffi:mem-ref recv-message :pointer) (cffi:null-pointer))
+(defun %zero-foreign (pointer size)
+  (dotimes (i size) (setf (cffi:mem-aref pointer :uint8 i) 0)))
 
-        ;; Op 0: SEND_INITIAL_METADATA (empty)
-        (let ((op0 ops))
-          (setf (cffi:mem-ref op0 :int32 0) +grpc-op-send-initial-metadata+)
-          ;; data.send_initial_metadata.count = 0 (already zeroed)
-          )
+(defun %set-grpc-op (ops index kind &rest pointers)
+  (let ((op (cffi:inc-pointer ops (* index +grpc-op-size+))))
+    (setf (cffi:mem-ref op :int32) kind)
+    (loop for pointer in pointers for offset from +grpc-op-data-offset+ by 8 do
+      (setf (cffi:mem-ref op :pointer offset) pointer))))
 
-        ;; Op 1: SEND_MESSAGE
-        (let ((op1 (cffi:inc-pointer ops +grpc-op-size+)))
-          (setf (cffi:mem-ref op1 :int32 0) +grpc-op-send-message+)
-          ;; data.send_message.send_message = request_bb (pointer at data offset)
-          (setf (cffi:mem-ref op1 :pointer +grpc-op-data-offset+) request-bb))
+(defun %run-grpc-batch (call cq ops count)
+  "Wait for this call's batch on its dedicated queue; return completion success."
+  (let ((status (%grpc-call-start-batch call ops count (cffi:null-pointer) (cffi:null-pointer))))
+    (unless (zerop status)
+      (error 'grpc-call-error :call-function 'grpc_call_start_batch :call-status status)))
+  (let ((event (%grpc-cq-next cq (gpr-inf-future) (cffi:null-pointer))))
+    (unless (= (getf event 'type) +grpc-op-complete+)
+      (error 'grpc-call-error :call-function 'grpc_completion_queue_next
+             :call-status (getf event 'type)))
+    (not (zerop (getf event 'success)))))
 
-        ;; Op 2: SEND_CLOSE_FROM_CLIENT
-        (let ((op2 (cffi:inc-pointer ops (* 2 +grpc-op-size+))))
-          (setf (cffi:mem-ref op2 :int32 0) +grpc-op-send-close-from-client+))
+(defun %call-with-grpc-metadata (metadata function)
+  "Keep metadata slices alive through the send batch. METADATA is an alist."
+  (cffi:with-foreign-object (entries '(:struct grpc-metadata) (max 1 (length metadata)))
+    (let ((slices nil))
+      (unwind-protect
+           (progn
+             (loop for (key . value) in metadata for index from 0 do
+               (unless (and (stringp key) (or (stringp value) (typep value '(vector (unsigned-byte 8)))))
+                 (error "Metadata requires string keys and string or octet-vector values"))
+               (let ((entry (cffi:mem-aptr entries '(:struct grpc-metadata) index)))
+                 (dolist (pair (list (cons 'key key) (cons 'value value)))
+                   (let* ((bytes (if (stringp (cdr pair))
+                                     (babel:string-to-octets (cdr pair) :encoding :utf-8)
+                                     (cdr pair)))
+                          (slice (cffi:with-pointer-to-vector-data (data bytes)
+                                   (%grpc-slice-from-copied-buffer data (length bytes)))))
+                     (push slice slices)
+                     (setf (cffi:mem-ref
+                            (cffi:foreign-slot-pointer entry '(:struct grpc-metadata) (car pair))
+                            '(:struct grpc-slice)) slice)))))
+             (funcall function entries (length metadata)))
+        (dolist (slice slices) (%grpc-slice-unref slice))))))
 
-        ;; Op 3: RECV_INITIAL_METADATA
-        (let ((op3 (cffi:inc-pointer ops (* 3 +grpc-op-size+))))
-          (setf (cffi:mem-ref op3 :int32 0) +grpc-op-recv-initial-metadata+)
-          ;; data.recv_initial_metadata.recv_initial_metadata = &recv_initial_metadata
-          (setf (cffi:mem-ref op3 :pointer +grpc-op-data-offset+) recv-initial-metadata))
+(defun %set-send-metadata (ops index metadata count)
+  (%set-grpc-op ops index +grpc-op-send-initial-metadata+)
+  (let ((op (cffi:inc-pointer ops (* index +grpc-op-size+))))
+    (setf (cffi:mem-ref op :size +grpc-op-data-offset+) count
+          (cffi:mem-ref op :pointer (+ +grpc-op-data-offset+ 8)) metadata)))
 
-        ;; Op 4: RECV_MESSAGE
-        (let ((op4 (cffi:inc-pointer ops (* 4 +grpc-op-size+))))
-          (setf (cffi:mem-ref op4 :int32 0) +grpc-op-recv-message+)
-          ;; data.recv_message.recv_message = &recv_message (pointer-to-pointer)
-          (setf (cffi:mem-ref op4 :pointer +grpc-op-data-offset+) recv-message))
-
-        ;; Op 5: RECV_STATUS_ON_CLIENT
-        (let ((op5 (cffi:inc-pointer ops (* 5 +grpc-op-size+))))
-          (setf (cffi:mem-ref op5 :int32 0) +grpc-op-recv-status-on-client+)
-          ;; data.recv_status_on_client:
-          ;;   offset+0: trailing_metadata (pointer)
-          ;;   offset+8: status (pointer to grpc_status_code)
-          ;;   offset+16: status_details (pointer to grpc_slice)
-          (setf (cffi:mem-ref op5 :pointer +grpc-op-data-offset+) trailing-metadata)
-          (setf (cffi:mem-ref op5 :pointer (+ +grpc-op-data-offset+ 8))
-                (cffi:foreign-alloc :int32 :initial-element 0))
-          (setf (cffi:mem-ref op5 :pointer (+ +grpc-op-data-offset+ 16)) recv-status-details))
-
-        ;; Grab the status-code pointer for later reading
-        (let ((status-code-ptr (cffi:mem-ref
-                                (cffi:inc-pointer ops (* 5 +grpc-op-size+))
-                                :pointer (+ +grpc-op-data-offset+ 8))))
-
-          ;; Start the batch
-          (let ((batch-err (%grpc-call-start-batch
-                            call ops 6 (cffi:null-pointer) (cffi:null-pointer))))
-            (unless (zerop batch-err)
-              ;; Cleanup
-              (cffi:foreign-free status-code-ptr)
-              (%grpc-metadata-array-destroy recv-initial-metadata)
-              (%grpc-metadata-array-destroy trailing-metadata)
-              (%grpc-call-unref call)
-              (%grpc-slice-unref method-slice)
-              (grpc-byte-buffer-destroy request-bb)
-              (error 'rpc-error
-                     :message (format nil "grpc_call_start_batch failed: ~A" batch-err)
-                     :status-code "INTERNAL" :details "Batch start failure")))
-
-          ;; Wait for completion
-          (let* ((event (%grpc-cq-next cq (gpr-inf-future) (cffi:null-pointer)))
-                 (event-type (cffi:foreign-slot-value event '(:struct grpc-event) 'type))
-                 (event-success (cffi:foreign-slot-value event '(:struct grpc-event) 'success)))
-
-            ;; Read results
-            (let* ((final-status (cffi:mem-ref status-code-ptr :int32))
-                   (recv-bb (cffi:mem-ref recv-message :pointer))
-                   (response-bytes (if (and (not (cffi:null-pointer-p recv-bb))
-                                            (= event-type +grpc-op-complete+)
-                                            (not (zerop event-success)))
-                                       (grpc-byte-buffer-to-bytes recv-bb)
-                                       (make-array 0 :element-type '(unsigned-byte 8)))))
-
-              ;; Cleanup
-              (unless (cffi:null-pointer-p recv-bb)
-                (%grpc-byte-buffer-destroy recv-bb))
-              (cffi:foreign-free status-code-ptr)
-              (%grpc-metadata-array-destroy recv-initial-metadata)
-              (%grpc-metadata-array-destroy trailing-metadata)
-              (%grpc-call-unref call)
-              (%grpc-slice-unref method-slice)
-              (%grpc-byte-buffer-destroy request-bb)
-
-              (values response-bytes final-status))))))))
+(defun %grpc-unary-call-raw (call cq request-bytes metadata)
+  "Exchange one unary request on a managed call and its dedicated queue."
+  (let ((request-bb (bytes-to-grpc-byte-buffer request-bytes)))
+    (unwind-protect
+         (cffi:with-foreign-objects ((ops :uint8 (* 6 +grpc-op-size+))
+                                    (initial '(:struct grpc-metadata-array))
+                                    (trailing '(:struct grpc-metadata-array))
+                                    (message :pointer) (status :int32)
+                                    (details '(:struct grpc-slice)))
+           (%zero-foreign ops (* 6 +grpc-op-size+))
+           (%zero-foreign details (cffi:foreign-type-size '(:struct grpc-slice)))
+           (%grpc-metadata-array-init initial)
+           (%grpc-metadata-array-init trailing)
+           (setf (cffi:mem-ref message :pointer) (cffi:null-pointer)
+                 (cffi:mem-ref status :int32) +grpc-status-unknown+)
+           (unwind-protect
+                (%call-with-grpc-metadata
+                 metadata
+                 (lambda (entries count)
+                   (%set-send-metadata ops 0 entries count)
+                   (%set-grpc-op ops 1 +grpc-op-send-message+ request-bb)
+                   (%set-grpc-op ops 2 +grpc-op-send-close-from-client+)
+                   (%set-grpc-op ops 3 +grpc-op-recv-initial-metadata+ initial)
+                   (%set-grpc-op ops 4 +grpc-op-recv-message+ message)
+                   (%set-grpc-op ops 5 +grpc-op-recv-status-on-client+ trailing status details)
+                   (%run-grpc-batch call cq ops 6)
+                   (values (grpc-byte-buffer-to-bytes (cffi:mem-ref message :pointer))
+                           (cffi:mem-ref status :int32)
+                           (babel:octets-to-string (grpc-slice-to-bytes details) :encoding :utf-8))))
+             (grpc-byte-buffer-destroy (cffi:mem-ref message :pointer))
+             (%grpc-slice-unref (cffi:mem-ref details '(:struct grpc-slice)))
+             (%grpc-metadata-array-destroy initial)
+             (%grpc-metadata-array-destroy trailing)))
+      (grpc-byte-buffer-destroy request-bb))))
 
 (defun grpc-byte-buffer-destroy (bb)
   "Safe wrapper — checks for null before destroying."

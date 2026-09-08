@@ -245,10 +245,8 @@ describe('VotingAggregation', () => {
       const aggregator = new BordaCountAggregator();
       const result = aggregator.aggregate(votes);
 
-      // Total points: 3 + 2 + 1 = 6
-      // Average points: 6 / 3 = 2
-      // Normalized: (2 / 3) * 10 = 6.67
-      expect(Math.abs(result.weightedMean - 6.67)).toBeLessThan(0.1);
+      // Borda-weighted mean: (3*9 + 2*7 + 1*5) / (3 + 2 + 1) = 46/6
+      expect(Math.abs(result.weightedMean - 46.0 / 6.0)).toBeLessThan(1e-9);
       expect(result.voteCount).toBe(3);
     });
 
@@ -258,9 +256,8 @@ describe('VotingAggregation', () => {
       const aggregator = new BordaCountAggregator();
       const result = aggregator.aggregate(votes);
 
-      // All same scores: points are 4,3,2,1 = 10 total, avg = 2.5
-      // Normalized: (2.5 / 4) * 10 = 6.25
-      expect(Math.abs(result.weightedMean - 6.25)).toBeLessThan(0.1);
+      // Uniform scores: the Borda-weighted mean is the score itself.
+      expect(Math.abs(result.weightedMean - 7.0)).toBeLessThan(1e-9);
     });
 
     it('should handle extreme scores', () => {
@@ -272,9 +269,8 @@ describe('VotingAggregation', () => {
       const aggregator = new BordaCountAggregator();
       const result = aggregator.aggregate(votes);
 
-      // 2 votes: 2 points + 1 point = 3 total, avg = 1.5
-      // Normalized: (1.5 / 2) * 10 = 7.5
-      expect(Math.abs(result.weightedMean - 7.5)).toBeLessThan(0.1);
+      // (2*10 + 1*0) / (2 + 1) = 20/3
+      expect(Math.abs(result.weightedMean - 20.0 / 3.0)).toBeLessThan(1e-9);
     });
 
     it('should handle single vote', () => {
@@ -283,8 +279,8 @@ describe('VotingAggregation', () => {
       const aggregator = new BordaCountAggregator();
       const result = aggregator.aggregate(votes);
 
-      // Single vote gets 1 point, normalized: (1/1) * 10 = 10.0
-      expect(result.weightedMean).toBe(10.0);
+      // Single vote: its own score.
+      expect(result.weightedMean).toBe(7.0);
     });
 
     it('should throw on empty vote list', () => {

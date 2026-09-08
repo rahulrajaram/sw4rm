@@ -15,9 +15,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   ActivityBuffer,
-  MaxEntriesStrategy,
   type ActivityRecord,
-  type BufferStrategy,
 } from '../src/internal/runtime/activityBuffer.js';
 
 /**
@@ -50,12 +48,6 @@ describe('ActivityBuffer', () => {
 
     it('should initialize with custom maxEntries', () => {
       const buffer = new ActivityBuffer({ maxEntries: 10 });
-      expect(buffer).toBeDefined();
-    });
-
-    it('should initialize with custom strategy', () => {
-      const strategy = new MaxEntriesStrategy();
-      const buffer = new ActivityBuffer({ strategy });
       expect(buffer).toBeDefined();
     });
   });
@@ -273,39 +265,6 @@ describe('ActivityBuffer', () => {
       // Oldest should be evicted
       const taskIds = buffer.list().map((r) => r.task_id);
       expect(taskIds).not.toContain('task-1');
-    });
-  });
-
-  describe('MaxEntriesStrategy', () => {
-    it('should return records as-is when under limit', () => {
-      const strategy = new MaxEntriesStrategy();
-      const records: ActivityRecord[] = [
-        createRecord('task-1'),
-        createRecord('task-2'),
-      ];
-
-      const pruned = strategy.prune(records, 3);
-      expect(pruned).toEqual(records);
-    });
-
-    it('should drop oldest when at limit', () => {
-      const strategy = new MaxEntriesStrategy();
-      const records: ActivityRecord[] = [
-        createRecord('task-1', '2024-01-01T00:00:00Z'),
-        createRecord('task-2', '2024-01-01T00:01:00Z'),
-        createRecord('task-3', '2024-01-01T00:02:00Z'),
-      ];
-
-      const pruned = strategy.prune(records, 2);
-      expect(pruned).toHaveLength(2);
-      expect(pruned[0].task_id).toBe('task-2');
-      expect(pruned[1].task_id).toBe('task-3');
-    });
-
-    it('should handle empty records', () => {
-      const strategy = new MaxEntriesStrategy();
-      const pruned = strategy.prune([], 10);
-      expect(pruned).toEqual([]);
     });
   });
 

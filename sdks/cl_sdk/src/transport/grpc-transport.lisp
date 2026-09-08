@@ -28,6 +28,8 @@
     :accessor grpc-channel-target
     :type string
     :documentation "Target address string.")
+   (lock :initform (bordeaux-threads:make-lock "grpc-channel") :reader grpc-channel-lock)
+   (calls :initform nil :accessor grpc-channel-calls)
    (alive-p
     :initform t
     :accessor grpc-channel-alive-p
@@ -49,36 +51,97 @@
   "Create a gRPC channel to TARGET (e.g. \"localhost:50051\").
 Initialises the gRPC library if needed.
 
-Pass :tls with root-certificate contents, a path string, or T for defaults."
+Pass :tls with root-certificate contents, a path string, or T for defaults.
+Construction is ownership-safe: if completion-queue creation or the wrapper
+instance signals, the already-created native channel, credentials, and queue
+are released before the condition propagates."
   (ensure-grpc-available)
   (grpc-init)
-  (let ((grpc-target (%normalize-grpc-target target)))
-  (multiple-value-bind (channel credentials)
-      (if tls
-          (grpc-channel-create grpc-target :tls tls)
-          (grpc-channel-create grpc-target))
-      (make-instance 'grpc-channel
-                     :raw-channel channel
-                     :credentials credentials
-                     :completion-queue (grpc-cq-create)
-                     :target target))))
+  (let ((grpc-target (%normalize-grpc-target target))
+        (cq nil)
+        (wrapper nil))
+    (let* ((created (multiple-value-list
+                     (if tls
+                         (grpc-channel-create grpc-target :tls tls)
+                         (grpc-channel-create grpc-target))))
+           (channel (pop created))
+           (credentials (pop created)))
+      (unwind-protect
+           (progn
+             (setf cq (grpc-cq-create))
+             (setf wrapper (make-instance 'grpc-channel
+                                          :raw-channel channel
+                                          :credentials credentials
+                                          :completion-queue cq
+                                          :target target))
+             wrapper)
+        ;; Once WRAPPER exists it owns the native resources; before that, any
+        ;; failure path must release them here.
+        (unless wrapper
+          (when cq
+            (grpc-cq-destroy cq))
+          (when (and channel (not (cffi:null-pointer-p channel)))
+            (grpc-channel-destroy channel))
+          (when (and credentials (not (cffi:null-pointer-p credentials)))
+            (%grpc-channel-credentials-release credentials)))))))
+
+(defstruct grpc-call-resource channel pointer queue)
+
+(defun %make-grpc-call-resource (channel method deadline-ms)
+  "Register the native call before a stream is returned or a channel can close."
+  (bordeaux-threads:with-lock-held ((grpc-channel-lock channel))
+    (unless (grpc-channel-alive-p channel)
+      (error 'rpc-unavailable :message "Channel is closed" :status-code "UNAVAILABLE" :details method))
+    (grpc-init) ; The call keeps the C runtime alive independently of its channel.
+    (let ((cq (grpc-cq-create)) (success nil))
+      (unwind-protect
+           (let* ((slice (%make-method-slice method))
+                  (deadline (if (and deadline-ms (plusp deadline-ms))
+                                (gpr-deadline-from-ms deadline-ms) (gpr-inf-future)))
+                  (call (unwind-protect
+                            (%grpc-channel-create-call (grpc-channel-raw channel)
+                             (cffi:null-pointer) 0 cq slice (cffi:null-pointer)
+                             deadline (cffi:null-pointer))
+                          (%grpc-slice-unref slice))))
+             (when (cffi:null-pointer-p call)
+               (error 'rpc-error :message "Cannot create native call"
+                      :status-code "INTERNAL" :details method))
+             (let ((resource (make-grpc-call-resource :channel channel :pointer call :queue cq)))
+               (push resource (grpc-channel-calls channel))
+               (setf success t)
+               resource))
+        (unless success (grpc-cq-destroy cq) (grpc-shutdown))))))
+
+(defun %release-grpc-call-resource (resource)
+  (let ((channel (grpc-call-resource-channel resource))
+        (call (grpc-call-resource-pointer resource)))
+    (bordeaux-threads:with-lock-held ((grpc-channel-lock channel))
+      (setf (grpc-channel-calls channel) (delete resource (grpc-channel-calls channel)))
+      (%grpc-call-cancel call (cffi:null-pointer))
+      (%grpc-call-unref call))
+    (grpc-cq-destroy (grpc-call-resource-queue resource))
+    (grpc-shutdown)))
 
 (defun destroy-grpc-channel (channel)
-  "Destroy a gRPC channel and its completion queue."
-  (when (and (typep channel 'grpc-channel)
-             (grpc-channel-alive-p channel))
-    (grpc-cq-destroy (grpc-channel-cq channel))
-    (grpc-channel-destroy (grpc-channel-raw channel))
-    (when (grpc-channel-credentials channel)
-      (%grpc-channel-credentials-release (grpc-channel-credentials channel))
-      (setf (grpc-channel-credentials channel) nil))
-    (setf (grpc-channel-alive-p channel) nil)))
+  "Close the channel and cancel active calls. Their workers own final cleanup."
+  (when (typep channel 'grpc-channel)
+    (bordeaux-threads:with-lock-held ((grpc-channel-lock channel))
+      (when (grpc-channel-alive-p channel)
+        (setf (grpc-channel-alive-p channel) nil)
+        (dolist (resource (grpc-channel-calls channel))
+          (%grpc-call-cancel (grpc-call-resource-pointer resource) (cffi:null-pointer)))
+        (grpc-cq-destroy (grpc-channel-cq channel))
+        (grpc-channel-destroy (grpc-channel-raw channel))
+        (when (grpc-channel-credentials channel)
+          (%grpc-channel-credentials-release (grpc-channel-credentials channel))
+          (setf (grpc-channel-credentials channel) nil))
+        (grpc-shutdown)))))
 
 ;;; -----------------------------------------------------------------------
 ;;;  Status → condition mapping
 ;;; -----------------------------------------------------------------------
 
-(defun signal-grpc-status (status-code method)
+(defun signal-grpc-status (status-code method &optional details)
   "Map a gRPC status code integer to a CL condition and signal it.
 Does nothing for OK (0)."
   (unless (zerop status-code)
@@ -106,19 +169,19 @@ Does nothing for OK (0)."
          (error 'rpc-timeout
                 :message (format nil "~A: deadline exceeded" method)
                 :status-code status-name
-                :details method))
+                :details (or details method)))
         ;; UNAVAILABLE → rpc-unavailable (retryable by with-retry)
         ((= status-code +grpc-status-unavailable+)
          (error 'rpc-unavailable
                 :message (format nil "~A: service unavailable" method)
                 :status-code status-name
-                :details method))
+                :details (or details method)))
         ;; Everything else → rpc-error (not retryable)
         (t
          (error 'rpc-error
                 :message (format nil "~A: ~A" method status-name)
                 :status-code status-name
-                :details method))))))
+                :details (or details method)))))))
 
 ;;; -----------------------------------------------------------------------
 ;;;  Synchronous unary RPC
@@ -131,11 +194,10 @@ CHANNEL: grpc-channel instance
 METHOD: full gRPC method path (e.g. \"/sw4rm.router.RouterService/SendMessage\")
 REQUEST-BYTES: octet vector of the encoded request protobuf
 DEADLINE-MS: timeout in milliseconds (default 30000)
-METADATA: ignored for now (reserved for future use)
+METADATA: alist of string keys and string or octet-vector values
 
 Returns: response octet vector.
 Signals: rpc-timeout, rpc-unavailable, or rpc-error on failure."
-  (declare (ignore metadata))
   (cond
     ((null channel)
      (error 'rpc-error
@@ -152,175 +214,129 @@ Signals: rpc-timeout, rpc-unavailable, or rpc-error on failure."
             :message "Channel is not alive"
             :status-code "UNAVAILABLE"
             :details "destroy-grpc-channel was already called")))
-  (multiple-value-bind (response-bytes status-code)
-      (%grpc-unary-call-raw
-       (grpc-channel-raw channel)
-       (grpc-channel-cq channel)
-       method
-       request-bytes
-       deadline-ms)
-    (signal-grpc-status status-code method)
-    response-bytes))
+  (let ((resource (%make-grpc-call-resource channel method deadline-ms)))
+    (unwind-protect
+         (multiple-value-bind (response-bytes status-code details)
+             (%grpc-unary-call-raw (grpc-call-resource-pointer resource)
+                                  (grpc-call-resource-queue resource) request-bytes metadata)
+           (signal-grpc-status status-code method details)
+           response-bytes)
+      (%release-grpc-call-resource resource))))
 
 ;;; -----------------------------------------------------------------------
 ;;;  Server-streaming RPC
 ;;; -----------------------------------------------------------------------
 
 (defclass stream-handle ()
-  ((call-ptr
-    :initarg :call-ptr
-    :accessor stream-handle-call
-    :documentation "Pointer to grpc_call*.")
-   (thread
-    :initarg :thread
-    :accessor stream-handle-thread
-    :documentation "Bordeaux-threads thread running the recv loop.")
-   (cancelled-p
-    :initform nil
-    :accessor stream-handle-cancelled-p
-    :documentation "T after cancel-stream is called."))
-  (:documentation "Handle for an active server-streaming RPC."))
+  ((call-ptr :initarg :call-ptr :initform (cffi:null-pointer) :accessor stream-handle-call)
+   (thread :initarg :thread :initform nil :accessor stream-handle-thread)
+   (lock :initform (bordeaux-threads:make-lock "grpc-stream") :reader stream-handle-lock)
+   (cancelled-p :initform nil :accessor stream-handle-cancelled-p)
+   (error :initform nil :accessor stream-handle-error))
+  (:documentation "A cancellable stream. WAIT-FOR-STREAM joins and reports remote errors."))
 
 (defun cancel-stream (handle)
-  "Cancel an active server stream.  Idempotent."
-  (unless (stream-handle-cancelled-p handle)
-    (setf (stream-handle-cancelled-p handle) t)
-    (let ((call (stream-handle-call handle)))
-      (unless (cffi:null-pointer-p call)
-        (%grpc-call-cancel call (cffi:null-pointer))))))
+  "Cancel a stream safely, including before its worker starts and after EOF."
+  (bordeaux-threads:with-lock-held ((stream-handle-lock handle))
+    (unless (stream-handle-cancelled-p handle)
+      (setf (stream-handle-cancelled-p handle) t)
+      (unless (cffi:null-pointer-p (stream-handle-call handle))
+        (%grpc-call-cancel (stream-handle-call handle) (cffi:null-pointer)))))
+  handle)
+
+(defun wait-for-stream (handle)
+  "Wait for stream termination; signal any remote status or callback error.
+Explicit cancellation produces the remote CANCELLED condition."
+  (bordeaux-threads:join-thread (stream-handle-thread handle))
+  (when (stream-handle-error handle) (error (stream-handle-error handle)))
+  handle)
+
+(defun %stream-worker-body (resource method request-bytes metadata callback handle)
+  "Worker thread body for GRPC-SERVER-STREAM.
+
+Runs the stream to completion, then notifies the consumer with NIL only on
+graceful end-of-stream (R20).  Error paths are recorded on HANDLE and
+surface through WAIT-FOR-STREAM instead of a spurious EOF callback.
+Owns and releases RESOURCE."
+  (unwind-protect
+       (handler-case
+           (progn
+             (%grpc-stream-call resource method request-bytes metadata callback)
+             (handler-case (funcall callback nil)
+               (error (condition)
+                 (unless (stream-handle-error handle)
+                   (setf (stream-handle-error handle) condition)))))
+         (error (condition)
+           (setf (stream-handle-error handle) condition)))
+    (bordeaux-threads:with-lock-held ((stream-handle-lock handle))
+      (setf (stream-handle-call handle) (cffi:null-pointer)))
+    (%release-grpc-call-resource resource)))
 
 (defun grpc-server-stream (channel method request-bytes callback
-                           &key (deadline-ms 0))
-  "Start a server-streaming RPC.
-
-CHANNEL: grpc-channel instance
-METHOD: full gRPC method path
-REQUEST-BYTES: encoded request protobuf
-CALLBACK: function called with each response octet vector; called with NIL on stream end
-DEADLINE-MS: timeout (0 = infinite)
-
-Returns: stream-handle that can be passed to cancel-stream."
+                           &key (deadline-ms 0) metadata)
+  "Start a server stream and return immediately with a cancellable handle.
+CALLBACK receives octets, then NIL once, only on graceful end-of-stream.
+Error paths are recorded on the handle and surface via WAIT-FOR-STREAM.
+METADATA is an alist; DEADLINE-MS zero means no deadline."
   (ensure-grpc-available)
-  (cond
-    ((null channel)
-     (error 'rpc-error
-            :message "Channel is not connected"
-            :status-code "UNAVAILABLE"
-            :details "Call ensure-connected before invoking RPC"))
-    ((not (typep channel 'grpc-channel))
-     (error 'rpc-error
-            :message "gRPC transport backend unavailable"
-            :status-code "UNIMPLEMENTED"
-            :details method))
-    ((not (grpc-channel-alive-p channel))
-     (error 'rpc-error
-            :message "Channel is not alive"
-            :status-code "UNAVAILABLE"
-            :details "Channel not connected")))
+  (unless (and (typep channel 'grpc-channel) (grpc-channel-alive-p channel))
+    (error 'rpc-unavailable :message "Channel is not connected"
+           :status-code "UNAVAILABLE" :details method))
+  (let* ((resource (%make-grpc-call-resource channel method deadline-ms))
+         (handle (make-instance 'stream-handle :call-ptr (grpc-call-resource-pointer resource))))
+    (handler-case
+        (setf (stream-handle-thread handle)
+              (bordeaux-threads:make-thread
+               (lambda ()
+                 (%stream-worker-body resource method request-bytes metadata callback handle))
+               :name (format nil "grpc-stream:~A" method)))
+      (error (condition) (%release-grpc-call-resource resource) (error condition)))
+    handle))
 
-  (let* ((raw-ch (grpc-channel-raw channel))
-         (cq (grpc-cq-create))  ;; separate CQ for the stream
-         (method-slice (%make-method-slice method))
-         (deadline (if (and deadline-ms (> deadline-ms 0))
-                       (gpr-deadline-from-ms deadline-ms)
-                       (gpr-inf-future)))
-         (call (%grpc-channel-create-call
-                raw-ch (cffi:null-pointer) 0 cq
-                method-slice (cffi:null-pointer) deadline (cffi:null-pointer)))
-         (request-bb (bytes-to-grpc-byte-buffer request-bytes)))
-
-    (when (cffi:null-pointer-p call)
-      (%grpc-slice-unref method-slice)
-      (grpc-byte-buffer-destroy request-bb)
-      (grpc-cq-destroy cq)
-      (error 'rpc-error
-             :message "Failed to create streaming call"
-             :status-code "INTERNAL" :details method))
-
-    ;; Send initial metadata + request + half-close (3 ops)
-    (let ((ops-size (* 3 +grpc-op-size+)))
-      (cffi:with-foreign-objects ((ops :uint8 ops-size))
-        (dotimes (i ops-size)
-          (setf (cffi:mem-aref ops :uint8 i) 0))
-
-        ;; Op 0: SEND_INITIAL_METADATA
-        (setf (cffi:mem-ref ops :int32 0) +grpc-op-send-initial-metadata+)
-
-        ;; Op 1: SEND_MESSAGE
-        (let ((op1 (cffi:inc-pointer ops +grpc-op-size+)))
-          (setf (cffi:mem-ref op1 :int32 0) +grpc-op-send-message+)
-          (setf (cffi:mem-ref op1 :pointer +grpc-op-data-offset+) request-bb))
-
-        ;; Op 2: SEND_CLOSE_FROM_CLIENT
-        (let ((op2 (cffi:inc-pointer ops (* 2 +grpc-op-size+))))
-          (setf (cffi:mem-ref op2 :int32 0) +grpc-op-send-close-from-client+))
-
-        (let ((err (%grpc-call-start-batch
-                    call ops 3 (cffi:null-pointer) (cffi:null-pointer))))
-          (unless (zerop err)
-            (%grpc-call-unref call)
-            (%grpc-slice-unref method-slice)
-            (grpc-byte-buffer-destroy request-bb)
-            (grpc-cq-destroy cq)
-            (error 'rpc-error
-                   :message "Stream send batch failed"
-                   :status-code "INTERNAL" :details method)))
-
-        ;; Wait for send to complete
-        (%grpc-cq-next cq (gpr-inf-future) (cffi:null-pointer))))
-
-    (%grpc-slice-unref method-slice)
-    (%grpc-byte-buffer-destroy request-bb)
-
-    ;; Create handle and spawn recv loop thread
-    (let ((handle (make-instance 'stream-handle :call-ptr call)))
-      (setf (stream-handle-thread handle)
-            (bordeaux-threads:make-thread
-             (lambda ()
-               (unwind-protect
-                    (%stream-recv-loop call cq callback handle)
-                 (%grpc-call-unref call)
-                 (grpc-cq-destroy cq)))
-             :name (format nil "grpc-stream:~A" method)))
-      handle)))
-
-(defun %stream-recv-loop (call cq callback handle)
-  "Internal: repeatedly issue RECV_MESSAGE ops until stream ends or cancelled."
-  (loop
-    (when (stream-handle-cancelled-p handle)
-      (funcall callback nil)
-      (return))
-
-    (cffi:with-foreign-objects ((ops :uint8 +grpc-op-size+)
-                                (recv-msg :pointer))
-      (dotimes (i +grpc-op-size+)
-        (setf (cffi:mem-aref ops :uint8 i) 0))
-      (setf (cffi:mem-ref recv-msg :pointer) (cffi:null-pointer))
-
-      ;; RECV_MESSAGE op
-      (setf (cffi:mem-ref ops :int32 0) +grpc-op-recv-message+)
-      (setf (cffi:mem-ref ops :pointer +grpc-op-data-offset+) recv-msg)
-
-      (let ((err (%grpc-call-start-batch
-                  call ops 1 (cffi:null-pointer) (cffi:null-pointer))))
-        (unless (zerop err)
-          (funcall callback nil)
-          (return)))
-
-      ;; Wait for the message
-      (let ((event (%grpc-cq-next cq (gpr-inf-future) (cffi:null-pointer))))
-        (let ((event-type (cffi:foreign-slot-value event '(:struct grpc-event) 'type)))
-          (when (= event-type +grpc-queue-shutdown+)
-            (funcall callback nil)
-            (return))))
-
-      ;; Check received message
-      (let ((bb (cffi:mem-ref recv-msg :pointer)))
-        (if (cffi:null-pointer-p bb)
-            ;; NULL means stream ended
-            (progn (funcall callback nil)
-                   (return))
-            ;; Extract bytes and call back
-            (let ((bytes (grpc-byte-buffer-to-bytes bb)))
-              (%grpc-byte-buffer-destroy bb)
-              (funcall callback bytes)))))))
+(defun %grpc-stream-call (resource method request-bytes metadata callback)
+  (let ((cq (grpc-call-resource-queue resource))
+        (call (grpc-call-resource-pointer resource))
+        (request-bb (bytes-to-grpc-byte-buffer request-bytes)))
+    (unwind-protect
+         (%call-with-grpc-metadata
+          metadata
+          (lambda (entries count)
+            (cffi:with-foreign-objects ((ops :uint8 (* 4 +grpc-op-size+))
+                                       (initial '(:struct grpc-metadata-array))
+                                       (trailing '(:struct grpc-metadata-array))
+                                       (message :pointer) (status :int32)
+                                       (details '(:struct grpc-slice)))
+              (%zero-foreign ops (* 4 +grpc-op-size+))
+              (%zero-foreign details (cffi:foreign-type-size '(:struct grpc-slice)))
+              (%grpc-metadata-array-init initial)
+              (%grpc-metadata-array-init trailing)
+              (setf (cffi:mem-ref message :pointer) (cffi:null-pointer)
+                    (cffi:mem-ref status :int32) +grpc-status-unknown+)
+              (unwind-protect
+                   (progn
+                     (%set-send-metadata ops 0 entries count)
+                     (%set-grpc-op ops 1 +grpc-op-send-message+ request-bb)
+                     (%set-grpc-op ops 2 +grpc-op-send-close-from-client+)
+                     (%set-grpc-op ops 3 +grpc-op-recv-initial-metadata+ initial)
+                     (%run-grpc-batch call cq ops 4)
+                     (loop
+                       (%zero-foreign ops +grpc-op-size+)
+                       (%set-grpc-op ops 0 +grpc-op-recv-message+ message)
+                       (%run-grpc-batch call cq ops 1)
+                       (let ((bb (cffi:mem-ref message :pointer)))
+                         (when (cffi:null-pointer-p bb) (return))
+                         (let ((bytes (unwind-protect (grpc-byte-buffer-to-bytes bb)
+                                        (grpc-byte-buffer-destroy bb)
+                                        (setf (cffi:mem-ref message :pointer) (cffi:null-pointer)))))
+                           (funcall callback bytes))))
+                     (%zero-foreign ops +grpc-op-size+)
+                     (%set-grpc-op ops 0 +grpc-op-recv-status-on-client+ trailing status details)
+                     (%run-grpc-batch call cq ops 1)
+                     (signal-grpc-status
+                      (cffi:mem-ref status :int32) method
+                      (babel:octets-to-string (grpc-slice-to-bytes details) :encoding :utf-8)))
+                (grpc-byte-buffer-destroy (cffi:mem-ref message :pointer))
+                (%grpc-slice-unref (cffi:mem-ref details '(:struct grpc-slice)))
+                (%grpc-metadata-array-destroy initial)
+                (%grpc-metadata-array-destroy trailing)))))
+      (grpc-byte-buffer-destroy request-bb))))

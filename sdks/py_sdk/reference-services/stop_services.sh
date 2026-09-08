@@ -33,6 +33,7 @@ fi
 
 echo "🛑 Stopping Python reference services (Local)"
 
+# shellcheck disable=SC1091
 source ../scripts/lib.sh
 kill_from_pidfiles_then_patterns .registry.pid .router.pid .scheduler.pid -- \
   "hive/registry_service.py" "hive/router_service.py" "hive/scheduler_service.py"

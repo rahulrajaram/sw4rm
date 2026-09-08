@@ -90,12 +90,19 @@ defmodule Sw4rm.Persistence.JsonFile do
   @impl true
   def handle_call({:save, records, opts}, _from, s) do
     path = ns_path(s.base_dir, opts)
-    File.mkdir_p!(Path.dirname(path))
+    dir = Path.dirname(path)
 
     case Jason.encode(records, pretty: true) do
       {:ok, json} ->
-        File.write!(path, json)
-        {:reply, {:ok, length(records)}, s}
+        result = durable_write(path, dir, json)
+
+        reply =
+          case result do
+            :ok -> {:ok, length(records)}
+            {:error, reason} -> {:error, reason}
+          end
+
+        {:reply, reply, s}
 
       {:error, reason} ->
         {:reply, {:error, reason}, s}
@@ -130,8 +137,15 @@ defmodule Sw4rm.Persistence.JsonFile do
           0
       end
 
-    File.rm(path)
-    {:reply, {:ok, count}, s}
+    result =
+      case File.rm(path) do
+        :ok -> fsync_directory(Path.dirname(path))
+        {:error, :enoent} -> :ok
+        {:error, reason} -> {:error, reason}
+      end
+
+    reply = if result == :ok, do: {:ok, count}, else: result
+    {:reply, reply, s}
   end
 
   def handle_call(:list_namespaces, _from, s) do
@@ -152,5 +166,46 @@ defmodule Sw4rm.Persistence.JsonFile do
   defp ns_path(base_dir, opts) do
     ns = Keyword.get(opts, :namespace, "default")
     Path.join(base_dir, "#{ns}.json")
+  end
+
+  # Write, sync, rename, and sync the containing directory.  A rename alone
+  # protects readers from partial JSON but does not make the directory entry
+  # durable across a crash.
+  defp durable_write(path, dir, content) do
+    temp_path = Path.rootname(path) <> ".tmp"
+
+    with :ok <- File.mkdir_p(dir),
+         {:ok, io} <- File.open(temp_path, [:write, :binary]),
+         :ok <- write_and_sync(io, content),
+         :ok <- File.close(io),
+         :ok <- File.rename(temp_path, path),
+         :ok <- fsync_directory(dir) do
+      :ok
+    else
+      {:error, _reason} = error ->
+        _ = File.rm(temp_path)
+        error
+    end
+  end
+
+  defp write_and_sync(io, content) do
+    with :ok <- IO.binwrite(io, content),
+         :ok <- :file.sync(io) do
+      :ok
+    end
+  end
+
+  defp fsync_directory(dir) do
+    # :directory is required by the Erlang file driver; ordinary :read
+    # rejects directory descriptors with :eisdir.
+    case :file.open(String.to_charlist(dir), [:read, :directory]) do
+      {:ok, fd} ->
+        result = :file.sync(fd)
+        _ = :file.close(fd)
+        result
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 end

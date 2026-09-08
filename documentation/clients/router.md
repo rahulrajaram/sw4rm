@@ -1,171 +1,158 @@
 # 6.2. Router Client
 
-The Router Client talks to the `sw4rm.router.RouterService` service. Use it to:
+The Router client talks to `sw4rm.router.RouterService`. Use it to:
 
-- Send message envelopes to destination agents.
-- Stream incoming envelopes for an agent.
+- Send envelopes to the durable delivery store.
+- Stream incoming deliveries for a receiving agent.
+- Acknowledge completed deliveries to release the pending row.
 
-## 6.2.1. Service Overview
+The 0.7.0 development contract adds consumer acknowledgements to sending and
+streaming. Published 0.6.0 clients require migration before using this
+delivery behavior.
 
-The service exposes two RPCs:
+## 6.2.1. Wire operations
 
-- `SendMessage(SendMessageRequest) -> SendMessageResponse`
-- `StreamIncoming(StreamRequest) -> (stream StreamItem)`
+| RPC | Purpose |
+|---|---|
+| `SendMessage` | Submit an envelope; return acceptance and a reason |
+| `StreamIncoming` | Stream `StreamItem` messages for a receiving agent |
+| `AckDelivery` | Release an in-flight delivery belonging to that recipient |
 
-### SendMessageResponse fields
+The [generated reference](../reference/release-contract.md) supplies exact
+request/response types. `StreamItem.msg` is the envelope; `StreamItem.seq` is an
+int64 router delivery identifier. Preserve it exactly, including in JavaScript.
+It is distinct from `Envelope.sequence_number`.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `accepted` | bool | Whether the router accepted the message |
-| `reason` | string | Rejection reason (if any) |
+### Response fields
 
-### StreamItem fields
+`SendMessage` returns `accepted` (whether the router accepted the envelope) and
+an optional `reason` explaining a rejection. `StreamIncoming` yields
+`StreamItem` values with `msg` (the incoming `Envelope`) and `seq` (the router's
+delivery identifier). `AckDelivery` returns `recorded`, which is true only when
+the supplied recipient, sequence, and outcome released an eligible pending row.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `msg` | `Envelope` | Incoming envelope for the agent |
+The Python constructor accepts a connected gRPC channel. JavaScript/TypeScript
+uses `new RouterClient({ address: "host:port" })`; Rust uses
+`RouterClient::new("http://host:port")`. The default RouterService endpoint is
+port `50051`.
 
-> See `documentation/protocol/messages.md` for the Envelope field definitions.
+## 6.2.2. Processing order
 
-## 6.2.2. Constructors
+1. Receive and retain the stream item, including its sequence.
+2. Check any durable completion token used by the application.
+3. Process the message or hand responsibility to durable application storage.
+4. Persist completion when appropriate.
+5. Acknowledge delivery using the receiving agent ID and sequence.
 
-### Python
+An acknowledgement has two outcomes: delivered, or permanent failure. Both
+release the row. A transient processing failure should leave the item unacked.
+The Python reference router redelivers on reconnect or lease expiry.
 
-`RouterClient(channel: grpc.Channel)`
+`recorded=false` means no eligible in-flight row was released: the sequence may
+be unknown, already acknowledged, expired to pending, or owned by another agent.
+Invalid recipient/sequence/outcome fields also return false. Recipient fields
+are checked for consistency; authentication is a deployment responsibility.
 
-- `channel`: A gRPC channel connected to the RouterService endpoint (default port: 50051).
+```mermaid
+flowchart TD
+    A["StreamItem arrives (retain seq)"] --> P["Process, or hand responsibility<br/>to durable application storage"]
+    P --> O{Processing outcome}
+    O -->|success| D["AckDelivery DELIVERED<br/>releases the pending row"]
+    O -->|permanent failure| F["AckDelivery PERMANENT_FAILURE<br/>releases the row (explicit discard,<br/>not a retry request)"]
+    O -->|transient failure| U[Leave item unacked]
+    U -. redelivery on reconnect<br/>or lease expiry .-> A
+    D --> Z([done])
+    F --> Z
+```
 
-### JavaScript/TypeScript
+## 6.2.3. SDK entry points
 
-`new RouterClient(options: ClientOptions)`
+| SDK | Receiving | Acknowledging |
+|---|---|---|
+| Python | `RouterClient.stream_incoming` | `RouterClient.ack_delivery` |
+| JavaScript/TypeScript | `RouterClient.streamIncoming` | `RouterClient.ackDelivery` / `ackStreamItem` |
+| Rust | `RouterClient::stream_incoming_with_seq` | `ack_delivery` / `ack_delivered` / `ack_permanent_failure` |
+| Elixir | `Sw4rm.Clients.Router.stream_incoming` | `Sw4rm.Clients.Router.ack_delivery` |
+| Common Lisp | `open-stream`, `stream-item-seq` | `ack-delivery` |
 
-- `options.address`: `host:port` for the RouterService endpoint.
-- Optional: `deadlineMs`, `retry`, `userAgent`, `interceptors`, `errorMapper`.
+Rust retains the older envelope-only stream helper for compatibility; it drops
+the delivery sequence, so acknowledgement-aware consumers use the new stream
+method. Refer to the SDK READMEs for exact language-native signatures and
+transport availability. See [first agent](../quickstart/first-agent.md) for a
+complete Python example.
 
-### Rust
+### Usage example
 
-`RouterClient::new(endpoint: &str) -> Result<RouterClient>`
+```python
+import grpc
+from sw4rm.clients import RouterClient
 
-- `endpoint`: Full gRPC URL (for example, `http://host:50051`).
+router = RouterClient(grpc.insecure_channel("localhost:50051"))
 
-## 6.2.3. Key Methods
+for item in router.stream_incoming("worker-1"):
+    if process(item.msg):  # application work
+        # Delivered: preserve item.seq exactly and release the pending row.
+        ack = router.ack_delivery("worker-1", item.seq, item.msg.message_id)
+    else:
+        # Transient failure: leave the item unacked so it is redelivered.
+        # Deliberate discard uses the permanent-failure outcome instead.
+        continue
+```
 
-### `send_message` / `sendMessage`
+```typescript
+import { RouterClient } from '@sw4rm/js-sdk';
 
-**Python**
-`send_message(envelope: dict) -> SendMessageResponse`
+const router = new RouterClient({ address: 'localhost:50051' });
+const stream = router.streamIncoming('worker-1');
+stream.on('data', async (item) => {
+  if (await process(item.msg)) {
+    // Preserve item.seq exactly; 64-bit values arrive as decimal strings.
+    const ack = await router.ackDelivery('worker-1', item.seq, item.msg.message_id ?? '');
+  }
+  // No ack on transient failure; the item is redelivered later.
+});
+```
 
-**JavaScript/TypeScript**
-`sendMessage(envelope: EnvelopeBuilt): Promise<{ accepted: boolean; reason?: string }>`
+```rust
+use sw4rm_sdk::clients::RouterClient;
+use tokio_stream::StreamExt;
 
-**Rust**
-`send_message(&mut self, envelope: &EnvelopeData) -> Result<SendResult>`
-
-### `stream_incoming` / `streamIncoming`
-
-**Python**
-`stream_incoming(agent_id: str) -> Iterable[StreamItem]`
-
-**JavaScript/TypeScript**
-`streamIncoming(agentId: string, meta?: Metadata) -> ClientReadableStream<{ msg: EnvelopeBuilt }>`
-
-**Rust**
-`stream_incoming(&mut self, agent_id: &str) -> Result<Pin<Box<dyn Stream<Item = Result<EnvelopeData>> + Send>>>`
-
-### `health_check` (Rust convenience)
-
-**Rust**
-`health_check(&mut self) -> Result<bool>`
-
-## 6.2.4. Usage Examples
-
-=== "Python"
-    ```python
-    import grpc
-    import json
-    from sw4rm import constants as C
-    from sw4rm.envelope import build_envelope
-    from sw4rm.clients import RouterClient
-
-    channel = grpc.insecure_channel("localhost:50051")
-    client = RouterClient(channel)
-
-    payload = json.dumps({"hello": "world"}).encode("utf-8")
-    envelope = build_envelope(
-        producer_id="agent-1",
-        message_type=C.DATA,
-        content_type="application/json",
-        payload=payload,
-    )
-
-    response = client.send_message(envelope)
-    print("accepted:", response.accepted, "reason:", response.reason)
-
-    for item in client.stream_incoming("agent-1"):
-        print("incoming:", item.msg)
-        break
-    ```
-
-=== "JavaScript/TypeScript"
-    ```ts
-    import { RouterClient, buildEnvelope, MessageType } from '@sw4rm/js-sdk';
-
-    const router = new RouterClient({ address: 'localhost:50051' });
-    const env = buildEnvelope({
-      producer_id: 'agent-1',
-      message_type: MessageType.DATA,
-      content_type: 'application/json',
-      payload: new TextEncoder().encode(JSON.stringify({ hello: 'world' })),
-    });
-
-    const result = await router.sendMessage(env);
-    console.log('accepted:', result.accepted, 'reason:', result.reason);
-
-    const stream = router.streamIncoming('agent-1');
-    stream.on('data', (item) => {
-      console.log('incoming:', item.msg);
-    });
-    ```
-
-=== "Rust"
-    ```rust
-    use sw4rm_sdk::{clients::RouterClient, envelope::EnvelopeBuilder, constants, Result};
-    use serde_json::json;
-    use tokio_stream::StreamExt;
-
-    #[tokio::main]
-    async fn main() -> Result<()> {
-        let mut client = RouterClient::new("http://localhost:50051").await?;
-
-        let envelope = EnvelopeBuilder::new(
-            "agent-1".to_string(),
-            constants::message_type::DATA,
-        )
-        .with_json_payload(&json!({"hello": "world"}))?
-        .build();
-
-        let result = client.send_message(&envelope).await?;
-        println!("accepted={} reason={}", result.accepted, result.reason);
-
-        let mut stream = client.stream_incoming("agent-1").await?;
-        if let Some(item) = stream.next().await {
-            println!("incoming: {:?}", item?);
+#[tokio::main]
+async fn main() -> sw4rm_sdk::Result<()> {
+    let mut router = RouterClient::new("http://localhost:50051").await?;
+    let mut stream = router.stream_incoming_with_seq("worker-1").await?;
+    while let Some(item) = stream.next().await {
+        let item = item?; // IncomingMessage: envelope + router delivery seq
+        if process(&item.envelope) {
+            router.ack_delivery("worker-1", item.seq, "").await?;
         }
-
-        Ok(())
+        // No ack on transient failure; the item is redelivered later.
     }
-    ```
+    Ok(())
+}
+```
 
-## Working Examples
+## 6.2.4. Guarantees and limits
 
-For complete runnable examples demonstrating Router usage:
+Delivery is at least once. The protocol does not make external side effects
+atomic with deduplication records, and `AckDelivery` does not mean a business
+operation was approved. Application `Ack` envelopes and their lifecycle are a
+separate mechanism.
+
+The Python reference router retains pending state in SQLite; it is a
+single-process implementation. Rust and JavaScript reference/demo servers do
+not implement this complete recovery path. See
+[implementation coverage](../protocol/implementation.md) and
+[upgrade instructions](../release-status.md).
+
+## 6.2.5. Complete examples
+
+The SDK repositories contain longer examples that show agent setup and
+message construction in context:
 
 - [:simple-python: Python echo agent](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/py_sdk/examples/echo_agent.py)
 - [:simple-rust: Rust echo agent](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/rust_sdk/examples/echo_agent.rs)
 - [:simple-typescript: TypeScript echo agent](https://github.com/rahulrajaram/sw4rm/tree/master/sdks/js_sdk/examples/echoAgent.ts)
 
-> **Tip:** If you see `RuntimeError: Protobuf stubs not generated`, run:
-
-```bash
-make protos
-```
+If the generated Python protobuf modules are absent, run `make protos` before
+using the Python client.

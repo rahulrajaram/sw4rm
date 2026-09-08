@@ -77,7 +77,7 @@ The service exposes six RPCs:
 `new NegotiationClient(options: ClientOptions)`
 
 - `options.address`: `host:port` for the NegotiationService endpoint.
-- Optional: `deadlineMs`, `retry`, `userAgent`, `interceptors`, `errorMapper`.
+- `ClientOptions` also accepts optional `deadlineMs`, `retry`, `userAgent`, `interceptors`, and `errorMapper` fields — see [client conventions](index.md#61-conventions).
 
 ### Rust
 

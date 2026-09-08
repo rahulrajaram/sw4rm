@@ -251,7 +251,7 @@ class TestBordaCountAggregator:
     """Tests for BordaCountAggregator."""
 
     def test_borda_count_basic(self):
-        """Test basic Borda count aggregation."""
+        """Test basic Borda count aggregation (score-derived ranks, R22)."""
         votes = [
             create_vote(9.0, critic_id="c1"),  # Rank 1: 3 points
             create_vote(7.0, critic_id="c2"),  # Rank 2: 2 points
@@ -261,10 +261,8 @@ class TestBordaCountAggregator:
         aggregator = BordaCountAggregator()
         result = aggregator.aggregate(votes)
 
-        # Total points: 3 + 2 + 1 = 6
-        # Average points: 6 / 3 = 2
-        # Normalized: (2 / 3) * 10 = 6.67
-        assert abs(result.weighted_mean - 6.67) < 0.1
+        # Weighted mean: (3*9 + 2*7 + 1*5) / (3 + 2 + 1) = 46/6
+        assert abs(result.weighted_mean - 46.0 / 6.0) < 1e-9
         assert result.vote_count == 3
 
     def test_borda_count_all_same(self):
@@ -277,10 +275,8 @@ class TestBordaCountAggregator:
         aggregator = BordaCountAggregator()
         result = aggregator.aggregate(votes)
 
-        # All same scores should give middle value
-        # With 4 votes: points are 4,3,2,1 = 10 total, avg = 2.5
-        # Normalized: (2.5 / 4) * 10 = 6.25
-        assert abs(result.weighted_mean - 6.25) < 0.1
+        # Uniform scores: the Borda-weighted mean is the score itself.
+        assert abs(result.weighted_mean - 7.0) < 1e-9
 
     def test_borda_count_extremes(self):
         """Test Borda count with extreme scores."""
@@ -292,9 +288,24 @@ class TestBordaCountAggregator:
         aggregator = BordaCountAggregator()
         result = aggregator.aggregate(votes)
 
-        # 2 votes: 2 points + 1 point = 3 total, avg = 1.5
-        # Normalized: (1.5 / 2) * 10 = 7.5
-        assert abs(result.weighted_mean - 7.5) < 0.1
+        # (2*10 + 1*0) / (2 + 1) = 20/3
+        assert abs(result.weighted_mean - 20.0 / 3.0) < 1e-9
+
+    def test_borda_count_score_sensitivity_same_count(self):
+        """Same-count, different-score inputs must differ (R22 regression)."""
+        aggregator = BordaCountAggregator()
+
+        high = aggregator.aggregate(
+            [create_vote(9.0), create_vote(9.0), create_vote(9.0)]
+        )
+        low = aggregator.aggregate(
+            [create_vote(1.0), create_vote(1.0), create_vote(1.0)]
+        )
+
+        # Three votes in each case; only the scores differ.
+        assert high.vote_count == low.vote_count == 3
+        assert abs(high.weighted_mean - 9.0) < 1e-9
+        assert abs(low.weighted_mean - 1.0) < 1e-9
 
     def test_borda_count_single_vote(self):
         """Test Borda count with single vote."""
@@ -303,8 +314,8 @@ class TestBordaCountAggregator:
         aggregator = BordaCountAggregator()
         result = aggregator.aggregate(votes)
 
-        # Single vote gets 1 point, normalized: (1/1) * 10 = 10.0
-        assert result.weighted_mean == 10.0
+        # Single vote: its own score.
+        assert result.weighted_mean == 7.0
 
     def test_borda_count_empty_votes(self):
         """Test that empty vote list raises ValueError."""

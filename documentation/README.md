@@ -140,4 +140,4 @@ The site supports:
 
 ## Future Enhancements
 
-When API reference generation is ready, re-enable `gen_ref_pages.py` and add a reference section to the navigation.
+The wire/RPC reference is already generated and CI-checked by `scripts/release_contract.py` (see [documentation-contract.md](documentation-contract.md)); `gen_ref_pages.py` remains a separate, unadopted API-reference generator.

@@ -35,8 +35,10 @@ Example usage:
 
 import logging
 import math
+import os
 import threading
 import time
+from pathlib import Path
 from typing import Dict, List, Optional
 
 import grpc
@@ -71,14 +73,76 @@ class NegotiationRoomServiceImpl(negotiation_room_pb2_grpc.NegotiationRoomServic
     - decisions: Dict[artifact_id, NegotiationDecision]
     """
 
-    def __init__(self):
-        """Initialize the negotiation room service with empty state."""
+    def __init__(self, db_path: Optional[str] = None):
+        """Initialize the negotiation room service.
+
+        Args:
+            db_path: Path to the SQLite state store. Defaults to
+                ``$SW4RM_NEGOTIATION_ROOM_DB`` or
+                ``./.reference_services_state/negotiation_room.sqlite3``.
+                Proposals, votes, and decisions are committed synchronously
+                before RPC responses return and replayed on startup, so a
+                process kill does not lose negotiation state.
+        """
+        import os
+        from negotiation_room_state_store import NegotiationRoomStateStore
+
         self._lock = threading.RLock()
         self._proposals: Dict[str, negotiation_room_pb2.NegotiationProposal] = {}
         self._votes: Dict[str, List[negotiation_room_pb2.NegotiationVote]] = {}
         self._decisions: Dict[str, negotiation_room_pb2.NegotiationDecision] = {}
         self._decision_events: Dict[str, threading.Event] = {}
-        logger.info("NegotiationRoomService initialized")
+        resolved_db = db_path or os.getenv(
+            "SW4RM_NEGOTIATION_ROOM_DB",
+            str(Path.cwd() / ".reference_services_state" / "negotiation_room.sqlite3"),
+        )
+        self._state_store: Optional[NegotiationRoomStateStore] = (
+            NegotiationRoomStateStore(resolved_db)
+        )
+        self._load_state()
+        logger.info(
+            "NegotiationRoomService initialized (durable state at %s)", resolved_db
+        )
+
+    def _load_state(self) -> None:
+        """Replay persisted rows into the in-memory working set."""
+        if self._state_store is None:
+            return
+        for artifact_id, blob in self._state_store.load_proposals().items():
+            proposal = negotiation_room_pb2.NegotiationProposal()
+            try:
+                proposal.ParseFromString(blob)
+            except Exception:
+                logger.warning("Skipping unparseable persisted proposal %s", artifact_id)
+                continue
+            self._proposals[artifact_id] = proposal
+            self._votes.setdefault(artifact_id, [])
+        for artifact_id, critic_votes in self._state_store.load_votes().items():
+            votes = self._votes.setdefault(artifact_id, [])
+            seen = {v.critic_id for v in votes}
+            for _critic_id, blob in critic_votes:
+                vote = negotiation_room_pb2.NegotiationVote()
+                try:
+                    vote.ParseFromString(blob)
+                except Exception:
+                    logger.warning(
+                        "Skipping unparseable persisted vote for %s", artifact_id
+                    )
+                    continue
+                if vote.critic_id in seen:
+                    continue
+                votes.append(vote)
+                seen.add(vote.critic_id)
+        for artifact_id, blob in self._state_store.load_decisions().items():
+            decision = negotiation_room_pb2.NegotiationDecision()
+            try:
+                decision.ParseFromString(blob)
+            except Exception:
+                logger.warning(
+                    "Skipping unparseable persisted decision %s", artifact_id
+                )
+                continue
+            self._decisions[artifact_id] = decision
 
     def SubmitProposal(
         self,
@@ -132,6 +196,10 @@ class NegotiationRoomServiceImpl(negotiation_room_pb2_grpc.NegotiationRoomServic
             self._proposals[artifact_id] = proposal
             self._votes[artifact_id] = []
             self._decision_events[artifact_id] = threading.Event()
+            if self._state_store is not None:
+                self._state_store.upsert_proposal(
+                    artifact_id, proposal.SerializeToString()
+                )
 
             logger.info(
                 f"Proposal submitted: {artifact_id} by {proposal.producer_id} "
@@ -221,6 +289,10 @@ class NegotiationRoomServiceImpl(negotiation_room_pb2_grpc.NegotiationRoomServic
                 vote.voted_at.CopyFrom(_current_timestamp())
 
             self._votes[artifact_id].append(vote)
+            if self._state_store is not None:
+                self._state_store.insert_vote(
+                    artifact_id, critic_id, vote.SerializeToString()
+                )
             logger.info(
                 f"Vote submitted: {critic_id} for {artifact_id} "
                 f"(score={vote.score}, confidence={vote.confidence})"
@@ -404,6 +476,10 @@ class NegotiationRoomServiceImpl(negotiation_room_pb2_grpc.NegotiationRoomServic
                 decision.decided_at.CopyFrom(_current_timestamp())
 
             self._decisions[artifact_id] = decision
+            if self._state_store is not None:
+                self._state_store.upsert_decision(
+                    artifact_id, decision.SerializeToString()
+                )
 
             # Signal waiting clients
             event = self._decision_events.get(artifact_id)
@@ -501,6 +577,8 @@ class NegotiationRoomServiceImpl(negotiation_room_pb2_grpc.NegotiationRoomServic
             self._proposals.clear()
             self._votes.clear()
             self._decisions.clear()
+            if self._state_store is not None:
+                self._state_store.clear_all()
             # Clear events
             for event in self._decision_events.values():
                 event.set()

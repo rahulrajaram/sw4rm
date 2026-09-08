@@ -56,6 +56,17 @@ defmodule Sw4rm.PersistenceTest do
       assert length(loaded) == 2
     end
 
+    test "save is atomic and leaves no temporary file", %{store: store, dir: dir} do
+      assert {:ok, 1} = JsonFile.save_records(store, [%{"id" => 1}])
+      assert File.exists?(Path.join(dir, "default.json"))
+      refute File.exists?(Path.join(dir, "default.tmp"))
+    end
+
+    test "load reports corrupt JSON instead of silently resetting", %{store: store, dir: dir} do
+      File.write!(Path.join(dir, "broken.json"), "{not-json")
+      assert {:error, %Jason.DecodeError{}} = JsonFile.load_records(store, namespace: "broken")
+    end
+
     test "load returns empty for missing file", %{store: store} do
       assert {:ok, []} = JsonFile.load_records(store, namespace: "empty")
     end

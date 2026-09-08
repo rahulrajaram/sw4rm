@@ -306,6 +306,157 @@
   "Default deduplication window must be 3600 seconds (per spec S11.2)."
   (is (= 3600 sw4rm-sdk::*default-deduplication-window-seconds*)))
 
+;;; =======================================================================
+;;;  1b. Quorum Policy (SW4-001)
+;;; =======================================================================
+
+(def-suite quorum-policy-suite :description "Quorum policy parity tests"
+  :in sw4rm-suite)
+(in-suite quorum-policy-suite)
+
+(test quorum-default-is-majority-fail-closed
+  "The default policy matches the Python/Elixir runtime-neutral contract."
+  (let ((policy (sw4rm-sdk:default-quorum-policy)))
+    (is (typep (sw4rm-sdk:quorum-policy-rule policy)
+               'sw4rm-sdk:minimum-fraction))
+    (is (= 0.5d0 (sw4rm-sdk:minimum-fraction-fraction
+                  (sw4rm-sdk:quorum-policy-rule policy))))
+    (is (eq :fail-closed (sw4rm-sdk:quorum-policy-on-failure policy)))))
+
+(test quorum-fraction-ceils-and-filters-critics
+  "Thresholds ceil and votes from unrequested critics do not count."
+  (let* ((policy (sw4rm-sdk:make-quorum-policy
+                  (sw4rm-sdk:make-minimum-fraction 0.5d0) :fail-closed))
+         (outcome (sw4rm-sdk:evaluate-quorum
+                   '((:critic-id "c1") (:critic-id "outside"))
+                   '("c1" "c2" "c3") policy)))
+    (is (not (sw4rm-sdk:quorum-outcome-met outcome)))
+    (is (= 1 (sw4rm-sdk:quorum-outcome-votes-received outcome)))
+    (is (= 2 (sw4rm-sdk:quorum-outcome-threshold outcome)))))
+
+(test quorum-abstain-action-injects-missing
+  "Fail-with-abstain supplies zero-score abstain records."
+  (let* ((policy (sw4rm-sdk:make-quorum-policy
+                  (sw4rm-sdk:make-minimum-votes 3) :fail-with-abstain))
+         (outcome (sw4rm-sdk:evaluate-quorum
+                   '((:critic-id "c1")) '("c1" "c2" "c3") policy))
+         (action (sw4rm-sdk:quorum-outcome-action outcome))
+         (injected (getf action :injected-votes)))
+    (is (eq :decided-with-abstains (getf action :type)))
+    (is (= 2 (length injected)))
+    (is (every (lambda (vote) (getf vote :abstain)) injected))
+    (is (= 3 (length (getf action :all-votes))))))
+
+(test quorum-shared-vectors
+  "The Lisp quorum evaluator matches quorum_vectors.json."
+  (let* ((path (merge-pathnames
+                #P"../../tests/conformance_vectors/quorum_vectors.json"
+                (asdf:system-source-directory :sw4rm-sdk)))
+         (data (with-open-file (stream path :direction :input)
+                 (json:decode-json stream)))
+         (vectors (%json-array->list (%json-object-get data "vectors"))))
+    (dolist (vector vectors)
+      (let* ((requested (%json-array->list (%json-object-get vector "requested")))
+             (votes (mapcar (lambda (vote)
+                              (list :critic-id (%json-object-get vote "critic_id")))
+                            (%json-array->list (%json-object-get vector "votes"))))
+             (rule-data (%json-object-get vector "rule"))
+             (rule-kind (%json-object-get rule-data "kind"))
+             (rule-value (%json-object-get rule-data "value"))
+             (rule (cond
+                     ((string= rule-kind "minimum_votes")
+                      (sw4rm-sdk:make-minimum-votes rule-value))
+                     ((string= rule-kind "minimum_fraction")
+                      (sw4rm-sdk:make-minimum-fraction rule-value))
+                     ((string= rule-kind "require_all")
+                      (sw4rm-sdk:make-require-all rule-value))))
+             (failure (intern (string-upcase
+                               (substitute #\- #\_ (%json-object-get vector "on_failure")))
+                              :keyword))
+             (result (sw4rm-sdk:evaluate-quorum
+                      votes requested (sw4rm-sdk:make-quorum-policy rule failure)))
+             (expected (%json-object-get vector "expected"))
+             (action (sw4rm-sdk:quorum-outcome-action result)))
+        (is (eql (not (null (%json-object-get expected "met")))
+                 (sw4rm-sdk:quorum-outcome-met result)))
+        (is (= (%json-object-get expected "received")
+               (sw4rm-sdk:quorum-outcome-votes-received result)))
+        (is (= (%json-object-get expected "threshold")
+               (sw4rm-sdk:quorum-outcome-threshold result)))
+        (is (= (%json-object-get expected "all_vote_count")
+               (length (sw4rm-sdk:quorum-outcome-all-votes result))))
+        (when action
+          (is (string= (%json-object-get expected "action")
+                       (string-downcase
+                        (substitute #\_ #\-
+                                    (symbol-name (getf action :type)))))))))))
+
+;;; =======================================================================
+;;;  1d. Score aggregation vectors
+;;; =======================================================================
+
+(def-suite score-aggregation-suite :description "Score summary parity tests"
+  :in sw4rm-suite)
+(in-suite score-aggregation-suite)
+
+(test score-aggregation-shared-vectors
+  "The Lisp score summary matches score_aggregation_vectors.json."
+  (let* ((path (merge-pathnames
+                #P"../../tests/conformance_vectors/score_aggregation_vectors.json"
+                (asdf:system-source-directory :sw4rm-sdk)))
+         (data (with-open-file (stream path :direction :input)
+                 (json:decode-json stream)))
+         (vectors (%json-array->list (%json-object-get data "vectors"))))
+    (dolist (vector vectors)
+      (let ((id (%json-object-get vector "id")))
+        (if (string= id "empty-input")
+            (signals error (sw4rm-sdk:aggregate-votes nil))
+            (let* ((raw-votes (%json-array->list (%json-object-get vector "votes")))
+                   (votes (mapcar (lambda (vote)
+                                    (list :score (%json-object-get vote "score")
+                                          :confidence (%json-object-get vote "confidence")))
+                                  raw-votes))
+                   (expected (%json-object-get vector "expected"))
+                   (summary (sw4rm-sdk:aggregate-votes votes)))
+              (is (< (abs (- (sw4rm-sdk:score-summary-mean summary)
+                             (%json-object-get expected "mean"))) 0.000001))
+              (is (< (abs (- (sw4rm-sdk:score-summary-weighted-mean summary)
+                             (%json-object-get expected "weighted_mean"))) 0.000001))
+              (is (= (sw4rm-sdk:score-summary-min-score summary)
+                     (%json-object-get expected "min_score")))
+              (is (= (sw4rm-sdk:score-summary-max-score summary)
+                     (%json-object-get expected "max_score")))
+              (is (< (abs (- (sw4rm-sdk:score-summary-std-dev summary)
+                             (%json-object-get expected "std_dev"))) 0.000001))
+              (is (= (sw4rm-sdk:score-summary-vote-count summary)
+                     (%json-object-get expected "vote_count")))))))))
+
+;;; =======================================================================
+;;;  1c. File persistence durability
+;;; =======================================================================
+
+(def-suite persistence-suite :description "Persistence durability tests"
+  :in sw4rm-suite)
+(in-suite persistence-suite)
+
+(test persistence-atomic-roundtrip
+  "A saved snapshot round-trips and does not leave its temporary sibling."
+  (let* ((dir (merge-pathnames
+               (format nil "sw4rm-cl-test-~D/" (random 1000000))
+               (uiop:temporary-directory)))
+         (backend (sw4rm-sdk:make-json-file-persistence dir))
+         (path (merge-pathnames "default.json" dir))
+         (tmp (merge-pathnames ".default.tmp" dir)))
+    (unwind-protect
+         (progn
+           (is (= 1 (sw4rm-sdk:save-records backend '((:id 1)))))
+           (is (= 1 (length (sw4rm-sdk:load-records backend))))
+           (is (probe-file path))
+           (is (not (probe-file tmp))))
+      (when (probe-file path) (delete-file path))
+      (when (probe-file tmp) (delete-file tmp))
+      (when (probe-file dir) (uiop:delete-empty-directory dir)))))
+
 
 ;;; =======================================================================
 ;;;  2. ACK Manager
@@ -922,12 +1073,12 @@
     (is (not (null (sw4rm-sdk::client-channel c))))))
 
 (test base-client-make-metadata
-  "make-metadata must produce a proper alist."
+  "make-metadata must produce a proper alist with string keys (R19)."
   (let* ((c (make-instance 'sw4rm-sdk::base-client
                             :address "localhost:50051"))
          (md (sw4rm-sdk::make-metadata c :agent-id "a1" :correlation-id "c1")))
-    (is (string= "a1" (cdr (assoc :agent-id md))))
-    (is (string= "c1" (cdr (assoc :correlation-id md))))))
+    (is (string= "a1" (cdr (assoc "agent-id" md :test #'string=))))
+    (is (string= "c1" (cdr (assoc "correlation-id" md :test #'string=))))))
 
 ;; -- handoff-client -------------------------------------------------------
 
@@ -1048,6 +1199,8 @@
     (cond
       ((string= normalized "VALIDATION_ERROR") sw4rm-sdk::+validation-error+)
       ((string= normalized "REDIRECT") sw4rm-sdk::+redirect+)
+      ((string= normalized "ACK_TIMEOUT") sw4rm-sdk::+ack-timeout+)
+      ((string= normalized "NONE") 0)
       (t (error "Unsupported vector rejection code: ~A" name)))))
 
 (defun %shared-cancellation-vector-file-path ()
@@ -1301,20 +1454,28 @@
            (policy (%json-object-get vector "policy"))
            (expected (%json-object-get vector "expected"))
            (redirect-map (%json-object-get vector "redirect_map"))
+           (accept-agents (%json-array->list (%json-object-get vector "accept_agents" '())))
            (attempts '())
            (response
              (sw4rm-sdk::delegate-to-swarm
               (lambda (request)
                 (let* ((to-agent (getf request :to-agent))
                        (target-agent (%json-object-get redirect-map to-agent)))
-                  (unless target-agent
-                    (error "Vector ~A missing redirect target for ~A" vector-id to-agent))
                   (push to-agent attempts)
-                  (list :request-id (getf request :request-id)
-                        :accepted nil
-                        :status :rejected
-                        :rejection-code sw4rm-sdk::+redirect+
-                        :redirect-to-agent-id target-agent)))
+                  (cond
+                    ((member to-agent accept-agents :test #'string=)
+                     (list :request-id (getf request :request-id)
+                           :accepted t
+                           :status :accepted
+                           :rejection-code 0))
+                    (target-agent
+                     (list :request-id (getf request :request-id)
+                           :accepted nil
+                           :status :rejected
+                           :rejection-code sw4rm-sdk::+redirect+
+                           :redirect-to-agent-id target-agent))
+                    (t
+                     (error "Vector ~A missing redirect target for ~A" vector-id to-agent)))))
               :request-id (%json-object-get vector "request_id")
               :from-agent (%json-object-get vector "from_agent")
               :to-agent (%json-object-get vector "to_agent")
@@ -1324,7 +1485,8 @@
               :delegation-policy (list :allow-spillover-routing
                                        (not (null (%json-object-get policy "allow_spillover_routing")))
                                        :max-redirects (%json-object-get policy "max_redirects"))
-              :now-ms-fn (let ((now-ms (- (%json-object-get budget "deadline_epoch_ms") 1000)))
+              :now-ms-fn (let ((now-ms (%json-object-get vector "now_ms_epoch_ms"
+                                                          (- (%json-object-get budget "deadline_epoch_ms") 1000))))
                            (lambda () now-ms))
               :sleep-seconds-fn (lambda (_seconds) (declare (ignore _seconds)) nil)
               :rand-uniform-fn (lambda (low _high) (declare (ignore _high)) low))))
@@ -1562,6 +1724,11 @@
           (dolist (correlation-id (%json-array->list (%json-object-get expected "cancelled")))
             (is (sw4rm-sdk::cancelled-delegation-p c correlation-id)))
 
+          ;; Negative assertions: correlations outside the direct-children
+          ;; cascade must remain active (R21).
+          (dolist (correlation-id (%json-array->list (%json-object-get expected "not_cancelled" '())))
+            (is (not (sw4rm-sdk::cancelled-delegation-p c correlation-id))))
+
           (dolist (check (%json-array->list (%json-object-get expected "grace_expiry_checks")))
             (let* ((correlation-id (%json-object-get check "correlation_id"))
                    (offset-ms (%json-object-get check "offset_ms" 0))
@@ -1618,10 +1785,12 @@
     (is (typep c 'sw4rm-sdk::workflow-client))
     (is (typep c 'sw4rm-sdk::base-client))))
 
+;; These tests exercise the unavailable-backend path explicitly. Native RPC
+;; behavior is verified separately by protocol-client-suite against Python.
 (test workflow-submit-dag-signals-rpc-error
   "submit-dag must signal rpc-error with UNIMPLEMENTED code."
   (let ((c (make-instance 'sw4rm-sdk::workflow-client
-                           :address "localhost:50071")))
+                           :address "unused" :channel "unavailable-backend")))
     (handler-case
         (progn
           (sw4rm-sdk::submit-dag c '(:workflow-id "wf-1" :name "test"))
@@ -1632,7 +1801,7 @@
 (test workflow-get-status-signals-rpc-error
   "get-workflow-status must signal rpc-error with UNIMPLEMENTED code."
   (let ((c (make-instance 'sw4rm-sdk::workflow-client
-                           :address "localhost:50071")))
+                           :address "unused" :channel "unavailable-backend")))
     (handler-case
         (progn
           (sw4rm-sdk::get-workflow-status c "wf-1")
@@ -1643,7 +1812,7 @@
 (test workflow-cancel-signals-rpc-error
   "cancel-workflow must signal rpc-error with UNIMPLEMENTED code."
   (let ((c (make-instance 'sw4rm-sdk::workflow-client
-                           :address "localhost:50071")))
+                           :address "unused" :channel "unavailable-backend")))
     (handler-case
         (progn
           (sw4rm-sdk::cancel-workflow c "wf-1" "abort")
@@ -1654,7 +1823,7 @@
 (test workflow-resume-signals-rpc-error
   "resume-workflow must signal rpc-error with UNIMPLEMENTED code."
   (let ((c (make-instance 'sw4rm-sdk::workflow-client
-                           :address "localhost:50071")))
+                           :address "unused" :channel "unavailable-backend")))
     (handler-case
         (progn
           (sw4rm-sdk::resume-workflow c "wf-1" "node-1")
@@ -1665,7 +1834,7 @@
 (test workflow-list-signals-rpc-error
   "list-workflows must signal rpc-error with UNIMPLEMENTED code."
   (let ((c (make-instance 'sw4rm-sdk::workflow-client
-                           :address "localhost:50071")))
+                           :address "unused" :channel "unavailable-backend")))
     (handler-case
         (progn
           (sw4rm-sdk::list-workflows c :status :running)
@@ -1741,3 +1910,106 @@
 ;;; =======================================================================
 
 (in-suite sw4rm-suite)
+
+;;; =======================================================================
+;;;  14. Transport boundary repairs (R18-R20)
+;;; =======================================================================
+
+(def-suite transport-repairs-suite :description "Native transport repair regressions"
+  :in sw4rm-suite)
+(in-suite transport-repairs-suite)
+
+(test make-metadata-uses-string-keys
+  "make-metadata emits lowercase string keys; octet values need -bin (R19)."
+  (let ((client (make-instance 'sw4rm-sdk::registry-client :address "unused")))
+    (is (equal '(("correlation-id" . "wf-1") ("agent-id" . "agent-1"))
+               (sw4rm-sdk::make-metadata client :correlation-id "wf-1" :agent-id "agent-1")))
+    (let ((octets (make-array 3 :element-type '(unsigned-byte 8)
+                                  :initial-contents '(1 2 3))))
+      ;; -bin suffixed keys carry octet values.
+      (is (equalp (list (cons "trace-bin" octets))
+                  (sw4rm-sdk::make-metadata client :trace-bin octets)))
+      ;; Octet values without -bin are rejected loudly.
+      (signals error (sw4rm-sdk::make-metadata client :trace octets)))))
+
+(test concurrent-first-connect-shares-one-channel
+  "Concurrent first connects serialize; no native channel leaks (R18)."
+  (let ((creations 0) (disposals 0))
+    (let ((*grpc-available* t)
+          (original-make (symbol-function 'sw4rm-sdk::make-grpc-channel))
+          (original-destroy (symbol-function 'sw4rm-sdk::destroy-grpc-channel)))
+      (unwind-protect
+           (progn
+             (setf (symbol-function 'sw4rm-sdk::make-grpc-channel)
+                   (lambda (&rest args)
+                     (declare (ignore args))
+                     (incf creations)
+                     (make-instance 'sw4rm-sdk:grpc-channel
+                                    :raw-channel :fake
+                                    :target "fake:1")))
+             (setf (symbol-function 'sw4rm-sdk::destroy-grpc-channel)
+                   (lambda (channel)
+                     (declare (ignore channel))
+                     (incf disposals)))
+             (let* ((client (make-instance 'sw4rm-sdk::registry-client :address "unused"))
+                    (threads (loop for i below 8
+                                   collect (bordeaux-threads:make-thread
+                                            (lambda ()
+                                              (sw4rm-sdk::ensure-connected client))))))
+               (mapc #'bordeaux-threads:join-thread threads)
+               ;; Exactly one channel was created and every caller shares it.
+               (is (= 1 creations))
+               (is (not (null (sw4rm-sdk::client-channel client))))
+               (is (= 0 disposals))))
+        (setf (symbol-function 'sw4rm-sdk::make-grpc-channel) original-make)
+        (setf (symbol-function 'sw4rm-sdk::destroy-grpc-channel) original-destroy)))))
+
+;;; =======================================================================
+;;;  7. Secrets Backend permissions
+;;; =======================================================================
+;;;
+;;; File-backend secrets are plaintext on disk, so the write path must
+;;; enforce 0600 and load must tighten pre-existing permissive files
+;;; (security finding 3 / R31).
+
+(in-suite sw4rm-suite)
+
+(defun %secret-file-mode (path)
+  "Return the permission bits of PATH (POSIX mode masked to rwxrwxrwx)."
+  (logand #o777 (sb-posix:stat-mode (sb-posix:stat (namestring path)))))
+
+(test secret-file-is-written-0600
+  "A freshly written secret file must be 0600, not umask-derived."
+  (let* ((path (merge-pathnames
+                (format nil "sw4rm-secrets-write-~A-~A.json"
+                        (get-universal-time) (random 1000000))
+                #p"/tmp/"))
+         (backend (make-file-backend path)))
+    (unwind-protect
+         (progn
+           (set-secret backend "k" "v")
+           (is (= #o600 (%secret-file-mode path))
+               "secret file permissions are 0600"))
+      (when (probe-file path)
+        (delete-file path)))))
+
+(test existing-permissive-secret-file-is-tightened-on-load
+  "Loading a permissive secret file must tighten it to 0600."
+  (let* ((path (merge-pathnames
+                (format nil "sw4rm-secrets-load-~A-~A.json"
+                        (get-universal-time) (random 1000000))
+                #p"/tmp/"))
+         (backend (make-file-backend path)))
+    (unwind-protect
+         (progn
+           (set-secret backend "k" "v")
+           ;; Simulate an old deployment's umask-derived permissions.
+           (sb-posix:chmod (namestring path) #o644)
+           (is (= #o644 (%secret-file-mode path))
+               "sanity: the file really is permissive before the reload")
+           (let ((reloaded (make-file-backend path)))
+             (get-secret reloaded "k"))
+           (is (= #o600 (%secret-file-mode path))
+               "load tightens an existing permissive file"))
+      (when (probe-file path)
+        (delete-file path)))))

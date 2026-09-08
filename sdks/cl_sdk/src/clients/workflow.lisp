@@ -26,6 +26,18 @@ see the workflow engine implementation."))
 
 ;;;; RPC Methods
 
+(defgeneric start-workflow (client workflow-id &key workflow-data metadata)
+  (:documentation "Start a previously created workflow through WorkflowService.StartWorkflow."))
+
+(defmethod start-workflow ((client workflow-client) workflow-id &key workflow-data metadata)
+  (ensure-connected client)
+  (decode-start-workflow-response
+   (grpc-unary-call
+    (client-channel client)
+    "/sw4rm.workflow.WorkflowService/StartWorkflow"
+    (encode-start-workflow-request workflow-id :workflow-data workflow-data :metadata metadata)
+    :deadline-ms (client-timeout-ms client))))
+
 (defgeneric submit-dag (client workflow-definition)
   (:documentation "Submit a workflow DAG for execution.
 

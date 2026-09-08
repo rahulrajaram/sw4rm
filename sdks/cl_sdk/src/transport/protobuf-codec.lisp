@@ -26,16 +26,18 @@
             (vector-push-extend (logior byte #x80) result))))
     (coerce result '(simple-array (unsigned-byte 8) (*)))))
 
-(defun decode-varint (buffer offset)
+(defun decode-varint (buffer offset &optional (end (length buffer)))
   "Decode a varint from BUFFER starting at OFFSET.
 Returns (values decoded-integer new-offset)."
   (declare (type (simple-array (unsigned-byte 8) (*)) buffer)
            (type fixnum offset))
   (let ((result 0)
         (shift 0))
-    (loop for pos from offset below (length buffer)
+    (loop for pos from offset below end
           for byte = (aref buffer pos)
-          do (setf result (logior result (ash (logand byte #x7f) shift)))
+          do (when (or (> shift 63) (and (= shift 63) (> byte 1)))
+               (error "Protobuf varint exceeds 64 bits at offset ~D" offset))
+             (setf result (logior result (ash (logand byte #x7f) shift)))
              (incf shift 7)
              (when (zerop (logand byte #x80))
                (return-from decode-varint (values result (1+ pos)))))
@@ -75,7 +77,11 @@ WIRE-TYPE: 0=varint, 1=64-bit, 2=length-delimited, 5=32-bit."
 (defun %u32-to-single-float (bits)
   "Convert IEEE-754 32-bit integer bits to a single-float."
   #+sbcl
-  (sb-kernel:make-single-float (ldb (byte 32 0) bits))
+  (let ((unsigned (ldb (byte 32 0) bits)))
+    (sb-kernel:make-single-float
+     ;; MAKE-SINGLE-FLOAT takes the SIGNED 32-bit interpretation; negative
+     ;; floats (sign bit set) must be converted, or decoding signals.
+     (if (logbitp 31 unsigned) (- unsigned #x100000000) unsigned)))
   #-sbcl
   (error "Float decoding requires SBCL (bits: ~S)" bits))
 
@@ -98,7 +104,7 @@ Omits the field entirely when VALUE is 0 (proto3 default)."
   (when (and value (not (zerop value)))
     (concatenate '(simple-array (unsigned-byte 8) (*))
                  (encode-tag field-number 0)
-                 (encode-varint value))))
+                 (encode-varint (if (minusp value) (ldb (byte 64 0) value) value)))))
 
 (defun encode-field-string (field-number value)
   "Encode a string field.  Omits when VALUE is NIL or empty."
@@ -133,8 +139,15 @@ Omits when nil or empty."
 
 (defun encode-field-double (field-number value)
   "Encode a double field (wire type 1, fixed 64-bit little-endian).
-Omits when VALUE is NIL or numerically zero (proto3 default)."
-  (when (and value (or (not (numberp value)) (not (zerop value))))
+Omits when VALUE is NIL or positive zero (proto3 default).  Negative zero is
+emitted with its sign preserved and NaN is emitted; both are detected at the
+bit level so no floating-point comparison can trap."
+  (when (and value
+             (or (not (numberp value))
+                 (let ((bits (%double-float-to-u64 value)))
+                   ;; Exactly zero bits is positive zero; -0.0 (sign bit set),
+                   ;; NaN (mantissa bits set) and every other value emit.
+                   (not (zerop bits)))))
     (let* ((bits (%double-float-to-u64 value))
            (bytes (make-array 8 :element-type '(unsigned-byte 8))))
       (dotimes (i 8)
@@ -145,8 +158,13 @@ Omits when VALUE is NIL or numerically zero (proto3 default)."
 
 (defun encode-field-float (field-number value)
   "Encode a float field (wire type 5, fixed 32-bit little-endian).
-Omits when VALUE is NIL or numerically zero (proto3 default)."
-  (when (and value (or (not (numberp value)) (not (zerop value))))
+Omits when VALUE is NIL or positive zero (proto3 default).  Negative zero is
+emitted with its sign preserved and NaN is emitted; both are detected at the
+bit level so no floating-point comparison can trap."
+  (when (and value
+             (or (not (numberp value))
+                 (let ((bits (%single-float-to-u32 value)))
+                   (not (zerop bits)))))
     (let* ((bits (%single-float-to-u32 value))
            (bytes (make-array 4 :element-type '(unsigned-byte 8))))
       (dotimes (i 4)
@@ -164,35 +182,54 @@ Omits when VALUE is NIL or numerically zero (proto3 default)."
 Returns an alist of (field-number . raw-value) where raw-value is:
   - integer for varint fields (wire type 0)
   - octet vector for length-delimited fields (wire type 2)
-  - ignored for wire types 1 and 5 (64-bit, 32-bit fixed)."
+  - ignored for wire types 1 and 5 (64-bit, 32-bit fixed).
+The wire type is dropped for backward compatibility; the schema decoder
+uses %DECODE-FIELDS-TYPED to keep number/type pairs (R37)."
+  (mapcar (lambda (entry) (cons (car entry) (cddr entry)))
+          (%decode-fields-typed buffer start end)))
+
+(defun %decode-fields-typed (buffer &optional (start 0) (end nil))
+  "Parse protobuf wire fields, returning ((NUMBER WIRE-TYPE . RAW) ...).
+The wire type is preserved so the schema decoder can skip fields whose
+number matches a schema field but whose type contradicts it (R37)."
   (let ((end (or end (length buffer)))
         (fields nil)
         (pos start))
+    (unless (<= 0 start end (length buffer))
+      (error "Invalid protobuf byte bounds"))
     (loop while (< pos end) do
-      (multiple-value-bind (tag new-pos) (decode-varint buffer pos)
+      (multiple-value-bind (tag new-pos) (decode-varint buffer pos end)
         (setf pos new-pos)
         (let ((field-number (ash tag -3))
               (wire-type (logand tag 7)))
+          (unless (<= 1 field-number #x1fffffff)
+            (error "Invalid protobuf field number ~D" field-number))
           (ecase wire-type
             (0 ; varint
-             (multiple-value-bind (val np) (decode-varint buffer pos)
-               (push (cons field-number val) fields)
+             (multiple-value-bind (val np) (decode-varint buffer pos end)
+               (push (cons field-number (cons wire-type val)) fields)
                (setf pos np)))
             (1 ; 64-bit fixed — skip 8 bytes
+             (when (> (+ pos 8) end) (error "Truncated protobuf fixed64"))
              (push (cons field-number
-                         (subseq buffer pos (min (+ pos 8) end)))
+                         (cons wire-type
+                               (subseq buffer pos (min (+ pos 8) end))))
                    fields)
              (incf pos 8))
             (2 ; length-delimited
-             (multiple-value-bind (len np) (decode-varint buffer pos)
+             (multiple-value-bind (len np) (decode-varint buffer pos end)
                (setf pos np)
+               (when (> (+ pos len) end) (error "Truncated protobuf length-delimited field"))
                (push (cons field-number
-                           (subseq buffer pos (min (+ pos len) end)))
+                           (cons wire-type
+                                 (subseq buffer pos (min (+ pos len) end))))
                      fields)
                (incf pos len)))
             (5 ; 32-bit fixed — skip 4 bytes
+             (when (> (+ pos 4) end) (error "Truncated protobuf fixed32"))
              (push (cons field-number
-                         (subseq buffer pos (min (+ pos 4) end)))
+                         (cons wire-type
+                               (subseq buffer pos (min (+ pos 4) end))))
                    fields)
              (incf pos 4))))))
     (nreverse fields)))
@@ -306,6 +343,21 @@ Each entry is a submessage at FIELD-NUMBER with field 1=key, field 2=value."
 ;;;  Envelope codec  (common.proto: Envelope, 17 fields incl. field 100)
 ;;; -----------------------------------------------------------------------
 
+(defun encode-timestamp-field (number timestamp)
+  "Encode Timestamp presence without depending on the higher-level codec."
+  (let ((payload (concatenate '(simple-array (unsigned-byte 8) (*))
+                  (or (encode-field-varint 1 (getf timestamp :seconds)) #())
+                  (or (encode-field-varint 2 (getf timestamp :nanos)) #()))))
+    (concatenate '(simple-array (unsigned-byte 8) (*))
+      (encode-tag number 2) (encode-varint (length payload)) payload)))
+
+(defun decode-timestamp-fields (bytes)
+  (let* ((fields (decode-fields bytes))
+         (seconds (field-int fields 1 0))
+         (nanos (ldb (byte 32 0) (field-int fields 2 0))))
+    (list :seconds (if (logbitp 63 seconds) (- seconds (ash 1 64)) seconds)
+          :nanos (if (logbitp 31 nanos) (- nanos (ash 1 32)) nanos))))
+
 (defun encode-envelope (envelope)
   "Encode an envelope plist to protobuf wire bytes.
 ENVELOPE is a plist as returned by make-envelope."
@@ -323,7 +375,8 @@ ENVELOPE is a plist as returned by make-envelope."
                 (encode-field-string  11 (getf envelope :worktree-id))
                 (encode-field-string  12 (getf envelope :hlc-timestamp))
                 (encode-field-varint  13 (getf envelope :ttl-ms))
-                ;; field 14 = google.protobuf.Timestamp — skip for now
+                (when (member :timestamp envelope)
+                  (encode-timestamp-field 14 (getf envelope :timestamp)))
                 (encode-field-bytes   15 (getf envelope :payload))
                 (encode-field-varint  16 (getf envelope :state))
                 ;; SW4-004 extension field
@@ -347,6 +400,8 @@ ENVELOPE is a plist as returned by make-envelope."
           :worktree-id         (field-string f 11)
           :hlc-timestamp       (field-string f 12)
           :ttl-ms              (field-int f 13 0)
+          :timestamp           (when (assoc 14 f)
+                                 (decode-timestamp-fields (field-bytes f 14)))
           :payload             (field-bytes f 15)
           :state               (field-int f 16 0)
           :parent-correlation-id (field-string f 100))))
@@ -370,12 +425,40 @@ ENVELOPE is a plist as returned by make-envelope."
   (encode-field-string 1 agent-id))
 
 (defun decode-stream-item (buffer)
-  "Decode a StreamItem: field 1 = Envelope submessage."
+  "Decode a StreamItem: field 1 = Envelope, field 2 = delivery sequence.
+
+The sequence is attached to the returned envelope as :DELIVERY-SEQ so the
+existing callback contract remains envelope-shaped while consumers can ACK
+the exact router delivery attempt."
   (let ((f (decode-fields buffer)))
     (let ((envelope-bytes (field-bytes f 1)))
       (if (plusp (length envelope-bytes))
-          (decode-envelope envelope-bytes)
+          (let ((envelope (decode-envelope envelope-bytes)))
+            (list* :delivery-seq (field-int f 2 0) envelope))
           nil))))
+
+(defun stream-item-seq (envelope)
+  "Return the router delivery sequence attached to a streamed ENVELOPE."
+  (getf envelope :delivery-seq 0))
+
+(defun encode-delivery-ack-request (agent-id seq &key (message-id "")
+                                             (permanent-failure nil))
+  "Encode router DeliveryAckRequest from ROUTER.PROTO.
+
+OUTCOME is DELIVERED (0) by default, or PERMANENT_FAILURE (1) when the
+consumer will not process the delivery."
+  (let ((parts (list
+                (encode-field-string 1 agent-id)
+                (encode-field-varint 2 seq)
+                (encode-field-string 3 message-id)
+                (encode-field-varint 4 (if permanent-failure 1 0)))))
+    (apply #'concatenate '(simple-array (unsigned-byte 8) (*))
+           (remove nil parts))))
+
+(defun decode-delivery-ack-response (buffer)
+  "Decode DeliveryAckResponse (field 1 = recorded)."
+  (let ((f (decode-fields buffer)))
+    (list :recorded (not (zerop (field-int f 1 0))))))
 
 ;;; -----------------------------------------------------------------------
 ;;;  Registry codecs  (registry.proto)
@@ -1480,50 +1563,8 @@ REPORT-BYTES can be already-encoded bytes or an EvaluationReport plist."
           :reason (field-string f 2))))
 
 ;;; -----------------------------------------------------------------------
-;;;  I61 tranche completion codecs (proto-backed stubs)
+;;;  Negotiation codecs
 ;;; -----------------------------------------------------------------------
-
-;;; Scheduler codecs (additional endpoints)
-
-(defun encode-cancel-task-request (agent-id task-id &optional reason)
-  "Encode a CancelTaskRequest.
-FIELD 1 = agent_id, FIELD 2 = task_id, FIELD 3 = reason(optional)."
-  (let ((parts (list
-                (encode-field-string 1 agent-id)
-                (encode-field-string 2 task-id)
-                (encode-field-string 3 reason))))
-    (apply #'concatenate '(simple-array (unsigned-byte 8) (*))
-           (remove nil parts))))
-
-(defun decode-cancel-task-response (buffer)
-  "Decode a CancelTaskResponse.
-FIELD 1 = cancelled (bool), FIELD 2 = reason."
-  (let ((f (decode-fields buffer)))
-    (list :cancelled (not (zerop (field-int f 1 0)))
-          :reason    (field-string f 2))))
-
-(defun encode-get-task-status-request (agent-id task-id)
-  "Encode a GetTaskStatusRequest.
-FIELD 1 = agent_id, FIELD 2 = task_id."
-  (let ((parts (list
-                (encode-field-string 1 agent-id)
-                (encode-field-string 2 task-id))))
-    (apply #'concatenate '(simple-array (unsigned-byte 8) (*))
-           (remove nil parts))))
-
-(defun decode-task-status-response (buffer)
-  "Decode a GetTaskStatusResponse.
-FIELD 1 = task-id, FIELD 2 = status, FIELD 3 = progress,
-FIELD 4 = message, FIELD 5 = started_at, FIELD 6 = completed_at."
-  (let ((f (decode-fields buffer)))
-    (list :task-id      (field-string f 1)
-          :status       (field-int f 2 0)
-          :progress     (field-double f 3 0.0d0)
-          :message      (field-string f 4)
-          :started-at   (field-string f 5)
-          :completed-at (field-string f 6))))
-
-;;; Negotiation codecs
 
 (defun encode-get-session-request (negotiation-id)
   "Encode a GetSessionRequest: field 1 = negotiation_id."

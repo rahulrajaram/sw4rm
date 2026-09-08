@@ -36,7 +36,7 @@ jobs:
       - name: Install Python proto dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install grpcio grpcio-tools googleapis-common-protos
+          python -m pip install -e ".[dev]"
 
       - name: Generate and verify Python protos
         working-directory: sdks/py_sdk
@@ -70,6 +70,22 @@ jobs:
           )
           print('All Python proto modules imported successfully.')
           "
+
+      - name: Verify shared SDK wire contract and generated bindings
+        run: python scripts/generate_sdk_wire_contract.py
+
+      # -----------------------------------------------------------
+      # Elixir SDK Proto Check
+      # -----------------------------------------------------------
+      # The committed Elixir bindings (sdks/ex_sdk/lib/sw4rm/proto/*.pb.ex)
+      # are a deliberate superset of a fresh proto.gen: SW4-001/SW4-002
+      # extension fields are hand-maintained until promoted to protos/
+      # (protocol decision D2).  The drift check verifies the containment
+      # property instead of a naive byte-diff: every canonical message and
+      # field is present, and the documented hand-maintained extensions
+      # survive regeneration.
+      - name: Verify Elixir proto binding drift
+        run: python3 scripts/check_elixir_proto_drift.py
 
       # -----------------------------------------------------------
       # JS/TS SDK Proto Check

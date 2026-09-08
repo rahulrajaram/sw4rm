@@ -345,6 +345,10 @@ result =
     to_agent: "gw-a",
     reason: "delegate",
     request_id: "demo-req",
+    budget: %{
+      deadline_epoch_ms: System.system_time(:millisecond) + 60_000,
+      wall_time_remaining_ms: 60_000
+    },
     delegation_policy: %{allow_spillover_routing: true, max_redirects: 5}
   })
 
@@ -369,6 +373,10 @@ loop_result =
     to_agent: "x",
     reason: "delegate",
     request_id: "demo-loop",
+    budget: %{
+      deadline_epoch_ms: System.system_time(:millisecond) + 60_000,
+      wall_time_remaining_ms: 60_000
+    },
     delegation_policy: %{allow_spillover_routing: true, max_redirects: 10}
   })
 

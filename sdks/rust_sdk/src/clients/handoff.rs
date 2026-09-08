@@ -33,8 +33,10 @@ use uuid::Uuid;
 /// Status of a handoff request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(i32)]
+#[derive(Default)]
 pub enum HandoffStatus {
     /// Handoff has been requested but not yet accepted or rejected
+    #[default]
     Pending = 1,
     /// Handoff has been accepted by the target agent
     Accepted = 2,
@@ -44,12 +46,6 @@ pub enum HandoffStatus {
     Completed = 4,
     /// Handoff has expired
     Expired = 5,
-}
-
-impl Default for HandoffStatus {
-    fn default() -> Self {
-        Self::Pending
-    }
 }
 
 pub const DEFAULT_MAX_RETRIES_ON_OVERLOADED: u32 = 2;

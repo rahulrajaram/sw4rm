@@ -152,6 +152,23 @@ class RouterStateStore:
                 """
             )
             con.execute("CREATE INDEX IF NOT EXISTS idx_router_pending_agent_seq ON router_pending_messages(agent_id, seq)")
+            # Consumer-ACK delivery contract: lease-based in-flight tracking.
+            # Migrate databases created before the AckDelivery RPC.
+            existing_cols = {
+                row[1] for row in con.execute("PRAGMA table_info(router_pending_messages)").fetchall()
+            }
+            for col, ddl in (
+                ("status", "ALTER TABLE router_pending_messages ADD COLUMN status TEXT NOT NULL DEFAULT 'pending'"),
+                ("in_flight_since", "ALTER TABLE router_pending_messages ADD COLUMN in_flight_since REAL"),
+                ("delivery_attempts", "ALTER TABLE router_pending_messages ADD COLUMN delivery_attempts INTEGER NOT NULL DEFAULT 0"),
+            ):
+                if ddl is not None and col not in existing_cols:
+                    con.execute(ddl)
+            # Leases do not survive a process restart: anything that was
+            # in-flight at shutdown is redelivered on restart (at-least-once).
+            con.execute(
+                "UPDATE router_pending_messages SET status = 'pending', in_flight_since = NULL WHERE status = 'in_flight'"
+            )
             con.commit()
         finally:
             con.close()
@@ -235,6 +252,119 @@ class RouterStateStore:
         try:
             con.execute("DELETE FROM router_pending_messages WHERE seq = ?", (seq,))
             con.commit()
+        finally:
+            con.close()
+
+    # --- consumer-ACK delivery contract -------------------------------
+
+    def mark_in_flight(self, seq: int, now: Optional[float] = None) -> bool:
+        """Mark a pending row in-flight (yielded to a consumer, not yet acked).
+
+        Returns False when the row no longer exists (already acked/removed).
+        """
+        ts = time.time() if now is None else now
+        con = _connect(self.path)
+        try:
+            cur = con.cursor()
+            cur.execute(
+                """
+                UPDATE router_pending_messages
+                SET status = 'in_flight', in_flight_since = ?, delivery_attempts = delivery_attempts + 1
+                WHERE seq = ? AND status = 'pending'
+                """,
+                (ts, seq),
+            )
+            con.commit()
+            return cur.rowcount > 0
+        finally:
+            con.close()
+
+    def ack_delivery(self, seq: int, agent_id: str) -> bool:
+        """Consumer acknowledged delivery: release the pending row.
+
+        Returns True when a row was released; False when the seq is unknown
+        (already acked, or swept back to pending for redelivery).
+        """
+        con = _connect(self.path)
+        try:
+            cur = con.execute(
+                "DELETE FROM router_pending_messages "
+                "WHERE seq = ? AND agent_id = ? AND status = 'in_flight'",
+                (seq, agent_id),
+            )
+            con.commit()
+            return cur.rowcount > 0
+        finally:
+            con.close()
+
+    def expire_in_flight(self, lease_seconds: float, now: Optional[float] = None) -> List[Tuple[int, str, bytes]]:
+        """Reset in-flight rows whose lease expired back to pending.
+
+        Returns the (seq, agent_id, message_blob) triples that were expired
+        so the caller can re-enqueue them for delivery.
+        """
+        ts = time.time() if now is None else now
+        cutoff = ts - float(lease_seconds)
+        con = _connect(self.path)
+        try:
+            rows = con.execute(
+                """
+                SELECT seq, agent_id, message_blob FROM router_pending_messages
+                WHERE status = 'in_flight' AND in_flight_since IS NOT NULL AND in_flight_since < ?
+                """,
+                (cutoff,),
+            ).fetchall()
+            if rows:
+                con.execute(
+                    """
+                    UPDATE router_pending_messages
+                    SET status = 'pending', in_flight_since = NULL
+                    WHERE status = 'in_flight' AND in_flight_since IS NOT NULL AND in_flight_since < ?
+                    """,
+                    (cutoff,),
+                )
+                con.commit()
+            return [(int(r[0]), str(r[1]), bytes(r[2] or b"")) for r in rows]
+        finally:
+            con.close()
+
+    def reset_in_flight(self, agent_id: str) -> List[Tuple[int, bytes]]:
+        """Reset all of one agent's in-flight rows to pending (stream restart).
+
+        Returns the rows to redeliver, in seq order.
+        """
+        con = _connect(self.path)
+        try:
+            rows = con.execute(
+                """
+                SELECT seq, message_blob FROM router_pending_messages
+                WHERE agent_id = ? AND status = 'in_flight'
+                ORDER BY seq ASC
+                """,
+                (agent_id,),
+            ).fetchall()
+            con.execute(
+                "UPDATE router_pending_messages SET status = 'pending', in_flight_since = NULL WHERE agent_id = ? AND status = 'in_flight'",
+                (agent_id,),
+            )
+            con.commit()
+            return [(int(r[0]), bytes(r[1])) for r in rows if r[1] is not None]
+        finally:
+            con.close()
+
+    def load_pending_for_agent(self, agent_id: str) -> List[Tuple[int, bytes]]:
+        """Load one agent's pending (never-yet-delivered) rows, seq order."""
+        con = _connect(self.path)
+        try:
+            rows = con.execute(
+                """
+                SELECT seq, message_blob FROM router_pending_messages
+                WHERE agent_id = ? AND status = 'pending'
+                ORDER BY seq ASC
+                """,
+                (agent_id,),
+            ).fetchall()
+            return [(int(r[0]), bytes(r[1])) for r in rows if r[1] is not None]
         finally:
             con.close()
 

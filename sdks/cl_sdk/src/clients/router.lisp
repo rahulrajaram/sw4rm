@@ -14,7 +14,7 @@
 
 The router service provides:
 - Unary message sending (fire-and-forget or acknowledged)
-- Bidirectional streaming for continuous message delivery
+- Server streaming for continuous message delivery
 - Routing metadata and diagnostics
 
 Agents use the router to communicate asynchronously without direct
@@ -23,24 +23,23 @@ point-to-point connections."))
 ;;;; RPC Methods
 
 (defgeneric send-envelope (client envelope)
-  (:documentation "Send a message envelope to its destination.
+  (:documentation "Submit a message envelope to the router.
 
-Delivers a message to the specified recipient(s) through the router.
-The envelope contains producer ID, message type, payload, and routing
-metadata.
+The reference router broadcasts to eligible queues except the producer.
+Envelope has no consumer-id or arbitrary metadata field.
 
 Args:
   client: The router-client instance.
   envelope: Plist with envelope fields:
     :producer-id (string) - Agent ID of message sender
-    :consumer-id (string) - Agent ID of intended recipient
-    :message-type (string) - Message type/topic
+    :message-id (string) - Unique message identifier
+    :message-type (integer) - Protocol MessageType enum value
+    :content-type (string) - Payload media type
     :payload (bytes) - Message payload
     :correlation-id (string, optional) - Correlation/trace ID
-    :metadata (alist, optional) - Additional routing metadata
 
 Returns:
-  Send response plist with :delivered boolean and :message-id.
+  Send response plist with :accepted boolean and :reason string.
 
 Signals:
   RPC-ERROR: If send fails.
@@ -48,8 +47,9 @@ Signals:
 Example:
   (send-envelope client
                  (list :producer-id \"agent-1\"
-                       :consumer-id \"agent-2\"
-                       :message-type \"task.request\"
+                       :message-id \"message-1\"
+                       :message-type 2
+                       :content-type \"text/plain\"
                        :payload #(72 101 108 108 111)
                        :correlation-id \"wf-123\"))"))
 
@@ -66,11 +66,11 @@ Example:
         (decode-send-message-response response-bytes)))))
 
 (defgeneric open-stream (client agent-id handler-fn)
-  (:documentation "Open bidirectional streaming connection for message delivery.
+  (:documentation "Open a server-streaming connection for message delivery.
 
-Establishes a persistent bidirectional stream between the agent and the
-router. The agent can send messages through the stream and receive
-incoming messages via the handler function.
+Establishes a persistent server stream between the agent and the router and
+receives incoming messages via the handler function. Each envelope passed to
+the handler includes :DELIVERY-SEQ from the router StreamItem.
 
 Args:
   client: The router-client instance.
@@ -79,8 +79,7 @@ Args:
               the envelope plist.
 
 Returns:
-  Stream handle (implementation-specific) that can be used to send messages
-  or close the stream.
+  Stream handle (implementation-specific) that can be used to close the stream.
 
 Signals:
   RPC-ERROR: If stream establishment fails.
@@ -91,13 +90,13 @@ Example:
 
   (let ((stream (open-stream client \"agent-1\" #'handle-incoming)))
     ;; Stream is now active, handler-fn will be called for incoming messages
-    ;; Use stream to send outgoing messages
+    ;; Use SEND-ENVELOPE on the client for outgoing messages
     ;; ...
     ;; Close stream when done
     (close-stream stream))
 
 Implementation Note:
-Bidirectional streaming in gRPC requires thread/async handling for the
+Server streaming in gRPC requires thread/async handling for the
 incoming message loop. The actual implementation will depend on the
 chosen gRPC library's streaming API."))
 
@@ -110,11 +109,37 @@ chosen gRPC library's streaming API."))
      request-bytes
      (lambda (response-bytes)
        (if response-bytes
-           (let ((envelope (decode-stream-item response-bytes)))
+             (let ((envelope (decode-stream-item response-bytes)))
              (when envelope
+               ;; The envelope includes :DELIVERY-SEQ, copied from the
+               ;; StreamItem so the consumer can ACK after side effects.
                (funcall handler-fn envelope)))
            ;; Stream ended — notify handler with NIL
            (funcall handler-fn nil))))))
+
+(defgeneric ack-delivery (client agent-id seq &key message-id permanent-failure)
+  (:documentation "Acknowledge a router StreamItem delivery by sequence.
+
+Call this only after the consumer has completed its side effect.  The router
+uses the sequence to release the pending row; an unacknowledged row may be
+redelivered after its lease expires.  Returns a plist containing :RECORDED.
+This method requires the native libgrpc FFI backend; the SDK's placeholder
+channel deliberately signals UNIMPLEMENTED when libgrpc is unavailable."))
+
+(defmethod ack-delivery ((client router-client) agent-id seq
+                         &key (message-id "") (permanent-failure nil))
+  (ensure-connected client)
+  (with-retry ((client-retry-max-attempts client))
+    (with-deadline ((client-timeout-ms client))
+      (let ((request-bytes
+              (encode-delivery-ack-request agent-id seq
+                                           :message-id message-id
+                                           :permanent-failure permanent-failure)))
+        (decode-delivery-ack-response
+         (grpc-unary-call (client-channel client)
+                          "/sw4rm.router.RouterService/AckDelivery"
+                          request-bytes
+                          :deadline-ms (client-timeout-ms client)))))))
 
 (defgeneric route-info (client agent-id)
   (:documentation "Get routing information and diagnostics for an agent.

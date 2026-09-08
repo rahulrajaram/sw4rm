@@ -75,10 +75,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let config = tonic_build::configure()
                 .build_server(true)
                 .build_client(true)
+                // Deterministic map encoding: BTreeMap iterates in sorted key
+                // order, matching the conformance corpus' byte canonicality
+                // (R24).
+                .btree_map(["."])
                 .out_dir(&out_dir)
                 .include_file("mod.rs");
 
-            config.compile_protos(&existing_files, &[proto_dir.clone()])?;
+            config.compile_protos(&existing_files, std::slice::from_ref(&proto_dir))?;
             println!("cargo:rustc-env=PROTO_GENERATED=true");
             println!("cargo:rustc-cfg=feature=\"proto\"");
             return Ok(());

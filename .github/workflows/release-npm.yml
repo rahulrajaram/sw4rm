@@ -39,6 +39,7 @@ jobs:
       - name: Generate protobufs and build
         run: |
           npm run build
+          npm run check:artifact
 
       - name: Check version matches package.json
         run: |

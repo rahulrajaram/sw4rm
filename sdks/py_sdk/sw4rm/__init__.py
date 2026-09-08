@@ -29,7 +29,6 @@ __all__ = [
     "acks",
     "constants",
     "error_mapping",
-    "buffer_strategy",
     "metrics",
     "content_types",
     "shared_context",
@@ -52,4 +51,4 @@ __all__ = [
     "delegation",
 ]
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"

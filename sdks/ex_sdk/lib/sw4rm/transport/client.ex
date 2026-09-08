@@ -1,6 +1,6 @@
 defmodule Sw4rm.Transport.Client do
   @moduledoc """
-  `__using__` macro providing shared plumbing for all 13 service clients.
+  `__using__` macro providing shared plumbing for the service clients.
 
   Injects channel_manager ref, timeout, retry config, and helper functions.
   """

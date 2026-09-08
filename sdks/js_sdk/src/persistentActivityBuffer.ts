@@ -2,11 +2,20 @@
 // Tracks inbound/outbound envelopes by message_id and records ACK progression.
 // Supports deduplication via idempotency_token, workflow linking via correlation_id.
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname } from 'node:path';
 import {
   EnvelopeState,
-  isTerminalEnvelopeState,
   AckStage,
 } from './constants/index.js';
 import { ErrorCode, BufferFullError } from './internal/errorMapping.js';
@@ -27,6 +36,69 @@ export interface PersistenceBackend {
   clear(): void;
 }
 
+/** Raised when an existing activity file cannot be safely restored. */
+export class ActivityBufferLoadError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'ActivityBufferLoadError';
+  }
+}
+
+const byteFields = ['payload', 'audit_proof'] as const;
+// Shared snapshot marker written and read by the Python persistence layer.
+const BYTE_FIELDS_MARKER = '_bytes_fields';
+
+function encodeEnvelope(envelope: Record<string, unknown>): Record<string, unknown> {
+  const encoded = { ...envelope };
+  const marked: string[] = [];
+  for (const field of byteFields) {
+    const value = encoded[field];
+    if (value instanceof Uint8Array) {
+      encoded[field] = Buffer.from(value).toString('base64');
+      marked.push(field);
+    }
+  }
+  // Write the shared `_bytes_fields` representation so Python round-trips
+  // JS snapshots natively (the legacy per-field marker remains only a
+  // read-compatibility path).
+  if (marked.length > 0) encoded[BYTE_FIELDS_MARKER] = marked;
+  return encoded;
+}
+
+function decodeEnvelope(envelope: Record<string, unknown>): Record<string, unknown> {
+  const decoded = { ...envelope };
+  const marked: string[] = [];
+  // Shared `_bytes_fields` marker (Python-written snapshots).
+  const shared = decoded[BYTE_FIELDS_MARKER];
+  if (shared !== undefined) {
+    if (!Array.isArray(shared) ||
+        !shared.every((field) => typeof field === 'string' &&
+                               (byteFields as readonly string[]).includes(field))) {
+      throw new Error('invalid envelope byte-field marker');
+    }
+    marked.push(...shared);
+    delete decoded[BYTE_FIELDS_MARKER];
+  }
+  // Legacy per-field markers remain readable for older JS snapshots.
+  for (const field of byteFields) {
+    const legacy = `_${field}_is_b64`;
+    const marker = decoded[legacy];
+    if (marker !== undefined && typeof marker !== 'boolean') {
+      throw new Error(`invalid byte marker for ${field}`);
+    }
+    if (marker === true) marked.push(field);
+    delete decoded[legacy];
+  }
+  for (const field of [...new Set(marked)]) {
+    const value = decoded[field];
+    if (typeof value !== 'string' || Buffer.from(value, 'base64').toString('base64') !== value) {
+      throw new Error(`invalid base64 for ${field}`);
+    }
+    decoded[field] = Uint8Array.from(Buffer.from(value, 'base64'));
+  }
+  return decoded;
+}
+
 /**
  * JSON file persistence backend.
  */
@@ -37,12 +109,50 @@ export class JSONFilePersistence implements PersistenceBackend {
     if (!existsSync(this.filePath)) {
       return { records: {}, order: [] };
     }
-    const raw = readFileSync(this.filePath, 'utf-8');
-    const data = JSON.parse(raw);
-    return {
-      records: data.records ?? {},
-      order: data.order ?? [],
-    };
+    try {
+      const raw = readFileSync(this.filePath, 'utf-8');
+      const data: unknown = JSON.parse(raw);
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        throw new Error('top-level value must be an object');
+      }
+      const value = data as { records?: unknown; order?: unknown };
+      const rawRecords = value.records;
+      const rawOrder = value.order;
+      if (typeof rawRecords !== 'object' || rawRecords === null || Array.isArray(rawRecords)) {
+        throw new Error('records must be an object');
+      }
+      if (!Array.isArray(rawOrder) || !rawOrder.every((id) => typeof id === 'string')) {
+        throw new Error('order must be an array of message IDs');
+      }
+      const records: Record<string, EnvelopeRecord> = Object.create(null);
+      for (const [messageId, rawRecord] of Object.entries(rawRecords)) {
+        if (!rawRecord || typeof rawRecord !== 'object' || Array.isArray(rawRecord)) {
+          throw new Error(`record ${messageId} must be an object`);
+        }
+        const record = rawRecord as Record<string, unknown>;
+        if (record.message_id !== messageId || !['in', 'out'].includes(record.direction as string)) {
+          throw new Error(`record ${messageId} has invalid identity or direction`);
+        }
+        if (!record.envelope || typeof record.envelope !== 'object' || Array.isArray(record.envelope)) {
+          throw new Error(`record ${messageId} has no envelope object`);
+        }
+        records[messageId] = {
+          ...(record as unknown as EnvelopeRecord),
+          envelope: decodeEnvelope(record.envelope as Record<string, unknown>),
+        };
+      }
+      if (new Set(rawOrder).size !== rawOrder.length || rawOrder.length !== Object.keys(records).length ||
+          !rawOrder.every((id) => Object.hasOwn(records, id))) {
+        throw new Error('order and records must contain the same distinct message IDs');
+      }
+      return { records, order: rawOrder };
+    } catch (error) {
+      if (error instanceof ActivityBufferLoadError) throw error;
+      throw new ActivityBufferLoadError(
+        `Activity buffer persistence file is corrupted: ${this.filePath}: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
   }
 
   save(records: Record<string, EnvelopeRecord>, order: string[]): void {
@@ -50,12 +160,38 @@ export class JSONFilePersistence implements PersistenceBackend {
     if (dir && !existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
-    writeFileSync(this.filePath, JSON.stringify({ records, order, version: '1.0' }, null, 2));
+    const serializableRecords: Record<string, EnvelopeRecord> = {};
+    for (const [messageId, record] of Object.entries(records)) {
+      serializableRecords[messageId] = {
+        ...record,
+        envelope: encodeEnvelope(record.envelope),
+      };
+    }
+    const tempPath = `${this.filePath}.tmp`;
+    try {
+      const fd = openSync(tempPath, 'w');
+      try {
+        writeFileSync(fd, JSON.stringify({ records: serializableRecords, order, version: '1.0' }, null, 2));
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+      renameSync(tempPath, this.filePath);
+      const dirFd = openSync(dir || '.', 'r');
+      try {
+        fsyncSync(dirFd);
+      } finally {
+        closeSync(dirFd);
+      }
+    } catch (error) {
+      if (existsSync(tempPath)) unlinkSync(tempPath);
+      throw error;
+    }
   }
 
   clear(): void {
     if (existsSync(this.filePath)) {
-      writeFileSync(this.filePath, JSON.stringify({ records: {}, order: [], version: '1.0' }));
+      unlinkSync(this.filePath);
     }
   }
 }
@@ -78,15 +214,21 @@ export class PersistentActivityBuffer {
   private persistence: PersistenceBackend;
   private dedupWindowS: number;
   private dirty = false;
+  private loadFailureMode: 'raise' | 'empty';
 
   constructor(opts?: {
     maxItems?: number;
     persistence?: PersistenceBackend;
     dedupWindowS?: number;
+    loadFailureMode?: 'raise' | 'empty';
   }) {
     this.maxItems = opts?.maxItems ?? 10000;
     this.persistence = opts?.persistence ?? new JSONFilePersistence();
     this.dedupWindowS = opts?.dedupWindowS ?? 3600;
+    this.loadFailureMode = opts?.loadFailureMode ?? 'raise';
+    if (this.loadFailureMode !== 'raise' && this.loadFailureMode !== 'empty') {
+      throw new TypeError("loadFailureMode must be 'raise' or 'empty'");
+    }
     this.loadFromPersistence();
   }
 
@@ -94,7 +236,7 @@ export class PersistentActivityBuffer {
     try {
       const { records, order } = this.persistence.load();
       this.byId = new Map(Object.entries(records));
-      this.order = order;
+      this.order = order.filter((messageId) => this.byId.has(messageId));
 
       // Rebuild idempotency token index
       for (const [mid, rec] of this.byId) {
@@ -103,7 +245,15 @@ export class PersistentActivityBuffer {
           this.byIdempotencyToken.set(token, mid);
         }
       }
-    } catch {
+    } catch (error) {
+      // Only a classified corrupt-file error may opt into degraded startup;
+      // backend availability/configuration failures must remain visible.
+      if (!(error instanceof ActivityBufferLoadError)) throw error;
+      if (this.loadFailureMode !== 'empty') throw error;
+      console.error(
+        '[ActivityBuffer] CORRUPTED persistence; starting DEGRADED with an empty buffer — recovery state was not restored',
+        error,
+      );
       this.byId = new Map();
       this.byIdempotencyToken = new Map();
       this.order = [];
@@ -112,16 +262,12 @@ export class PersistentActivityBuffer {
 
   private saveToPersistence(): void {
     if (!this.dirty) return;
-    try {
-      const records: Record<string, EnvelopeRecord> = {};
-      for (const [k, v] of this.byId) {
-        records[k] = v;
-      }
-      this.persistence.save(records, this.order);
-      this.dirty = false;
-    } catch {
-      // Persistence failure is non-fatal
+    const records: Record<string, EnvelopeRecord> = {};
+    for (const [k, v] of this.byId) {
+      records[k] = v;
     }
+    this.persistence.save(records, this.order);
+    this.dirty = false;
   }
 
   private checkCapacity(): void {
@@ -154,9 +300,11 @@ export class PersistentActivityBuffer {
    * Record an incoming envelope. Throws BufferFullError if buffer is at capacity.
    */
   recordIncoming(envelope: Record<string, unknown>): EnvelopeRecord {
-    this.checkCapacity();
-
     const mid = String(envelope.message_id ?? '');
+    if (!this.byId.has(mid)) {
+      this.checkCapacity();
+      this.order.push(mid);
+    }
     const rec: EnvelopeRecord = {
       message_id: mid,
       direction: 'in',
@@ -168,7 +316,6 @@ export class PersistentActivityBuffer {
     };
 
     this.byId.set(mid, rec);
-    this.order.push(mid);
 
     const token = (envelope as any).idempotency_token;
     if (token) {
@@ -184,9 +331,11 @@ export class PersistentActivityBuffer {
    * Record an outgoing envelope. Throws BufferFullError if buffer is at capacity.
    */
   recordOutgoing(envelope: Record<string, unknown>): EnvelopeRecord {
-    this.checkCapacity();
-
     const mid = String(envelope.message_id ?? '');
+    if (!this.byId.has(mid)) {
+      this.checkCapacity();
+      this.order.push(mid);
+    }
     const rec: EnvelopeRecord = {
       message_id: mid,
       direction: 'out',
@@ -198,7 +347,6 @@ export class PersistentActivityBuffer {
     };
 
     this.byId.set(mid, rec);
-    this.order.push(mid);
 
     const token = (envelope as any).idempotency_token;
     if (token) {

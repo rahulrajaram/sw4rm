@@ -65,6 +65,7 @@ def test_cl_encode_python_decode_envelope_roundtrip() -> None:
                           :worktree-id "wt-a"
                           :hlc-timestamp "HLC:1700000000000:0:test"
                           :ttl-ms 15000
+                          :timestamp '(:seconds -1 :nanos 125)
                           :payload payload
                           :state 1
                           :parent-correlation-id "parent-cl"))
@@ -95,6 +96,8 @@ def test_cl_encode_python_decode_envelope_roundtrip() -> None:
     assert envelope.payload == b"\x0a\x14\x1e"
     assert envelope.state == 1
     assert envelope.parent_correlation_id == "parent-cl"
+    assert envelope.timestamp.seconds == -1
+    assert envelope.timestamp.nanos == 125
 
 
 def test_python_encode_cl_decode_envelope_roundtrip() -> None:
@@ -115,6 +118,7 @@ def test_python_encode_cl_decode_envelope_roundtrip() -> None:
         payload=b"\x01\x02\x03\x04",
         state=2,
         parent_correlation_id="parent-py",
+        timestamp={"seconds": -1, "nanos": 125},
     )
     envelope_hex = envelope.SerializeToString().hex().upper()
 
@@ -150,6 +154,7 @@ def test_python_encode_cl_decode_envelope_roundtrip() -> None:
             (assert-equal (getf decoded :ttl-ms) 32000 "ttl-ms")
             (assert-equal (getf decoded :state) 2 "state")
             (assert-equal (getf decoded :parent-correlation-id) "parent-py" "parent-correlation-id")
+            (assert-equal (getf decoded :timestamp) '(:seconds -1 :nanos 125) "timestamp")
             (unless (equalp payload #(1 2 3 4))
               (error "Mismatch payload: expected #(1 2 3 4) got ~S" payload))))
         """

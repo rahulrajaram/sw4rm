@@ -36,7 +36,13 @@ defmodule Sw4rm.Cancellation do
     %{state | children: children}
   end
 
-  @doc "Handle a cancel delegation request. Returns `{:ok, updated_state}`."
+  @doc """
+  Handle a cancel delegation request. Returns `{:ok, updated_state}`.
+
+  Helper boundary (SW4-004 5.3): cancels the requested correlation and its
+  DIRECT registered children only. Recursive cascade forwarding across
+  deeper delegation trees is the gateway's job.
+  """
   @spec handle_cancel_delegation(state(), map()) :: {:ok, state()}
   def handle_cancel_delegation(state, request) do
     correlation_id = request.correlation_id
@@ -45,7 +51,7 @@ defmodule Sw4rm.Cancellation do
     effective_grace = max(requested_grace, @min_grace_period_ms)
     now_ms = state.now_ms_fn.()
 
-    all_ids = collect_tree(correlation_id, state.children)
+    all_ids = [correlation_id | Map.get(state.children, correlation_id, [])] |> Enum.uniq()
     direct_children = Map.get(state.children, correlation_id, [])
 
     flags =
@@ -130,10 +136,4 @@ defmodule Sw4rm.Cancellation do
   def min_grace_period_ms, do: @min_grace_period_ms
 
   # -- Helpers --
-
-  defp collect_tree(id, children_map) do
-    direct = Map.get(children_map, id, [])
-    nested = Enum.flat_map(direct, &collect_tree(&1, children_map))
-    [id | direct ++ nested] |> Enum.uniq()
-  end
 end

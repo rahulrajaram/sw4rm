@@ -45,6 +45,12 @@ enum ErrorCode {
   PARTIAL_DELIVERY = 11; // reserved
   FORCED_PREEMPTION = 12;
   TTL_EXPIRED = 13;
+  DUPLICATE_DETECTED = 14;
+  ALREADY_IN_PROGRESS = 15;
+  // SW4-004 Inter-Swarm Composition (values 16-19)
+  OVERLOADED = 16;
+  // SW4-005 Spillover Routing (values 20-23)
+  REDIRECT = 20;
   INTERNAL_ERROR = 99;
 }
 
@@ -92,6 +98,17 @@ enum HitlReasonType {
   CONNECTOR_APPROVAL = 8;
 }
 
+enum EnvelopeState {
+  ENVELOPE_STATE_UNSPECIFIED = 0;
+  ENVELOPE_STATE_SENT = 1;
+  ENVELOPE_STATE_RECEIVED = 2;
+  ENVELOPE_STATE_READ = 3;
+  ENVELOPE_STATE_FULFILLED = 4;
+  ENVELOPE_STATE_REJECTED = 5;
+  ENVELOPE_STATE_FAILED = 6;
+  ENVELOPE_STATE_TIMED_OUT = 7;
+}
+
 message Envelope {
   string message_id = 1;                // UUIDv4 per attempt
   string idempotency_token = 2;         // stable across retries (optional)
@@ -108,6 +125,10 @@ message Envelope {
   uint64 ttl_ms = 13;                   // optional
   google.protobuf.Timestamp timestamp = 14;
   bytes payload = 15;                    // serialized content per content_type
+  EnvelopeState state = 16;              // lifecycle state of the envelope
+
+  // SW4-004 Inter-Swarm Composition (fields 100-109)
+  string parent_correlation_id = 100;    // set on first envelope crossing a swarm boundary
 }
 
 message Ack {

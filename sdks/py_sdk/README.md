@@ -1,6 +1,24 @@
 # SW4RM Python SDK
 
+> Development target: 0.7.0 (unpublished). PyPI currently provides 0.6.0.
+> Read [migration and delivery limits](../../documentation/release-status.md).
+> Server durability belongs to the separately run Python reference services;
+> installing this SDK does not upgrade those services.
+
+
 Reference Python SDK for the SW4RM Agentic Protocol. This is one of five SDKs in this repository (Python, Rust, JavaScript, Elixir, Common Lisp) and provides clients, a lightweight runtime, and helpers for ACK lifecycle, worktree/state handling, and more.
+
+## Complete wire interface (0.7.0 development target)
+
+`from sw4rm.clients import ProtocolClient` provides `call()` and `stream()` for
+all 15 canonical services and 57 RPCs. Requests are generated `sw4rm.protos`
+messages. The local `HandoffClient`, `WorkflowClient` and `NegotiationRoomClient`
+keep their local behavior; use `ProtocolClient` for remote service calls.
+A channel passed to the local `HandoffClient` now raises an error.
+
+See the [SDK parity contract](../../documentation/sdk-parity.md) for message
+representations, portable idempotency, local-only helpers and verification.
+
 
 ## Install
 
@@ -10,45 +28,12 @@ From the repo root (recommended during development):
 python -m pip install -e ".[dev]"
 ```
 
-## Quick Start with Working Services
+## Running services
 
-🎉 **NEW**: Complete working example with services included! You can now run a full SW4RM setup locally.
-
-### 1. Start the Services
-
-```bash
-cd ../../examples/reference-services/
-./start_services_local.sh
-```
-
-### 2. Test the Setup
-
-```bash
-python test_complete_setup.py
-```
-
-### 3. Run the Echo Agent
-
-```bash
-cd ..
-python examples/echo_agent.py --router localhost:50051 --registry localhost:50052
-```
-
-You should see:
-```
-✅ Registered successfully
-🚀 Starting message loop for echo-1
-```
-
-### 4. Send Test Messages
-
-In another terminal:
-```bash
-cd examples/reference-services/
-python test_complete_setup.py
-```
-
-Your echo agent will receive and process the test message!
+SDKs connect to separately running services. Follow the [Python reference service
+setup](reference-services/README.md) for the services implemented in this repository, and
+use the [SDK parity examples](../../documentation/sdk-parity.md) for the complete
+wire interface. A generated client does not imply that its server is implemented.
 
 Runtime-only install (no dev tooling):
 
@@ -93,7 +78,9 @@ registry.register({
 # (optional) Stream incoming messages
 for item in router.stream_incoming("my-agent"):
     envelope = item.msg  # protobuf message
-    # process envelope...
+    # Complete processing or persist responsibility before releasing delivery.
+    print(envelope.message_id, envelope.payload)
+    router.ack_delivery("my-agent", item.seq, envelope.message_id)
 ```
 
 ## Client Reference
@@ -1020,6 +1007,17 @@ If your IDE complains about missing types, ensure you have the latest stubs:
 pip install -e ".[dev]"
 make protos
 ```
+
+## Runtime-neutral policies
+
+The `sw4rm_policies` package contains stdlib-only policy primitives for
+quorum, confidence-weighted vote aggregation, and escalation decisions. Its
+aggregation functions accept ordinary objects or neutral `Mapping` values,
+so policy logic does not depend on the SDK, gRPC, protobuf, or a workflow
+runtime. Existing applications may continue importing
+`sw4rm.quorum_policy` and `sw4rm.negotiation_coordinator` as compatibility
+surfaces. The optional [Temporal reference skeleton](examples/temporal/README.md)
+is illustrative only: it has no default dependency and is not runtime-verified.
 
 ## Operational Contracts
 

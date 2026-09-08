@@ -1,472 +1,182 @@
-# ACK Lifecycle
+# Acknowledgements
 
-> **Protocol version**: v0.5.0 | **Last updated**: 2026-02-11 | **Spec reference**: §11, §11.1, §11.2
-
-Complete specification of the acknowledgment lifecycle in SW4RM protocol, including delivery guarantees, failure handling, and state management patterns.
-
-## Overview
-
-The ACK (acknowledgment) lifecycle provides reliable message delivery guarantees and enables senders to track message processing status. Every message can progress through multiple acknowledgment stages, with each stage representing a different level of processing completion.
-
-## ACK Stages
-
-### Stage Progression
-
-```mermaid
-stateDiagram-v2
-    [*] --> SENT: Send message
-    SENT --> RECEIVED: Router accepts
-    RECEIVED --> READ: Target validates  
-    READ --> FULFILLED: Success
-    READ --> REJECTED: Policy violation
-    READ --> FAILED: Processing error
-    READ --> TIMED_OUT: Deadline exceeded
-    
-    FULFILLED --> [*]
-    REJECTED --> [*] 
-    FAILED --> [*]
-    TIMED_OUT --> [*]
-```
-
-### Stage Definitions
-
-| Stage | Value | Meaning | Responsibility |
-|-------|-------|---------|----------------|
-| `RECEIVED` | 1 | Message delivered to target agent's queue | Router Service |
-| `READ` | 2 | Message parsed, validated, and accepted for processing | Target Agent |
-| `FULFILLED` | 3 | Processing completed successfully | Target Agent |
-| `REJECTED` | 4 | Message rejected due to policy or validation | Target Agent |
-| `FAILED` | 5 | Processing failed due to error | Target Agent |
-| `TIMED_OUT` | 6 | Processing exceeded configured deadline | System |
-
-## ACK Message Structure
-
-### Protocol Definition
-
-```protobuf
-message Ack {
-  string ack_for_message_id = 1;    // Original message ID
-  AckStage ack_stage = 2;           // Processing stage reached
-  ErrorCode error_code = 3;         // Error details (if applicable)
-  string note = 4;                  // Human-readable context
-  uint64 processing_time_ms = 5;    // Time spent in this stage
-  map<string, string> metadata = 6; // Stage-specific data
-}
-
-enum AckStage {
-  ACK_STAGE_UNSPECIFIED = 0;
-  RECEIVED = 1;
-  READ = 2;
-  FULFILLED = 3;
-  REJECTED = 4;
-  FAILED = 5;
-  TIMED_OUT = 6;
-}
-```
-
-### Examples by Stage
-
-#### RECEIVED Stage
-```json
-{
-  "ack_for_message_id": "msg-abc123",
-  "ack_stage": "RECEIVED",
-  "error_code": "NO_ERROR", 
-  "note": "Message queued for processing",
-  "processing_time_ms": 2,
-  "metadata": {
-    "queue_depth": "15",
-    "router_id": "router-west-01"
-  }
-}
-```
-
-#### READ Stage
-```json
-{
-  "ack_for_message_id": "msg-abc123",
-  "ack_stage": "READ",
-  "error_code": "NO_ERROR",
-  "note": "Message validated and accepted",
-  "processing_time_ms": 45,
-  "metadata": {
-    "schema_version": "2.1",
-    "validation_rules_applied": "12"
-  }
-}
-```
-
-#### FULFILLED Stage
-```json
-{
-  "ack_for_message_id": "msg-abc123", 
-  "ack_stage": "FULFILLED",
-  "error_code": "NO_ERROR",
-  "note": "Task completed successfully",
-  "processing_time_ms": 2340,
-  "metadata": {
-    "result_size_bytes": "1024",
-    "records_processed": "567",
-    "output_location": "s3://results/task-abc123.json"
-  }
-}
-```
-
-#### FAILED Stage
-```json
-{
-  "ack_for_message_id": "msg-abc123",
-  "ack_stage": "FAILED", 
-  "error_code": "VALIDATION_ERROR",
-  "note": "Required field 'input_path' missing from payload",
-  "processing_time_ms": 15,
-  "metadata": {
-    "validation_errors": "3",
-    "recovery_suggestion": "retry_with_complete_payload"
-  }
-}
-```
-
-## Delivery Guarantees
-
-### At-Least-Once Delivery
-
-Messages are guaranteed to be delivered **at least once** to the target agent:
-
-
-1. **Router Persistence**: Router stores messages until RECEIVED ACK
-2. **Retry Logic**: Failed deliveries trigger automatic retry with exponential backoff
-3. **Dead Letter Queue**: Messages exceeding retry limits moved to DLQ for manual inspection
-4. **Idempotency**: Duplicate detection via `idempotency_token` prevents processing duplicates
-
-### Exactly-Once Processing (§11.2)
-
-While delivery is at-least-once, processing is **exactly once** via:
-
-
-1. **Idempotency Tokens**: Stable identifiers across retry attempts (see [Three-ID Model](messages.md#three-id-model-envelope-identification))
-2. **Deduplication Windows**: Track processed tokens within configurable `deduplication_window` (default: 3600 seconds)
-3. **State Checkpointing**: Persist processing state before side effects
-4. **Transaction Boundaries**: Atomic commit of processing results and ACK
-
-On message arrival with idempotency token, implementations MUST:
-
-- **Token maps to terminal state**: return cached outcome without re-execution.
-- **Token maps to non-terminal state**: return `ALREADY_IN_PROGRESS` without starting new execution.
-- **New token**: record RECEIVED state and proceed with normal processing.
-
-### Ordering Guarantees
-
-Message ordering is preserved **per conversation**:
-
-
-1. **Sequence Numbers**: Monotonic sequence within `correlation_id` groups
-2. **Router Queuing**: FIFO queues maintain sequence order
-3. **Agent Processing**: Sequential processing of ordered messages
-4. **ACK Sequencing**: ACKs reflect original message sequence
-
-## Error Handling
-
-### Error Codes and Recovery
-
-| Error Code | Recovery Strategy | Retry Recommended |
-|------------|-------------------|-------------------|
-| `BUFFER_FULL` | Wait and retry with exponential backoff | Yes |
-| `NO_ROUTE` | Check agent registration and routing | No |
-| `ACK_TIMEOUT` | Increase timeout or check agent health | Maybe |
-| `VALIDATION_ERROR` | Fix message format and retry | No |
-| `PERMISSION_DENIED` | Check agent permissions | No |
-| `OVERSIZE_PAYLOAD` | Reduce payload or use streaming | No |
-| `INTERNAL_ERROR` | Investigate system health and retry | Yes |
-
-### Automatic Retry Configuration
-
-```protobuf
-message RetryPolicy {
-  uint32 max_attempts = 1;           // Maximum retry attempts
-  uint64 initial_delay_ms = 2;       // First retry delay
-  double backoff_multiplier = 3;     // Exponential backoff factor
-  uint64 max_delay_ms = 4;           // Maximum retry delay
-  repeated ErrorCode retryable_errors = 5; // Which errors to retry
-}
-```
-
-**Example Configuration**:
-```json
-{
-  "max_attempts": 5,
-  "initial_delay_ms": 1000,
-  "backoff_multiplier": 2.0,
-  "max_delay_ms": 30000,
-  "retryable_errors": ["BUFFER_FULL", "ACK_TIMEOUT", "INTERNAL_ERROR"]
-}
-```
-
-### Circuit Breaker Integration
-
-ACK patterns trigger circuit breaker state changes:
-
-
-- **Failure Rate**: High FAILED/TIMED_OUT ACK rate opens circuit
-- **Latency**: Slow FULFILLED ACKs indicate performance issues  
-- **Error Types**: Certain error codes immediately open circuit
-- **Recovery**: Successful ACK patterns close circuit
-
-## Timeline Management
-
-### Message Timeouts
-
-Multiple timeout configurations control ACK lifecycle:
-
-```protobuf
-message TimeoutConfig {
-  uint64 delivery_timeout_ms = 1;    // Router → Agent delivery
-  uint64 read_timeout_ms = 2;        // Agent validation time
-  uint64 processing_timeout_ms = 3;  // Agent processing time
-  uint64 total_ttl_ms = 4;          // End-to-end message TTL
-}
-```
-
-### Late ACK Reconciliation (§11.1)
-
-Late acknowledgments (ACKs received after timeout processing has begun) MUST be
-reconciled against current message state per spec §11.1:
-
-1. **Message in TIMED_OUT state**: The late ACK MUST be recorded but MUST NOT
-   change the terminal state. Implementations MUST log the late ACK for
-   observability with the original timeout timestamp and late ACK timestamp.
-
-2. **Message in RETRYING state**: The late ACK for the original attempt MUST be
-   recorded. If the retry has not yet been delivered, implementations MAY cancel
-   the retry and transition to the ACK'd state (RECEIVED, READ, or FULFILLED).
-   If the retry has already been delivered, both attempts MUST be tracked and
-   deduplicated by idempotency token.
-
-3. **Message in terminal state (FULFILLED, REJECTED, FAILED)**: Late ACKs MUST
-   be ignored for state purposes but MUST be logged for audit trails.
-
-4. **Idempotency token reconciliation**: When late ACKs arrive for messages with
-   idempotency tokens, implementations MUST update the idempotency cache to
-   reflect the earliest successful completion, ensuring correct deduplication of
-   subsequent retries.
-
-The default time to reach RECEIVED is **10 seconds** (spec §11). Upon timeout,
-set `TIMED_OUT` and NACK with error code `ack_timeout`.
-
-### Timeout Enforcement
+SW4RM has two acknowledgement mechanisms. They have different effects and must
+not be substituted for each other.
 
 ```mermaid
 sequenceDiagram
-    participant S as Sender
+    autonumber
     participant R as Router
-    participant A as Agent
-    participant T as Timer Service
-    
-    S->>R: SendMessage (ttl: 30s)
-    R->>T: Start delivery timer (5s)
-    R->>A: Forward message
-    
-    par Delivery Timer
-        T-->>R: Delivery timeout (5s)
-        R-->>S: ACK{TIMED_OUT, NO_ROUTE}
-    and Normal Flow
-        A-->>R: ACK{RECEIVED}
-        R->>T: Start processing timer (25s)
-        R-->>S: Forward ACK{RECEIVED}
-        
-        A->>A: Process message
-        A-->>R: ACK{FULFILLED}
-        R-->>S: Forward ACK{FULFILLED}
-        R->>T: Cancel all timers
-    end
+    participant C as Consumer
+    participant Pr as Producer
+    note over R,C: Track 1 — delivery acknowledgement<br/>(releases the pending row)
+    R->>C: StreamItem (seq)
+    C->>R: AckDelivery (agent_id, seq)
+    R-->>C: recorded=true — pending row removed
+    note over C,Pr: Track 2 — application progress<br/>(never touches the pending row)
+    C->>Pr: Ack (ack_for_message_id, stage=RECEIVED)
+    C->>Pr: Ack (stage=READ)
+    C->>Pr: Ack (stage=FULFILLED)
+    note over R,Pr: Recovery boundary: accepted send, acknowledged delivery,<br/>completed operation, and authorized external effect<br/>are separate facts.
 ```
 
-## Activity Buffer Integration
+## Router delivery acknowledgement
 
-### Persistent ACK State
+The 0.7.0 Router adds `AckDelivery`. A consumer sends its receiving agent ID and
+`StreamItem.seq` after completing processing or durably taking responsibility.
+The reference router removes the matching in-flight pending row. Unacknowledged
+items can be redelivered after reconnect or lease expiry.
 
-The Activity Buffer maintains ACK state across agent restarts:
+Both `DELIVERY_ACK_OUTCOME_DELIVERED` and
+`DELIVERY_ACK_OUTCOME_PERMANENT_FAILURE` release the row. Permanent failure is an
+explicit discard, not a request to retry. `recorded=false` means no eligible row
+was removed. See [Router](../clients/router.md) for the full contract.
 
-```json
-{
-  "message_id": "msg-abc123",
-  "ack_history": [
-    {
-      "stage": "RECEIVED",
-      "timestamp": "2026-02-11T15:30:00Z",
-      "processing_time_ms": 2
-    },
-    {
-      "stage": "READ", 
-      "timestamp": "2026-02-11T15:30:01Z",
-      "processing_time_ms": 45
+## Application progress acknowledgement
+
+An `Ack` envelope reports progress for a message. It does not remove a pending
+router row. Canonical fields are:
+
+```proto
+message Ack {
+  string ack_for_message_id = 1;
+  AckStage ack_stage = 2;
+  ErrorCode error_code = 3;
+  string note = 4;
+}
+```
+
+| Stage | Value | Application meaning |
+|---|---|---|
+| `ACK_STAGE_UNSPECIFIED` | 0 | No stage specified |
+| `RECEIVED` | 1 | Received for processing |
+| `READ` | 2 | Read/validated by the consumer |
+| `FULFILLED` | 3 | Application reports successful processing |
+| `REJECTED` | 4 | Rejected by application or policy |
+| `FAILED` | 5 | Processing failed |
+| `TIMED_OUT` | 6 | Processing deadline expired |
+
+An SDK lifecycle helper may emit these progress messages or update an activity
+record. Neither operation automatically acknowledges the incoming router stream
+item. Use the delivery API explicitly, or a runtime that documents doing so.
+
+## Application retry and timeout policy
+
+Delivery redelivery and application retries are separate decisions. A consumer
+should acknowledge the stream item once it has durably taken responsibility for
+it, then use the application ACK stages to report work. If it crashes before
+the delivery ACK, the router may redeliver the item; if it reports `FAILED`, the
+producer may retry the logical operation according to its policy.
+
+| Condition | Recommended action | Idempotency requirement |
+|---|---|---|
+| `BUFFER_FULL` or temporary unavailability | Back off with jitter and retry | Keep the logical operation token stable |
+| `VALIDATION_ERROR`, `PERMISSION_DENIED`, or malformed payload | Correct or quarantine the request | Do not blindly retry |
+| `ACK_TIMEOUT` or `INTERNAL_ERROR` | Check service health, then retry if the operation is safe | Deduplicate before repeating side effects |
+| `OVERSIZE_PAYLOAD` | Reduce the payload or store bulk data externally | Preserve correlation when creating a follow-up |
+
+The protocol defines error codes and stages; retry limits, backoff, and circuit
+breaker thresholds are deployment policy. A useful policy records
+`max_attempts`, an initial delay, a multiplier, a maximum delay, and the set of
+retryable errors. Add jitter so many consumers do not retry simultaneously. For
+example, a bounded policy can compute:
+
+```python
+def retry_delay(attempt: int, initial_s: float = 1.0,
+                multiplier: float = 2.0, maximum_s: float = 30.0) -> float:
+    """Return the deterministic ceiling before adding deployment jitter."""
+    return min(maximum_s, initial_s * (multiplier ** max(0, attempt - 1)))
+
+def should_retry(error_code: str, attempt: int, max_attempts: int) -> bool:
+    return attempt < max_attempts and error_code in {
+        "BUFFER_FULL", "ACK_TIMEOUT", "AGENT_UNAVAILABLE", "INTERNAL_ERROR",
     }
-  ],
-  "current_stage": "READ",
-  "next_timeout": "2026-02-11T15:32:00Z",
-  "retry_count": 0
-}
 ```
 
-### Recovery Patterns
+Count attempts per logical operation, keep its `idempotency_token` stable, and
+generate a new `message_id` for each transmission. Treat `VALIDATION_ERROR`,
+`PERMISSION_DENIED`, `OVERSIZE_PAYLOAD`, and `TTL_EXPIRED` as terminal unless a
+policy-specific correction creates a new operation.
 
-When agents restart, they can resume from last ACK state:
+## Late ACKs and recovery
 
+An ACK can arrive after a timeout or after a retry has been scheduled. Record it
+for audit and reconcile it against the current message state. A timeout may
+leave the original attempt terminal while a separately tracked logical
+operation is `RETRYING`; do not use a blanket rule that either always reopens or
+never reopens a timed-out operation:
 
-1. **Query Activity Buffer**: Load pending message state
-2. **Resume Processing**: Continue from last ACK stage  
-3. **Send Recovery ACK**: Notify of current processing state
-4. **Update Timers**: Reset timeouts based on elapsed time
+1. **`TIMED_OUT` attempt:** record and log the late ACK with both timestamps,
+   but do not change that attempt’s terminal state.
+2. **`RETRYING` logical operation:** record the original attempt’s late ACK. If
+   the retry has not been delivered, an implementation MAY cancel it and adopt
+   the ACK’s `RECEIVED`, `READ`, or `FULFILLED` state. If it has been delivered,
+   track both attempts and deduplicate by the stable token.
+3. **Other terminal attempt (`FULFILLED`, `REJECTED`, or `FAILED`):** retain the
+   late ACK for audit without reopening that attempt.
+4. **Token cache:** for a token-bearing operation, update the cache to the
+   earliest successful completion so later retries return the recorded outcome.
 
-## Advanced Patterns
+On process restart, load outgoing records from the Activity Buffer, classify
+them as acknowledged, retryable, or terminal, and reconcile before creating new
+logical operations. A persisted snapshot helps find work; it does not make the
+snapshot and an external side effect one atomic transaction.
 
-### Batch Acknowledgments
+## Monitoring and operator practice
 
-For high-throughput scenarios, agents can batch ACKs:
+Track counts by stage and error code, delivery-redelivery rate, time from send
+to each application stage, unresolved delivery rows, and DLQ growth. Alert on a
+sustained failure or timeout increase relative to the service’s normal baseline,
+missing delivery acknowledgements, and repeated errors from one route or
+consumer. Keep `message_id`, `correlation_id`, and (when present)
+`idempotency_token` in logs so one operation can be followed across retries.
 
-```protobuf
-message BatchAck {
-  repeated Ack acknowledgments = 1;
-  uint64 batch_timestamp = 2;
-  string batch_id = 3;
-}
-```
+Senders should handle every terminal stage and avoid treating `RECEIVED` as
+completion. Consumers should validate before reporting `READ`, report a useful
+error code and note on failure, and make processing safe to repeat. Operators
+should retain enough DLQ history to diagnose failures while bounding payload
+retention and access to sensitive content.
 
-### Partial Acknowledgments
+## Dead Letter Queue
 
-For large messages processed in chunks:
+The protocol recommends that routers provide a Dead Letter Queue (DLQ) for
+operator triage. The reference Router in this release does not expose a DLQ
+service or `RouterClient` DLQ methods; deployments that provide a DLQ backend
+must apply the following §21.1 rules. Messages MUST be moved to DLQ when any of
+the following occur:
 
-```json
-{
-  "ack_for_message_id": "msg-large-dataset",
-  "ack_stage": "PARTIAL_FULFILLED",
-  "note": "Processed 45% of records (2300/5000)",
-  "metadata": {
-    "progress_percent": "45",
-    "records_completed": "2300",
-    "records_total": "5000",
-    "estimated_completion": "2026-02-11T15:45:00Z"
-  }
-}
-```
+- **Retry budget exhausted** without successful processing.
+- **Terminal error** indicating the operation cannot succeed (validation
+  error, permission denied, malformed message).
+- **Policy violation** (security, resource limits) or TTL expiry.
 
-### Conditional ACKs
+Each DLQ entry MUST include diagnostic context sufficient for operator
+triage:
 
-ACKs can include conditions for further processing:
+| Field | Description |
+|-------|-------------|
+| Final error classification | The terminal error code and stage |
+| Attempt history | Timestamps and failure reasons for each retry attempt |
+| Routing context | Producer ID, route, hops traversed |
+| Creation and failure times | When the message was created and when it finally failed |
+| Payload size and content type | Message metadata for inspection |
+| Payload excerpt or reference | Either a truncated payload or a secure reference to the full payload |
 
-```json
-{
-  "ack_for_message_id": "msg-approval-needed",
-  "ack_stage": "READ",
-  "note": "Awaiting human approval before processing",
-  "metadata": {
-    "approval_request_id": "approval-789",
-    "expected_decision_by": "2026-02-12T09:00:00Z",
-    "approver_roles": "security_admin,data_steward"
-  }
-}
-```
+Implementations SHOULD provide inspection and reprocessing tools. Operators
+MUST be able to requeue selected entries, export diagnostic bundles, and
+filter by time range, error class, route, or producer. Implementations SHOULD
+enforce retention policies that bound storage (time-based or count-based
+eviction). DLQ inspection is an operator facility, not a `RouterClient`
+method.
 
-## Monitoring and Observability
+## Recovery boundary
 
-### ACK Metrics
+An accepted send, an acknowledged delivery, a completed application operation,
+and an authorized external effect are different facts. The reference stack
+provides no general exactly-once side-effect transaction. A persisted idempotency
+token helps recognize duplicate work after completion; it does not eliminate the
+crash interval between an external effect and recording completion.
 
-Key metrics for monitoring ACK health:
-
-```yaml
-ack_metrics:
-  # Throughput
-  - acks_sent_total: Counter by stage and error_code
-  - ack_rate_per_second: Rate of ACK generation
-  
-  # Latency
-  - ack_stage_duration: Histogram of time per stage
-  - end_to_end_latency: Message send to FULFILLED ACK
-  
-  # Reliability  
-  - ack_success_rate: Percentage reaching FULFILLED
-  - ack_retry_rate: Percentage requiring retry
-  - ack_timeout_rate: Percentage timing out
-  
-  # Queue Health
-  - pending_acks: Gauge of unresolved messages
-  - ack_buffer_depth: Messages awaiting ACK
-```
-
-### ACK Tracing
-
-Distributed tracing spans ACK lifecycle:
-
-```json
-{
-  "trace_id": "trace-abc123",
-  "spans": [
-    {
-      "name": "message.send", 
-      "duration_ms": 1500,
-      "tags": {"message_id": "msg-abc123"}
-    },
-    {
-      "name": "ack.received",
-      "duration_ms": 2,
-      "parent": "message.send"
-    },
-    {
-      "name": "ack.read", 
-      "duration_ms": 45,
-      "parent": "message.send"
-    },
-    {
-      "name": "ack.fulfilled",
-      "duration_ms": 2340, 
-      "parent": "message.send"
-    }
-  ]
-}
-```
-
-### Alert Conditions
-
-Critical ACK patterns trigger alerts:
-
-
-- **High Failure Rate**: >5% FAILED ACKs in 5-minute window
-- **Slow Processing**: >95th percentile ACK latency exceeds SLA
-- **Timeout Spike**: >10x normal TIMED_OUT ACK rate
-- **Missing ACKs**: Messages without ACKs beyond expected timeout
-- **Error Pattern**: Recurring error codes from specific agents
-
-## Best Practices
-
-### For Message Senders
-
-
-1. **Set Appropriate Timeouts**: Balance responsiveness with processing complexity
-2. **Handle All ACK Stages**: Don't assume RECEIVED means FULFILLED
-3. **Implement Retry Logic**: Use exponential backoff with jitter
-4. **Monitor ACK Patterns**: Track success rates and latencies
-5. **Use Idempotency Tokens**: Ensure duplicate safety
-
-### For Message Receivers
-
-
-1. **Send Timely ACKs**: ACK RECEIVED immediately upon message arrival
-2. **Validate Before READ ACK**: Only ACK READ after successful validation
-3. **Provide Detailed Error Info**: Include helpful context in FAILED ACKs
-4. **Handle Timeouts Gracefully**: Clean up resources on timeout
-5. **Support Idempotency**: Check tokens before processing
-
-### For System Operators
-
-
-1. **Monitor End-to-End Latency**: Track full message lifecycle
-2. **Set Up ACK Dashboards**: Visualize success rates and error patterns
-3. **Configure Appropriate Timeouts**: Balance user experience with system load
-4. **Implement Dead Letter Handling**: Process permanently failed messages
-5. **Capacity Plan for ACK Volume**: ACKs generate additional message load
-
-## See Also
-
-- [Messages — Three-ID Model](messages.md#three-id-model-envelope-identification) for `message_id`, `correlation_id`, and `idempotency_token` semantics
-- [Error Handling — Dead Letter Queue](../clients/error-handling.md#dead-letter-queue-dlq) for messages exceeding retry limits
-- [Protocol Index — Message Types](index.md) for full message type enumeration
+See [release migration](../release-status.md),
+[activity buffer](activity-buffer.md), and
+[canonical schema](../reference/protobuf.md).

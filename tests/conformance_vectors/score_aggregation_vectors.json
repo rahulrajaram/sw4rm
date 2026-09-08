@@ -1,0 +1,12 @@
+{
+  "contract": "score-summary-v1",
+  "description": "Population standard deviation; confidence-weighted mean; arithmetic fallback when all confidence weights are zero. Scores are 0..10, confidence 0..1. Empty input is an error.",
+  "vectors": [
+    {"id": "unequal-confidence", "votes": [{"score": 2, "confidence": 0.25}, {"score": 10, "confidence": 0.75}], "expected": {"mean": 6, "min_score": 2, "max_score": 10, "std_dev": 4, "weighted_mean": 8, "vote_count": 2}},
+    {"id": "zero-confidence-fallback", "votes": [{"score": 2, "confidence": 0}, {"score": 10, "confidence": 0}], "expected": {"mean": 6, "min_score": 2, "max_score": 10, "std_dev": 4, "weighted_mean": 6, "vote_count": 2}},
+    {"id": "one-zero-weight", "votes": [{"score": 0, "confidence": 0}, {"score": 8, "confidence": 1}], "expected": {"mean": 4, "min_score": 0, "max_score": 8, "std_dev": 4, "weighted_mean": 8, "vote_count": 2}},
+    {"id": "single-vote", "votes": [{"score": 7, "confidence": 0.2}], "expected": {"mean": 7, "min_score": 7, "max_score": 7, "std_dev": 0, "weighted_mean": 7, "vote_count": 1}},
+    {"id": "population-not-sample", "votes": [{"score": 1, "confidence": 1}, {"score": 2, "confidence": 1}, {"score": 3, "confidence": 1}], "expected": {"mean": 2, "min_score": 1, "max_score": 3, "std_dev": 0.816496580927726, "weighted_mean": 2, "vote_count": 3}},
+    {"id": "empty-input", "votes": [], "error": "empty-votes"}
+  ]
+}

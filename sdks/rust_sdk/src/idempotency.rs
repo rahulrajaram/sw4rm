@@ -4,18 +4,31 @@
 //! idempotency tokens in the format: `{producer_id}:{operation_type}:{deterministic_hash}`.
 
 use sha2::{Digest, Sha256};
+use thiserror::Error;
+
+/// Error returned by the idempotency helpers for invalid input.
+#[derive(Debug, Error)]
+pub enum IdempotencyError {
+    /// producer_id or operation contains LF, the bytes-v1 field separator.
+    #[error("idempotency input error: {0}")]
+    InvalidInput(String),
+}
 
 /// Compute a deterministic hash from canonical operation parameters.
 ///
-/// The parameters are serialized to compact JSON with sorted keys, then
-/// SHA256-hashed and truncated to 16 hex characters.
+/// Legacy language-local helper: Serde serializes the supplied value directly.
+/// Struct and map ordering are not normalized here. For cross-SDK tokens use
+/// `compute_idempotency_token` with application-defined canonical bytes.
+/// The SHA256 digest is truncated to 16 hex characters.
 ///
 /// # Arguments
 /// * `params` - Serializable value representing canonical operation parameters
 ///
 /// # Returns
 /// 16-character hex string (first 64 bits of SHA256)
-pub fn compute_deterministic_hash<T: serde::Serialize>(params: &T) -> Result<String, serde_json::Error> {
+pub fn compute_deterministic_hash<T: serde::Serialize>(
+    params: &T,
+) -> Result<String, serde_json::Error> {
     let canonical = serde_json::to_string(params)?;
     let mut hasher = Sha256::new();
     hasher.update(canonical.as_bytes());
@@ -82,4 +95,37 @@ mod tests {
         assert!(token.starts_with("agent-1:test_op:"));
         assert_eq!(token.split(':').count(), 3);
     }
+}
+
+/// Portable bytes-v1 token. Supply identical canonical bytes in every language.
+/// The digest covers UTF-8 producer, LF, UTF-8 operation, LF, then the exact bytes.
+/// Legacy JSON helpers use a different input format and are not portable.
+///
+/// Rejects LF inside producer_id or operation (R43): LF is the digest field
+/// separator, so an embedded LF would make the prefix ambiguous.
+pub fn compute_idempotency_token(
+    producer_id: &str,
+    operation: &str,
+    canonical_bytes: &[u8],
+) -> std::result::Result<String, IdempotencyError> {
+    if contains_lf(producer_id) || contains_lf(operation) {
+        return Err(IdempotencyError::InvalidInput(
+            "producer_id/operation must not contain LF in the bytes-v1 digest".to_string()
+        ));
+    }
+    let mut hasher = Sha256::new();
+    hasher.update(producer_id.as_bytes());
+    hasher.update(b"\n");
+    hasher.update(operation.as_bytes());
+    hasher.update(b"\n");
+    hasher.update(canonical_bytes);
+    Ok(make_idempotency_token(
+        producer_id,
+        operation,
+        &hex::encode(&hasher.finalize()[..8]),
+    ))
+}
+
+fn contains_lf(value: &str) -> bool {
+    value.contains("\n")
 }

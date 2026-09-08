@@ -1,6 +1,11 @@
 # RFC: SW4RM - Interruptible, Message-Driven Agent Coordination Protocol
 
-Version: 0.6.0 (2026-03-06)
+Version: 0.7.0 (2026-09-04)
+
+> **Implementation status:** this is the 0.7.0 development specification, not
+> a declaration that every reference service implements every requirement.
+> [Implementation coverage](implementation.md) records the supported profile
+> and [release migration](../release-status.md) explains compatibility changes.
 
 ## Versioning and Changelog
 
@@ -29,6 +34,14 @@ The versioning scope encompasses this document and the canonical protocol buffer
 - **0.1.1 (2025-08-08)**: Editorial clarifications and protocol buffer formatting improvements. No normative behavioral changes.
 
 - **0.1.0 (2025-08-08)**: Initial specification release establishing core framework concepts and requirements.
+
+### 0.7.0 development changes
+
+- Explicit router delivery acknowledgement and sequence-preserving consumers.
+- Aligned SDK policy/codec coverage and strict persistence failure behavior.
+- Separate transport delivery from application completion; no general
+  exactly-once side-effect claim.
+- Source-generated wire reference and executable release/documentation checks.
 
 ## 1. Status of this Memo
 
@@ -100,11 +113,11 @@ The architecture comprises several key components that work together to provide 
 
 All inter-component communication operates over gRPC protocols, providing strong typing, efficient serialization, and robust error handling. This choice enables reliable communication patterns while supporting both unary request-response interactions and streaming data flows as needed for different operational scenarios.
 
-The current architecture specification defines **unicast** routing semantics, where each message is delivered to a single designated recipient. This design simplification reduces complexity in the initial protocol version while maintaining the architectural foundation needed to support multicast or broadcast patterns in future iterations.
+The current Python reference routing profile broadcasts to eligible known queues except the producer. The core Envelope has no general destination field. Addressed handoff and delegation use their own contracts; applications MUST NOT assume that Router.SendMessage performs unicast task routing.
 
 ### State Management and Consistency
 
-The Scheduler maintains authoritative state for all system-wide concerns, including task queues, agent registrations, message routing tables, and policy configurations. This centralized state management approach enables strong consistency guarantees and simplifies reasoning about system behavior, particularly important for managing complex task dependencies and resource conflicts.
+State ownership is per service: Registry owns registrations, Router owns pending deliveries, Scheduler owns tasks and activity, and NegotiationRoom owns proposals, votes, and decisions. The reference stack does not implement a distributed transaction or replicated consensus across these stores.
 
 ### Optional Enhancements
 
@@ -128,7 +141,7 @@ The framework's transport layer builds upon gRPC to provide reliable, type-safe 
 
 The transport layer employs a hybrid approach combining gRPC unary RPCs for synchronous operations and server-streaming RPCs for scenarios requiring real-time data delivery or long-lived connections. This combination provides the flexibility needed for diverse communication patterns within the framework while maintaining the benefits of gRPC's protocol buffers and HTTP/2 foundation.
 
-**HTTP Version Requirements**: While gRPC implementations typically prefer HTTP/2 for optimal performance (multiplexing, header compression, flow control), the framework MUST support HTTP/1.1 fallback to ensure broad deployment compatibility. Many enterprise environments, proxy configurations, and network appliances may not fully support HTTP/2, making HTTP/1.1 compatibility essential for production deployments. However, implementations SHOULD prefer HTTP/2 when available to benefit from improved performance characteristics.
+**HTTP Version Requirements**: Native gRPC uses HTTP/2. An HTTP/1.1 deployment requires a separate compatible gateway or transport binding; the reference native-gRPC clients do not provide transparent HTTP/1.1 fallback.
 
 All framework components MUST expose interfaces that conform to the canonical protobuf contracts. The canonical `.proto` files are versioned with this specification and serve as the single source of truth. Official SW4RM SDKs SHOULD distribute generated stubs by default and MAY include the canonical `.proto` sources for consumers who wish to regenerate. Each SDK release SHOULD reference the canonical proto artifact for the same version (for example, a tarball attached to the spec release). Implementations MUST NOT modify canonical messages or services; extensions MUST use separate packages or namespaces.
 
@@ -423,6 +436,16 @@ Implementations MUST support a comprehensive message lifecycle with explicit ack
 
 Note: RECEIVED serves as the acknowledgment stage in this protocol. There is no separate ACKNOWLEDGED state; acknowledgment semantics are encoded via AckStage.RECEIVED.
 
+### Router delivery acknowledgement
+
+The 0.7.0 Router contract adds `StreamItem.seq` and `AckDelivery`. A consumer
+MUST preserve the int64 delivery sequence and acknowledge using its receiving
+agent ID after processing or durable transfer of responsibility. An
+unacknowledged item MAY be redelivered after reconnect or lease expiry. Consumers
+MUST tolerate duplicates. The permanent-failure outcome deliberately releases
+the row without retry. Application ACK envelopes do not release delivery rows.
+See [migration](../release-status.md) for mixed-version behavior and limits.
+
 ### 11.1. Late Acknowledgment Reconciliation
 
 Late acknowledgments (ACKs received after timeout processing has begun) MUST be reconciled against current message state using the following rules:
@@ -458,7 +481,7 @@ For SDK-specific error handling patterns and error code mappings, see [Exception
 
 ### 11.2 Idempotency Guarantees
 
-Implementations MAY provide exactly-once semantics through `idempotency_token` usage. When present, idempotency tokens MUST remain constant across all retries of the same logical operation. The Scheduler MUST maintain a persistent cache mapping tokens to terminal outcomes for at least the configured `deduplication_window` (default 3600 seconds).
+Implementations MAY use `idempotency_token` to suppress already completed duplicate work. A token alone does not provide exactly-once external effects; that requires an idempotent effect or a transaction joining the effect and its completion record. When present, idempotency tokens MUST remain constant across all retries of the same logical operation. The Scheduler MUST maintain a persistent cache mapping tokens to terminal outcomes for at least the configured `deduplication_window` (default 3600 seconds).
 
 On message arrival with idempotency token, implementations MUST handle as follows:
 
@@ -476,7 +499,7 @@ The SW4RM protocol uses three distinct identifiers to track messages across thei
 |------------|-------|------------|---------|
 | `message_id` | Per attempt | New on each retry | Uniquely identifies a specific transmission attempt |
 | `correlation_id` | Per workflow/session | Stable across entire flow | Groups related messages for tracing and debugging |
-| `idempotency_token` | Per logical operation | Stable across retries | Enables exactly-once semantics via deduplication |
+| `idempotency_token` | Per logical operation | Stable across retries | Identifies duplicate logical work; effect atomicity is application-owned |
 
 **`message_id` (Required)**:
 
@@ -1291,7 +1314,7 @@ stateDiagram-v2
 
 Below are canonical flows. All messages are **unicast** and include the RFC envelope fields.
 
-### C.1 Task submission success
+### D.1 Task submission success
 
 ```mermaid
 sequenceDiagram
@@ -1318,7 +1341,7 @@ sequenceDiagram
 }
 ```
 
-### C.2 Timeout, retry, late ACK, idempotent reconcile
+### D.2 Timeout, retry, late ACK, idempotent reconcile
 
 ```mermaid
 sequenceDiagram
@@ -1346,7 +1369,7 @@ sequenceDiagram
 }
 ```
 
-### C.3 Buffer overflow rejection
+### D.3 Buffer overflow rejection
 
 ```mermaid
 sequenceDiagram
@@ -1374,7 +1397,7 @@ sequenceDiagram
 }
 ```
 
-### C.4 Cooperative preemption by higher-priority task
+### D.4 Cooperative preemption by higher-priority task
 
 ```mermaid
 sequenceDiagram
@@ -1388,7 +1411,7 @@ sequenceDiagram
     S->>B: CONTROL RUN highP
 ```
 
-### C.5 Forced preemption after non-preemptible timeout
+### D.5 Forced preemption after non-preemptible timeout
 
 ```mermaid
 sequenceDiagram
@@ -1405,7 +1428,7 @@ sequenceDiagram
     end
 ```
 
-### C.6 HITL escalation for conflict
+### D.6 HITL escalation for conflict
 
 ```mermaid
 sequenceDiagram
@@ -1417,12 +1440,12 @@ sequenceDiagram
     S->>RE: parallelism_check(scope X,Y)
     RE-->>S: {confidence_score:0.58}
     S->>H: HITL_INVOCATION(CONFLICT)
-    H-->>S: HITL_DECISION(QUEUE_TASKS)
+    H-->>S: HITL_DECISION(approve)
     S->>X: CONTROL RUN tX
     S->>Y: NOTIFICATION deferred
 ```
 
-### C.7 Worktree bind/switch/unbind
+### D.7 Worktree bind/switch/unbind
 
 ```mermaid
 sequenceDiagram
@@ -1439,7 +1462,7 @@ sequenceDiagram
     S->>A: WORKTREE_CONTROL UNBIND
 ```
 
-### C.8 Tool call (streaming)
+### D.8 Tool call (streaming)
 
 ```mermaid
 sequenceDiagram
@@ -1453,7 +1476,7 @@ sequenceDiagram
     S-->>A: stream frames + final summary
 ```
 
-### C.9 Negotiation with timeout + HITL decision
+### D.9 Negotiation with timeout + HITL decision
 
 ```mermaid
 sequenceDiagram
@@ -1475,7 +1498,7 @@ sequenceDiagram
     S->>GQL: DECISION B
 ```
 
-### C.10 Negotiation Room: Producer-Critic-Coordinator Flow
+### D.10 Negotiation Room: Producer-Critic-Coordinator Flow
 
 ```mermaid
 sequenceDiagram
@@ -1496,14 +1519,14 @@ sequenceDiagram
     alt Auto-Approve (meets thresholds)
         CO->>NR: NegotiationDecision(APPROVED)
     else High Disagreement
-        CO->>H: HITL_INVOCATION(NEGOTIATION_CONFLICT)
+        CO->>H: HITL_INVOCATION(CONFLICT)
         H-->>CO: HITL_DECISION
         CO->>NR: NegotiationDecision(outcome)
     end
     NR-->>P: decision notification
 ```
 
-### C.11 Agent Handoff Flow
+### D.11 Agent Handoff Flow
 
 ```mermaid
 sequenceDiagram
@@ -1523,7 +1546,7 @@ sequenceDiagram
     Note over B: Resume work with context_snapshot
 ```
 
-### C.12 DAG Workflow Execution
+### D.12 DAG Workflow Execution
 
 ```mermaid
 sequenceDiagram
@@ -1556,698 +1579,10 @@ This appendix lists representative JSON payloads for common scenarios. These exa
 
 ---
 
-# Protobuf Stubs (proto3)
-
-**Notes:**
-
-- All strings expecting UUIDs are plain `string`.
-- Use `google.protobuf.Timestamp` and `Duration` where applicable.
-- Payloads use `bytes` with `content_type` for flexibility (JSON or protobuf within).
-- Split definitions into logical files for clarity. Implementations MAY merge into a single file.
-- The canonical proto package namespace for this specification is `sw4rm.*`. Earlier drafts and examples MAY have shown other prefixes; use `sw4rm.*` for conformance and code generation.
-
----
-
-## `common.proto`
-
-```proto
-syntax = "proto3";
-
-package sw4rm.common;
-
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/duration.proto";
-
-enum MessageType {
-  MESSAGE_TYPE_UNSPECIFIED = 0;
-  CONTROL = 1;
-  DATA = 2;
-  HEARTBEAT = 3;
-  NOTIFICATION = 4;
-  ACKNOWLEDGEMENT = 5;
-  HITL_INVOCATION = 6;
-  WORKTREE_CONTROL = 7;
-  NEGOTIATION = 8;
-  TOOL_CALL = 9;
-  TOOL_RESULT = 10;
-  TOOL_ERROR = 11;
-}
-
-enum AckStage {
-  ACK_STAGE_UNSPECIFIED = 0;
-  RECEIVED = 1;
-  READ = 2;
-  FULFILLED = 3;
-  REJECTED = 4;
-  FAILED = 5;
-  TIMED_OUT = 6;
-}
-
-enum ErrorCode {
-  ERROR_CODE_UNSPECIFIED = 0;
-  BUFFER_FULL = 1;
-  NO_ROUTE = 2;
-  ACK_TIMEOUT = 3;
-  AGENT_UNAVAILABLE = 4;
-  AGENT_SHUTDOWN = 5;
-  VALIDATION_ERROR = 6;
-  PERMISSION_DENIED = 7;
-  UNSUPPORTED_MESSAGE_TYPE = 8;
-  OVERSIZE_PAYLOAD = 9;
-  TOOL_TIMEOUT = 10;
-  PARTIAL_DELIVERY = 11; // reserved
-  FORCED_PREEMPTION = 12;
-  TTL_EXPIRED = 13;
-  INTERNAL_ERROR = 99;
-}
-
-enum AgentState {
-  AGENT_STATE_UNSPECIFIED = 0;
-  INITIALIZING = 1;
-  RUNNABLE = 2;
-  SCHEDULED = 3;
-  RUNNING = 4;
-  WAITING = 5;
-  WAITING_RESOURCES = 6;
-  SUSPENDED = 7;
-  RESUMED = 8;
-  COMPLETED = 9;
-  FAILED_STATE = 10;
-  SHUTTING_DOWN = 11;
-  RECOVERING = 12;
-}
-
-enum CommunicationClass {
-  COMM_CLASS_UNSPECIFIED = 0;
-  PRIVILEGED = 1;
-  STANDARD = 2;
-  BULK = 3;
-}
-
-enum DebateIntensity {
-  DEBATE_INTENSITY_UNSPECIFIED = 0;
-  LOWEST = 1;
-  LOW = 2;
-  MEDIUM = 3;
-  HIGH = 4;
-  HIGHEST = 5;
-}
-
-enum HitlReasonType {
-  HITL_REASON_UNSPECIFIED = 0;
-  CONFLICT = 1;
-  SECURITY_APPROVAL = 2;
-  TASK_ESCALATION = 3;
-  MANUAL_OVERRIDE = 4;
-  WORKTREE_OVERRIDE = 5;
-  DEBATE_DEADLOCK = 6;
-  TOOL_PRIVILEGE_ESCALATION = 7;
-  CONNECTOR_APPROVAL = 8;
-}
-
-message Envelope {
-  string message_id = 1;                // UUIDv4 per attempt
-  string idempotency_token = 2;         // stable across retries (optional)
-  string producer_id = 3;
-  string correlation_id = 4;
-  uint64 sequence_number = 5;
-  uint32 retry_count = 6;
-  MessageType message_type = 7;
-  string content_type = 8;              // e.g., application/json
-  uint64 content_length = 9;
-  string repo_id = 10;                  // optional
-  string worktree_id = 11;              // optional
-  string hlc_timestamp = 12;            // optional, string-form HLC
-  uint64 ttl_ms = 13;                   // optional
-  google.protobuf.Timestamp timestamp = 14;
-  bytes payload = 15;                    // serialized content per content_type
-}
-
-message Ack {
-  string ack_for_message_id = 1;
-  AckStage ack_stage = 2;
-  ErrorCode error_code = 3;
-  string note = 4;
-}
-
-message Empty {}
-```
-
----
-
-## `registry.proto`
-
-```proto
-syntax = "proto3";
-
-package sw4rm.registry;
-
-import "google/protobuf/timestamp.proto";
-import "common.proto";
-
-message AgentDescriptor {
-  string agent_id = 1;
-  string name = 2;
-  string description = 3; // <=200 words
-  repeated string capabilities = 4;
-  sw4rm.common.CommunicationClass communication_class = 5;
-  repeated string modalities_supported = 6; // MIME types
-  repeated string reasoning_connectors = 7; // URIs
-  bytes public_key = 8; // optional
-}
-
-message RegisterAgentRequest { AgentDescriptor agent = 1; }
-message RegisterAgentResponse { bool accepted = 1; string reason = 2; }
-
-message HeartbeatRequest {
-  string agent_id = 1;
-  sw4rm.common.AgentState state = 2;
-  map<string,string> health = 3;
-}
-message HeartbeatResponse { bool ok = 1; }
-
-message DeregisterAgentRequest { string agent_id = 1; string reason = 2; }
-message DeregisterAgentResponse { bool ok = 1; }
-
-service RegistryService {
-  rpc RegisterAgent(RegisterAgentRequest) returns (RegisterAgentResponse);
-  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
-  rpc DeregisterAgent(DeregisterAgentRequest) returns (DeregisterAgentResponse);
-}
-```
-
----
-
-## `router.proto`
-
-```proto
-syntax = "proto3";
-
-package sw4rm.router;
-
-import "common.proto";
-
-message SendMessageRequest { sw4rm.common.Envelope msg = 1; }
-message SendMessageResponse { bool accepted = 1; string reason = 2; }
-
-message StreamRequest { string agent_id = 1; }
-message StreamItem { sw4rm.common.Envelope msg = 1; }
-
-service RouterService {
-  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
-  rpc StreamIncoming(StreamRequest) returns (stream StreamItem); // per-agent inbound stream
-}
-```
-
----
-
-## `scheduler.proto`
-
-```proto
-syntax = "proto3";
-
-package sw4rm.scheduler;
-
-import "google/protobuf/duration.proto";
-import "common.proto";
-
-message SubmitTaskRequest {
-  string agent_id = 1;
-  string task_id = 2;
-  int32 priority = 3; // -19..20
-  bytes params = 4;
-  string content_type = 5;
-  string scope = 6; // resource scope descriptor
-}
-
-message SubmitTaskResponse { bool accepted = 1; string reason = 2; }
-
-message PreemptRequest {
-  string agent_id = 1;
-  string task_id = 2;
-  string reason = 3;
-}
-message PreemptResponse { bool enqueued = 1; }
-
-message ShutdownAgentRequest {
-  string agent_id = 1;
-  google.protobuf.Duration grace_period = 2;
-}
-message ShutdownAgentResponse { bool ok = 1; }
-
-message PollActivityBufferRequest { string agent_id = 1; }
-message ActivityEntry {
-  string task_id = 1;
-  string repo_id = 2;
-  string worktree_id = 3;
-  string branch = 4;
-  string description = 5;
-  string timestamp = 6;
-}
-message PollActivityBufferResponse { repeated ActivityEntry entries = 1; }
-
-message PurgeActivityRequest { string agent_id = 1; repeated string task_ids = 2; }
-message PurgeActivityResponse { uint32 purged = 1; }
-
-service SchedulerService {
-  rpc SubmitTask(SubmitTaskRequest) returns (SubmitTaskResponse);
-  rpc RequestPreemption(PreemptRequest) returns (PreemptResponse);
-  rpc ShutdownAgent(ShutdownAgentRequest) returns (ShutdownAgentResponse);
-  rpc PollActivityBuffer(PollActivityBufferRequest) returns (PollActivityBufferResponse);
-  rpc PurgeActivity(PurgeActivityRequest) returns (PurgeActivityResponse);
-}
-```
-
----
-
-## `hitl.proto`
-
-```proto
-syntax = "proto3";
-
-package sw4rm.hitl;
-
-import "common.proto";
-
-message HitlInvocation {
-  sw4rm.common.HitlReasonType reason_type = 1;
-  bytes context = 2;             // JSON or protobuf, see content_type in envelope
-  repeated string proposed_actions = 3;
-  int32 priority = 4;
-}
-
-message HitlDecision {
-  string action = 1;
-  bytes decision_payload = 2;
-  string rationale = 3;
-}
-
-service HitlService {
-  // Invocation is carried in Envelope.payload; this service handles the decision side.
-  rpc Decide(HitlInvocation) returns (HitlDecision);
-}
-```
-
----
-
-## `worktree.proto`
-
-```proto
-syntax = "proto3";
-
-package sw4rm.worktree;
-
-message BindRequest { string agent_id = 1; string repo_id = 2; string worktree_id = 3; }
-message BindResponse { bool ok = 1; string reason = 2; }
-
-message UnbindRequest { string agent_id = 1; }
-message UnbindResponse { bool ok = 1; }
-
-message SwitchRequest {
-  string agent_id = 1;
-  string target_worktree_id = 2;
-  bool requires_hitl = 3;
-}
-message SwitchApprove { string agent_id = 1; string target_worktree_id = 2; uint64 ttl_ms = 3; }
-message SwitchReject { string agent_id = 1; string reason = 2; }
-
-message StatusRequest { string agent_id = 1; }
-message StatusResponse {
-  string repo_id = 1;
-  string worktree_id = 2;
-  string state = 3; // UNBOUND|BOUND_HOME|SWITCH_PENDING|BOUND_NON_HOME|BIND_FAILED
-}
-
-service WorktreeService {
-  rpc Bind(BindRequest) returns (BindResponse);
-  rpc Unbind(UnbindRequest) returns (UnbindResponse);
-  rpc RequestSwitch(SwitchRequest) returns (StatusResponse);
-  rpc ApproveSwitch(SwitchApprove) returns (StatusResponse);
-  rpc RejectSwitch(SwitchReject) returns (StatusResponse);
-  rpc Status(StatusRequest) returns (StatusResponse);
-}
-```
-
----
-
-## `tool.proto`
-
-```proto
-syntax = "proto3";
-
-package sw4rm.tool;
-
-import "google/protobuf/duration.proto";
-
-message ExecutionPolicy {
-  google.protobuf.Duration timeout = 1;
-  uint32 max_retries = 2;
-  string backoff = 3; // "exponential", etc.
-  bool worktree_required = 4;
-  string network_policy = 5;     // e.g., "egress_restricted"
-  string privilege_level = 6;    // e.g., "default"
-  uint64 budget_cpu_ms = 7;
-  uint64 budget_wall_ms = 8;
-}
-
-message ToolCall {
-  string call_id = 1;
-  string tool_name = 2;
-  string provider_id = 3;
-  string content_type = 4;
-  bytes args = 5;
-  ExecutionPolicy policy = 6;
-  bool stream = 7;
-}
-
-message ToolFrame {
-  string call_id = 1;
-  uint64 frame_no = 2;
-  bool final = 3;
-  string content_type = 4;
-  bytes data = 5;
-  bytes summary = 6; // optional final summary
-}
-
-message ToolError {
-  string call_id = 1;
-  string error_code = 2;
-  string message = 3;
-}
-
-service ToolService {
-  rpc Call(ToolCall) returns (ToolFrame);                 // unary completion
-  rpc CallStream(ToolCall) returns (stream ToolFrame);    // streaming frames
-  rpc Cancel(ToolCall) returns (ToolError);               // best effort
-}
-```
-
----
-
-## `connector.proto`
-
-```proto
-syntax = "proto3";
-
-package sw4rm.connector;
-
-message ToolDescriptor {
-  string tool_name = 1;
-  string input_schema = 2;   // JSON Schema or URL
-  string output_schema = 3;
-  bool idempotent = 4;
-  bool needs_worktree = 5;
-  uint32 default_timeout_s = 6;
-  uint32 max_concurrency = 7;
-  string side_effects = 8;   // "filesystem","network", etc.
-}
-
-message ProviderRegisterRequest {
-  string provider_id = 1;
-  repeated ToolDescriptor tools = 2;
-}
-
-message ProviderRegisterResponse { bool ok = 1; string reason = 2; }
-
-message DescribeToolsRequest { string provider_id = 1; }
-message DescribeToolsResponse { repeated ToolDescriptor tools = 1; }
-
-service ConnectorService {
-  rpc RegisterProvider(ProviderRegisterRequest) returns (ProviderRegisterResponse);
-  rpc DescribeTools(DescribeToolsRequest) returns (DescribeToolsResponse);
-}
-```
-
----
-
-## `negotiation.proto`
-
-```proto
-syntax = "proto3";
-
-package sw4rm.negotiation;
-
-import "common.proto";
-import "google/protobuf/duration.proto";
-
-message NegotiationOpen {
-  string negotiation_id = 1;
-  string correlation_id = 2;
-  string topic = 3;
-  repeated string participants = 4;
-  sw4rm.common.DebateIntensity intensity = 5;
-  google.protobuf.Duration debate_timeout = 6;
-}
-
-message Proposal {
-  string negotiation_id = 1;
-  string from_agent = 2;
-  string content_type = 3;
-  bytes payload = 4; // schema/proto/text as declared
-}
-
-message CounterProposal {
-  string negotiation_id = 1;
-  string from_agent = 2;
-  string content_type = 3;
-  bytes payload = 4;
-}
-
-message Evaluation {
-  string negotiation_id = 1;
-  string from_agent = 2;
-  double confidence_score = 3; // optional; 0 if absent
-  string notes = 4;
-}
-
-message Decision {
-  string negotiation_id = 1;
-  string decided_by = 2; // "consensus"|"hitl"|"policy"
-  string content_type = 3;
-  bytes result = 4;
-}
-
-message AbortRequest {
-  string negotiation_id = 1;
-  string reason = 2;
-}
-
-service NegotiationService {
-  rpc Open(NegotiationOpen) returns (sw4rm.common.Empty);
-  rpc Propose(Proposal) returns (sw4rm.common.Empty);
-  rpc Counter(CounterProposal) returns (sw4rm.common.Empty);
-  rpc Evaluate(Evaluation) returns (sw4rm.common.Empty);
-  rpc Decide(Decision) returns (sw4rm.common.Empty);
-  rpc Abort(AbortRequest) returns (sw4rm.common.Empty);
-}
-```
-
----
-
-## `reasoning.proto` (proxy is optional but handy)
-
-```proto
-syntax = "proto3";
-
-package sw4rm.reasoning;
-
-message ParallelismCheckRequest { string scope_a = 1; string scope_b = 2; }
-message ParallelismCheckResponse { double confidence_score = 1; string notes = 2; }
-
-message DebateEvaluateRequest {
-  string negotiation_id = 1;
-  string proposal_a = 2;
-  string proposal_b = 3;
-  string intensity = 4; // map from enum if needed
-}
-message DebateEvaluateResponse { double confidence_score = 1; string notes = 2; }
-
-service InferenceProxy {
-  rpc CheckParallelism(ParallelismCheckRequest) returns (ParallelismCheckResponse);
-  rpc EvaluateDebate(DebateEvaluateRequest) returns (DebateEvaluateResponse);
-}
-```
-
----
-
-## `logging.proto`
-
-```proto
-syntax = "proto3";
-
-package sw4rm.logging;
-
-import "google/protobuf/timestamp.proto";
-
-message LogEvent {
-  google.protobuf.Timestamp ts = 1;
-  string correlation_id = 2;
-  string agent_id = 3;
-  string event_type = 4;
-  string level = 5; // INFO|WARN|ERROR
-  string details_json = 6;
-}
-
-message IngestResponse { bool ok = 1; }
-
-service LoggingService {
-  rpc Ingest(LogEvent) returns (IngestResponse);
-}
-```
-
----
-
-## Quick Python SDK Generation
-
-To generate Python stubs from the above files:
-
-```bash
-python -m pip install grpcio grpcio-tools googleapis-common-protos
-python -m grpc_tools.protoc \
-  -I. \
-  --python_out=./py_sdk \
-  --grpc_python_out=./py_sdk \
-  common.proto registry.proto router.proto scheduler.proto hitl.proto \
-  worktree.proto tool.proto connector.proto negotiation.proto reasoning.proto logging.proto
-```
-
-The generation produces `*_pb2.py` and `*_pb2_grpc.py` modules in `./py_sdk`. From there, IDE tooling can scaffold client and server classes as needed.
-
----
-
-## Additional Protobuf Stubs (additive)
-
-The following additive stubs introduce Scheduler policy control, shared Negotiation policy types, and an Activity/Artifacts API. These are OPTIONAL for minimal deployments and MUST be implemented for negotiations with policy broadcast, validation reports, and artifact persistence.
-
-## `scheduler_policy.proto`
-
-```proto
-syntax = "proto3";
-
-package sw4rm.scheduler;
-
-import "policy.proto";
-
-message SetNegotiationPolicyRequest { sw4rm.policy.NegotiationPolicy policy = 1; }
-message SetNegotiationPolicyResponse { bool ok = 1; string reason = 2; }
-
-message GetNegotiationPolicyRequest {}
-message GetNegotiationPolicyResponse { sw4rm.policy.NegotiationPolicy policy = 1; }
-
-message SetPolicyProfilesRequest { repeated sw4rm.policy.PolicyProfile profiles = 1; }
-message SetPolicyProfilesResponse { bool ok = 1; string reason = 2; }
-
-message ListPolicyProfilesRequest {}
-message ListPolicyProfilesResponse { repeated sw4rm.policy.PolicyProfile profiles = 1; }
-
-message GetEffectivePolicyRequest { string negotiation_id = 1; }
-message GetEffectivePolicyResponse { sw4rm.policy.EffectivePolicy effective = 1; }
-
-message SubmitEvaluationRequest { string negotiation_id = 1; sw4rm.policy.EvaluationReport report = 2; }
-message SubmitEvaluationResponse { bool accepted = 1; string reason = 2; }
-
-message HitlActionRequest { string negotiation_id = 1; string action = 2; string rationale = 3; }
-message HitlActionResponse { bool ok = 1; string reason = 2; }
-
-service SchedulerPolicyService {
-  rpc SetNegotiationPolicy(SetNegotiationPolicyRequest) returns (SetNegotiationPolicyResponse);
-  rpc GetNegotiationPolicy(GetNegotiationPolicyRequest) returns (GetNegotiationPolicyResponse);
-  rpc SetPolicyProfiles(SetPolicyProfilesRequest) returns (SetPolicyProfilesResponse);
-  rpc ListPolicyProfiles(ListPolicyProfilesRequest) returns (ListPolicyProfilesResponse);
-  rpc GetEffectivePolicy(GetEffectivePolicyRequest) returns (GetEffectivePolicyResponse);
-  rpc SubmitEvaluation(SubmitEvaluationRequest) returns (SubmitEvaluationResponse);
-  rpc HitlAction(HitlActionRequest) returns (HitlActionResponse);
-}
-```
-
----
-
-## `policy.proto`
-
-```proto
-syntax = "proto3";
-
-package sw4rm.policy;
-
-message NegotiationPolicy {
-  uint32 max_rounds = 1;
-  float score_threshold = 2;      // 0..1
-  float diff_tolerance = 3;       // 0..1
-  uint64 round_timeout_ms = 4;
-  uint64 token_budget_per_round = 5;
-  uint64 total_token_budget = 6;  // optional 0=unset
-  uint32 oscillation_limit = 7;
-  message Hitl { string mode = 1; } // None|PauseBetweenRounds|PauseOnFinalAccept
-  Hitl hitl = 8;
-  message Scoring { bool require_schema_valid = 1; bool require_examples_pass = 2; float llm_weight = 3; }
-  Scoring scoring = 9;
-}
-
-message AgentPreferences {
-  // Same fields as NegotiationPolicy but advisory; scheduler clamps to guardrails
-  uint32 max_rounds = 1;
-  float score_threshold = 2;
-  float diff_tolerance = 3;
-  uint64 round_timeout_ms = 4;
-  uint64 token_budget_per_round = 5;
-  uint64 total_token_budget = 6;
-  uint32 oscillation_limit = 7;
-}
-
-message EffectivePolicy {
-  NegotiationPolicy policy = 1;                // derived authoritative policy
-  map<string, AgentPreferences> applied = 2; // per-agent clamped prefs (optional)
-}
-
-message PolicyProfile {
-  string name = 1;            // e.g., LOW/MEDIUM/HIGH
-  NegotiationPolicy policy = 2;
-}
-
-message DeltaSummary { float magnitude = 1; repeated string changed_paths = 2; }
-
-message EvaluationReport {
-  string from_agent = 1;
-  float deterministic_score = 2; // 0..1
-  float llm_confidence = 3;      // 0..1, optional 0 if absent
-  string notes = 4;
-  DeltaSummary delta = 5;
-}
-
-message DecisionReport {
-  string decided_by = 1;  // consensus|hitl|policy
-  float final_score = 2;
-  string rationale = 3;
-  string stop_reason = 4; // threshold_met|max_rounds|oscillation|budget|timeout
-}
-```
-
----
-
-## `activity.proto`
-
-```proto
-syntax = "proto3";
-
-package sw4rm.activity;
-
-message Artifact {
-  string negotiation_id = 1;
-  string kind = 2;       // contract|diff|decision|score|note
-  string version = 3;    // e.g., v3
-  string content_type = 4;
-  bytes content = 5;
-  string created_at = 6; // ISO-8601
-}
-
-message AppendArtifactRequest { Artifact artifact = 1; }
-message AppendArtifactResponse { bool ok = 1; string reason = 2; }
-
-message ListArtifactsRequest { string negotiation_id = 1; string kind = 2; }
-message ListArtifactsResponse { repeated Artifact items = 1; }
-
-service ActivityService {
-  rpc AppendArtifact(AppendArtifactRequest) returns (AppendArtifactResponse);
-  rpc ListArtifacts(ListArtifactsRequest) returns (ListArtifactsResponse);
-}
-```
+# Canonical protobuf schema
+
+The root `protos/` directory is the wire source of truth. See the
+[generated full schema](../reference/protobuf.md) and
+[service/RPC inventory](../reference/release-contract.md). These pages are
+regenerated from source and checked for drift; hand-maintained copies of the
+schema are intentionally removed from this specification.

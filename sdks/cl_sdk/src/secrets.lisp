@@ -3,6 +3,10 @@
 
 (in-package :sw4rm-sdk)
 
+#+sbcl
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (require :sb-posix))
+
 ;;; Condition Types
 
 (define-condition secret-not-found (error)
@@ -70,7 +74,7 @@
   ((file-path
     :initarg :file-path
     :accessor backend-file-path
-    :type string
+    :type (or string pathname)
     :initform (merge-pathnames ".secrets.json" (user-homedir-pathname))
     :documentation "Path to JSON file storing secrets.")
 
@@ -91,6 +95,19 @@
   "Load secrets from file on initialization."
   (load-secrets-from-file backend))
 
+(defun %tighten-secret-permissions (path)
+  "Best-effort enforce 0600 on PATH so secret plaintext is never
+   world-readable (security finding 3 / R31).  Non-SBCL hosts have no
+   portable chmod; they degrade to a warning."
+  #+sbcl
+  (handler-case
+      (sb-posix:chmod (namestring path) #o600)
+    (error (e)
+      (warn "Failed to tighten permissions on ~A: ~A" path e)))
+  #-sbcl
+  (declare (ignore path))
+  (values))
+
 (defun load-secrets-from-file (backend)
   "Load secrets from JSON file into cache.
 
@@ -99,6 +116,9 @@
   (bt:with-recursive-lock-held ((backend-lock backend))
     (let ((file-path (backend-file-path backend)))
       (when (probe-file file-path)
+        ;; Best-effort tighten a pre-existing file: secret plaintext must not
+        ;; be world-readable (security finding 3 / R31).
+        (%tighten-secret-permissions file-path)
         (handler-case
             (with-open-file (stream file-path :direction :input)
               (let ((json-data (json:decode-json stream)))
@@ -126,7 +146,8 @@
                        entries))
                (backend-cache backend))
 
-      ;; Write to file
+      ;; Write to file, then lock the permissions down to 0600 (R31): the
+      ;; stream is closed by then, so the chmod applies to the final inode.
       (handler-case
           (progn
             (ensure-directories-exist file-path)
@@ -134,7 +155,8 @@
                                    :direction :output
                                    :if-exists :supersede
                                    :if-does-not-exist :create)
-              (json:encode-json entries stream)))
+              (json:encode-json entries stream))
+            (%tighten-secret-permissions file-path))
         (error (e)
           (error 'secret-backend-error
                  :backend backend

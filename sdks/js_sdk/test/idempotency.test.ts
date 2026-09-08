@@ -16,5 +16,13 @@ describe('idempotency', () => {
     expect(e2.idempotency_token).toBe(token);
     expect(e1.message_id).not.toBe(e2.message_id);
   });
+  it('rejects LF in producer_id and operation (bytes-v1 parsing ambiguity)', () => {
+    // R43: LF is the digest field separator; an embedded LF would make the
+    // prefix ambiguous, so computeIdempotencyToken must reject it loudly.
+    expect(() => computeIdempotencyToken({ producer_id: 'agent\nx', operation: 'work', canonical_bytes: new Uint8Array(0) }))
+      .toThrow(TypeError);
+    expect(() => computeIdempotencyToken({ producer_id: 'agent', operation: 'tool:call\nextra', canonical_bytes: new Uint8Array(0) }))
+      .toThrow(TypeError);
+  });
 });
 

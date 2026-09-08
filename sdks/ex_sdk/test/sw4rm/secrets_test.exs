@@ -68,6 +68,20 @@ defmodule Sw4rm.SecretsTest do
       FileBackend.set_secret(fb, "persist", "yes")
       assert File.exists?(path)
     end
+
+    test "secret files are written 0600", %{fb: fb, path: path} do
+      FileBackend.set_secret(fb, "k", "v")
+      assert File.exists?(path)
+      assert Bitwise.band(File.stat!(path).mode, 0o777) == 0o600
+    end
+
+    test "existing permissive secret files are tightened on load", %{path: path} do
+      File.write!(path, ~s([{"key":"k","value":"v"}]))
+      File.chmod!(path, 0o644)
+      {:ok, fb} = FileBackend.start_link(file_path: path)
+      assert FileBackend.get_secret(fb, "k") == "v"
+      assert Bitwise.band(File.stat!(path).mode, 0o777) == 0o600
+    end
   end
 
   describe "Resolver" do

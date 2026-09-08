@@ -75,6 +75,13 @@ defmodule Sw4rm.ConformanceVectorsTest do
                "Expected #{corr_id} to be cancelled"
       end
 
+      # Negative assertions: correlations outside the direct-children
+      # cascade must remain active (R21).
+      for corr_id <- Map.get(expected, "not_cancelled", []) do
+        refute Cancellation.is_cancelled?(state, corr_id),
+               "Expected #{corr_id} to remain uncancelled"
+      end
+
       # Grace expiry checks
       effective_grace = expected["effective_grace_period_ms"]
 
@@ -123,20 +130,35 @@ defmodule Sw4rm.ConformanceVectorsTest do
     test "SW4-005 delegation: #{@vector["id"]}" do
       vector = @vector
       redirect_map = vector["redirect_map"]
+      accept_agents = Map.get(vector, "accept_agents", [])
 
       send_handoff_fn = fn request ->
-        case Map.get(redirect_map, request.to_agent) do
-          nil ->
+        cond do
+          request.to_agent in accept_agents ->
             %{accepted: true, redirect_to_agent_id: ""}
 
-          target ->
+          Map.has_key?(redirect_map, request.to_agent) ->
             %{
               accepted: false,
               rejection_code: ErrorCodes.redirect(),
               rejection_reason: "redirecting",
-              redirect_to_agent_id: target
+              redirect_to_agent_id: Map.fetch!(redirect_map, request.to_agent)
             }
+
+          true ->
+            %{accepted: true, redirect_to_agent_id: ""}
         end
+      end
+
+      # Exhaustion vectors inject a specific clock; everything else runs
+      # shortly before the deadline so budget checks pass (R12).
+      now_ms_fn = fn ->
+        Map.get(
+          vector,
+          :now_ms_epoch_ms,
+          vector["now_ms_epoch_ms"] ||
+            vector["budget"]["deadline_epoch_ms"] - 1000
+        )
       end
 
       result =
@@ -153,7 +175,8 @@ defmodule Sw4rm.ConformanceVectorsTest do
           delegation_policy: %{
             allow_spillover_routing: vector["policy"]["allow_spillover_routing"],
             max_redirects: vector["policy"]["max_redirects"]
-          }
+          },
+          now_ms_fn: now_ms_fn
         })
 
       expected = vector["expected"]
@@ -161,7 +184,10 @@ defmodule Sw4rm.ConformanceVectorsTest do
       assert result.accepted == expected["accepted"],
              "accepted mismatch: got #{result.accepted}, expected #{expected["accepted"]}"
 
-      expected_code = ErrorCodes.from_string(expected["rejection_code"])
+      expected_code =
+        if expected["rejection_code"] == "NONE",
+          do: 0,
+          else: ErrorCodes.from_string(expected["rejection_code"])
 
       assert result.rejection_code == expected_code,
              "rejection_code mismatch: got #{result.rejection_code}, expected #{expected_code} (#{expected["rejection_code"]})"

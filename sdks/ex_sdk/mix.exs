@@ -1,7 +1,7 @@
 defmodule Sw4rm.MixProject do
   use Mix.Project
 
-  @version "0.6.0"
+  @version "0.7.0"
 
   def project do
     [
@@ -13,7 +13,7 @@ defmodule Sw4rm.MixProject do
       aliases: aliases(),
       name: "SW4RM SDK",
       description: "Elixir SDK for the SW4RM multi-agent coordination protocol",
-      source_url: "https://github.com/sw4rm/sw4rm-sdk-elixir",
+      source_url: "https://github.com/rahulrajaram/sw4rm",
       package: package(),
       docs: [main: "Sw4rm", extras: ["README.md"]]
     ]
@@ -52,7 +52,9 @@ defmodule Sw4rm.MixProject do
   end
 
   defp proto_gen(_args) do
-    protos_dir = Path.join([__DIR__, "..", "rust_sdk", "protos"])
+    # The repository-level protos/ directory is canonical.  Other SDK copies
+    # may lag behind and must never be used to regenerate these bindings.
+    protos_dir = Path.expand("../../protos", __DIR__)
     out_dir = Path.join([__DIR__, "lib", "sw4rm", "proto"])
 
     proto_files =

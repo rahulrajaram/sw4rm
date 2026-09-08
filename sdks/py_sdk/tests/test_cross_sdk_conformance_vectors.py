@@ -22,6 +22,7 @@ with CANCELLATION_VECTORS_PATH.open("r", encoding="utf-8") as handle:
 DELEGATION_REJECTION_CODE_BY_NAME = {
     "VALIDATION_ERROR": common_pb2.VALIDATION_ERROR,
     "REDIRECT": common_pb2.REDIRECT,
+    "ACK_TIMEOUT": common_pb2.ACK_TIMEOUT,
 }
 
 CANCELLATION_ERROR_CODE_BY_NAME = {
@@ -38,9 +39,15 @@ CANCELLATION_ERROR_CODE_BY_NAME = {
 def test_delegate_to_swarm_shared_conformance_vectors(vector):
     attempts = []
     redirect_map = vector["redirect_map"]
+    accept_agents = set(vector.get("accept_agents", []))
 
     def send_handoff(request: handoff_pb2.HandoffRequest) -> handoff_pb2.HandoffResponse:
         attempts.append(request.to_agent)
+        if request.to_agent in accept_agents:
+            return handoff_pb2.HandoffResponse(
+                request_id=request.request_id,
+                accepted=True,
+            )
         return handoff_pb2.HandoffResponse(
             request_id=request.request_id,
             accepted=False,
@@ -67,15 +74,21 @@ def test_delegate_to_swarm_shared_conformance_vectors(vector):
             allow_spillover_routing=policy["allow_spillover_routing"],
             max_redirects=policy["max_redirects"],
         ),
-        now_ms_fn=lambda: budget["deadline_epoch_ms"] - 1_000,
+        now_ms_fn=lambda: vector.get(
+            "now_ms_epoch_ms", budget["deadline_epoch_ms"] - 1_000
+        ),
     )
 
     expected = vector["expected"]
     assert response.accepted == expected["accepted"]
-    assert (
-        response.rejection_code
-        == DELEGATION_REJECTION_CODE_BY_NAME[expected["rejection_code"]]
-    )
+    expected_code = expected.get("rejection_code")
+    if expected_code == "NONE":
+        assert response.rejection_code == 0
+    elif expected_code is not None:
+        assert (
+            response.rejection_code
+            == DELEGATION_REJECTION_CODE_BY_NAME[expected_code]
+        )
     assert attempts == expected["attempts"]
 
     reason_contains = expected.get("reason_contains")
@@ -116,6 +129,11 @@ def test_cancellation_shared_conformance_vectors(vector):
 
     for correlation_id in expected.get("cancelled", []):
         assert manager.is_cancelled(correlation_id)
+
+    # Negative assertions: correlations not covered by the direct-children
+    # cascade must remain active (R21).
+    for correlation_id in expected.get("not_cancelled", []):
+        assert not manager.is_cancelled(correlation_id)
 
     for check in expected.get("grace_expiry_checks", []):
         correlation_id = check["correlation_id"]

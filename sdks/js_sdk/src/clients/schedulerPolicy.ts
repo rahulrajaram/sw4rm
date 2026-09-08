@@ -2,8 +2,8 @@ import * as grpc from '@grpc/grpc-js';
 import { BaseClient, ClientOptions } from '../internal/baseClient.js';
 
 type SchedulerPolicyServiceClient = grpc.Client & {
-  SetWagglePolicy(req: { policy?: unknown }, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { ok: boolean; reason?: string }) => void): void;
-  GetWagglePolicy(req: Record<string, never>, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { policy?: unknown }) => void): void;
+  SetNegotiationPolicy(req: { policy?: unknown }, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { ok: boolean; reason?: string }) => void): void;
+  GetNegotiationPolicy(req: Record<string, never>, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { policy?: unknown }) => void): void;
   SetPolicyProfiles(req: { profiles: unknown[] }, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { ok: boolean; reason?: string }) => void): void;
   ListPolicyProfiles(req: Record<string, never>, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { profiles: unknown[] }) => void): void;
   GetEffectivePolicy(req: { negotiation_id: string }, meta: grpc.Metadata, opts: grpc.CallOptions, cb: (err: grpc.ServiceError | null, res: { effective?: any }) => void): void;
@@ -30,8 +30,8 @@ export class SchedulerPolicyClient extends BaseClient {
     }));
   }
 
-  setWagglePolicy(policy: any) { return this.unary<{ ok: boolean; reason?: string }>('SetWagglePolicy', { policy }); }
-  getWagglePolicy() { return this.unary<{ policy?: any }>('GetWagglePolicy', {}); }
+  setNegotiationPolicy(policy: any) { return this.unary<{ ok: boolean; reason?: string }>('SetNegotiationPolicy', { policy }); }
+  getNegotiationPolicy() { return this.unary<{ policy?: any }>('GetNegotiationPolicy', {}); }
   setPolicyProfiles(profiles: any[]) { return this.unary<{ ok: boolean; reason?: string }>('SetPolicyProfiles', { profiles }); }
   listPolicyProfiles() { return this.unary<{ profiles: any[] }>('ListPolicyProfiles', {}); }
   getEffectivePolicy(negotiation_id: string) { return this.unary<{ effective?: any }>('GetEffectivePolicy', { negotiation_id }); }

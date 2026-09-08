@@ -71,7 +71,7 @@ The service exposes three RPCs:
 `new ToolClient(options: ClientOptions)`
 
 - `options.address`: `host:port` for the ToolService endpoint.
-- Optional: `deadlineMs`, `retry`, `userAgent`, `interceptors`, `errorMapper`.
+- `ClientOptions` also accepts optional `deadlineMs`, `retry`, `userAgent`, `interceptors`, and `errorMapper` fields — see [client conventions](index.md#61-conventions).
 
 ### Rust
 
@@ -87,7 +87,7 @@ The service exposes three RPCs:
 `call(call: dict) -> ToolFrame`
 
 **JavaScript/TypeScript**
-`call(req: ToolCall): Promise<ToolFrame>`
+`call(call: ToolCall): Promise<ToolFrame>`
 
 **Rust**
 `call_tool(params: ToolCallParams) -> Result<ToolFrame>`

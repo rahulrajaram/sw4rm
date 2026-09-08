@@ -1,6 +1,8 @@
 # 6.11. Handoff Client
 
-The Handoff Client talks to the `sw4rm.handoff.HandoffService` service. Use it to:
+The canonical `sw4rm.handoff.HandoffService` is available through every SDK's
+[complete wire interface](../sdk-parity.md). The convenience APIs below are local
+helpers; they do not contact that service. Use handoff operations to:
 
 - Request agent-to-agent handoffs with context snapshots.
 - Accept or reject pending handoffs.
@@ -9,13 +11,14 @@ The Handoff Client talks to the `sw4rm.handoff.HandoffService` service. Use it t
 
 ## 6.11.1. Service Overview
 
-The service exposes five RPCs:
+The service exposes six RPCs:
 
 - `RequestHandoff(HandoffRequest) -> Empty`
 - `AcceptHandoff(HandoffResponse) -> Empty`
 - `RejectHandoff(HandoffResponse) -> Empty`
 - `GetPendingHandoffs(GetPendingHandoffsRequest) -> GetPendingHandoffsResponse`
 - `CompleteHandoff(CompleteHandoffRequest) -> CompleteHandoffResponse`
+- `CancelDelegation(CancelDelegation) -> CancelDelegationResponse`
 
 Current SDKs provide an in-memory implementation for development and testing.
 
@@ -28,6 +31,31 @@ Current SDKs provide an in-memory implementation for development and testing.
 | `REJECTED` | Rejected by the target agent |
 | `COMPLETED` | Completed by the receiving agent |
 | `EXPIRED` | Timed out before acceptance |
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Req as Requesting agent
+    participant H as HandoffService
+    participant T as Target agent
+    Req->>H: RequestHandoff (HandoffRequest)
+    note over H: status = PENDING
+    alt target accepts
+        T->>H: AcceptHandoff (HandoffResponse)
+        note over H: status = ACCEPTED
+        T->>H: CompleteHandoff (CompleteHandoffRequest)
+        note over H: status = COMPLETED
+    else target rejects
+        T->>H: RejectHandoff (HandoffResponse)
+        note over H: status = REJECTED
+    else no acceptance in time
+        note over H: status = EXPIRED (timed out before acceptance)
+    end
+```
+
+The lifecycle above runs on the canonical `sw4rm.handoff.HandoffService`. The
+convenience APIs on this page simulate it in local memory and never contact
+that service.
 
 ### HandoffRequest fields
 
@@ -70,7 +98,8 @@ Current SDKs provide an in-memory implementation for development and testing.
 
 `HandoffClient(channel: grpc.Channel | None = None)`
 
-- `channel`: Optional gRPC channel. If omitted, uses in-memory storage.
+- Omit `channel` to use the local helper. Supplying a channel raises `ValueError`;
+  use `ProtocolClient` with generated `handoff_pb2` messages for remote calls.
 
 ### JavaScript/TypeScript
 

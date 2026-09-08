@@ -3,7 +3,15 @@
 **Status:** Draft
 **Version:** 0.1.0
 **Date:** 2026-01-10
-**Extends:** Core Spec §5 (Transport), OPERATIONAL_CONTRACTS.md
+**Extends:** Core Spec §5 (Transport), OPERATIONAL_CONTRACTS.md (repository path
+`sdks/docs/OPERATIONAL_CONTRACTS.md`, not published in the docs site; its
+relevant contract — a normative universal 30-second default RPC deadline across
+all SDKs — is what this extension replaces)
+
+> **Note:** `OPERATIONAL_CONTRACTS.md` ships in the SDK sources rather than
+> the documentation site, so it is not linkable from here. The contract this
+> extension depends on is the universal 30-second default deadline; per-service
+> profiles below supersede it.
 
 ## Abstract
 
@@ -100,8 +108,10 @@ Precedence: Per-call > Client > Global > Standard defaults
 | RPC | Profile | Notes |
 |-----|---------|-------|
 | SubmitTask | `task_submit` | Includes validation and queueing |
-| CancelTask | `task_submit` | May need to signal running agent |
-| GetTaskStatus | `workflow_status` | Read-only, should be fast |
+| RequestPreemption | `task_submit` | Signals a running agent to pause/abort |
+| ShutdownAgent | `registration` | Graceful drain, may take time |
+| PollActivityBuffer | `message_route` | Read-only, should be fast |
+| PurgeActivity | `message_route` | Simple state change |
 
 ### 3.3. NegotiationRoom Service
 
@@ -124,8 +134,9 @@ Precedence: Per-call > Client > Global > Standard defaults
 
 | RPC | Profile | Notes |
 |-----|---------|-------|
-| InvokeTool | `tool_call` | Highly variable, tool-dependent |
-| DescribeTool | `message_route` | Metadata lookup |
+| Call | `tool_call` | Highly variable, tool-dependent |
+| CallStream | `tool_call` | Streaming tool execution |
+| Cancel | `tool_call` | Cancels an in-flight tool call |
 
 ## 4. Async/Streaming Considerations
 
@@ -179,7 +190,7 @@ Timeout errors are retryable, but implementations SHOULD:
 Implementations conforming to SW4-002 SHOULD expose:
 
 - **Metrics**: `sw4rm_rpc_timeout_total{profile, service, method}`
-- **Metrics**: `sw4rm_rpc_duration_ms{profile, service, method}` (histogram)
+- **Metrics**: `sw4rm_rpc_duration_seconds{profile, service, method}` (histogram; unified with SW4-003 §1.2)
 - **Logs**: Timeout events with profile, configured timeout, and elapsed time
 
 ## 7. Implementation Requirements
@@ -213,7 +224,8 @@ This extension is backward-compatible. Implementations not conforming to SW4-002
 
 - Core Spec §5: Transport
 - SW4-001: Failure Semantics Extension
-- OPERATIONAL_CONTRACTS.md
+- OPERATIONAL_CONTRACTS.md (`sdks/docs/OPERATIONAL_CONTRACTS.md` in the
+  repository; supplies the universal 30-second default this extension replaces)
 
 ---
 

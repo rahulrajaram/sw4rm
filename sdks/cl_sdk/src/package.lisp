@@ -214,6 +214,7 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:make-envelope
    #:update-envelope-state
    #:terminal-state-p
+   #:compute-idempotency-token
    #:compute-deterministic-hash
    #:make-idempotency-token
    #:generate-uuid
@@ -273,6 +274,55 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:voting-round-strategy-name
    #:voting-round-votes)
 
+  ;; Runtime-neutral scored vote aggregation (score-summary-v1)
+  (:export
+   #:score-summary
+   #:make-score-summary
+   #:score-summary-mean
+   #:score-summary-min-score
+   #:score-summary-max-score
+   #:score-summary-std-dev
+   #:score-summary-weighted-mean
+   #:score-summary-vote-count
+   #:aggregate-votes)
+
+  ;; Persistence backends
+  (:export
+   #:persistence-error
+   #:json-file-persistence
+   #:in-memory-persistence
+   #:make-json-file-persistence
+   #:make-in-memory-persistence
+   #:save-records
+   #:load-records
+   #:clear-records
+   #:list-namespaces)
+
+  ;; Quorum policy (SW4-001), matching the runtime-neutral Python contract
+  (:export
+   #:minimum-votes
+   #:make-minimum-votes
+   #:minimum-votes-n
+   #:minimum-fraction
+   #:make-minimum-fraction
+   #:minimum-fraction-fraction
+   #:require-all
+   #:make-require-all
+   #:require-all-enabled
+   #:quorum-policy
+   #:make-quorum-policy
+   #:quorum-policy-rule
+   #:quorum-policy-on-failure
+   #:default-quorum-policy
+   #:quorum-outcome
+   #:quorum-outcome-met
+   #:quorum-outcome-votes-received
+   #:quorum-outcome-votes-expected
+   #:quorum-outcome-threshold
+   #:quorum-outcome-action
+   #:quorum-outcome-all-votes
+   #:evaluate-quorum)
+
   ;; Secrets
   (:export
    #:make-file-backend
@@ -318,6 +368,8 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:grpc-unary-call
    #:grpc-server-stream
    #:stream-handle
+   #:wait-for-stream
+   #:stream-handle-error
    #:cancel-stream)
 
   ;; Codec — protobuf wire-format primitives (reusable by haake codecs)
@@ -330,7 +382,24 @@ See documentation/protocol/spec.md for the canonical protocol specification.")
    #:encode-field-submessage
    #:encode-field-bool
    #:encode-envelope
-   #:decode-envelope)
+   #:decode-envelope
+   #:stream-item-seq
+   #:encode-delivery-ack-request
+   #:decode-delivery-ack-response)
+
+  ;; Router consumer delivery acknowledgements
+  (:export
+   #:router-client
+   #:send-envelope
+   #:open-stream
+   #:ack-delivery
+   #:close-stream)
+
+  (:export #:scheduler-client #:shutdown-agent #:workflow-client #:start-workflow)
+
+  (:export #:protocol-client #:protocol-rpc-paths #:connect #:disconnect
+           #:call-protocol-rpc #:stream-protocol-rpc
+           #:encode-protocol-message #:decode-protocol-message)
 
   ;; Handoff client (SW4-004/SW4-005 local surface)
   (:export

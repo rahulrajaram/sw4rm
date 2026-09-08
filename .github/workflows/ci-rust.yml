@@ -38,10 +38,25 @@ jobs:
         run: |
           cargo test --all --locked --color=always
 
+      - name: Setup Python for canonical RPC exchange
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Prepare existing Python SDK dependencies
+        run: |
+          python -m pip install -e ".[dev]"
+          python scripts/smoke_protos.py
+
+      - name: Exchange every canonical RPC with Python
+        working-directory: sdks/rust_sdk
+        env:
+          SW4RM_TEST_PYTHON: python
+        run: cargo test --locked --test wire_contract -- --include-ignored
+
       - name: Cargo test (llm feature)
         working-directory: sdks/rust_sdk
         env:
           PROTO_DIR: ${{ github.workspace }}/protos
         run: |
           cargo test --features llm --locked --color=always
-

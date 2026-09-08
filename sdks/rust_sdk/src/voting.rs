@@ -21,7 +21,7 @@
 //! - `SimpleAverageAggregator`: Arithmetic mean of all scores
 //! - `ConfidenceWeightedAggregator`: Weight votes by confidence (POMDP-based)
 //! - `MajorityVoteAggregator`: Count passed vs failed votes
-//! - `BordaCountAggregator`: Ranked voting with position-based points
+//! - `BordaCountAggregator`: Score-derived rank points, score-sensitive weighted mean
 //!
 //! Additionally, the `VotingAggregator` struct provides analytical methods for
 //! detecting consensus, polarization, and measuring uncertainty through entropy.
@@ -216,10 +216,16 @@ impl AggregationStrategy for MajorityVoteAggregator {
     }
 }
 
-/// Borda count aggregation strategy.
+/// Borda count aggregation strategy (score-derived ranks).
 ///
-/// Implements ranked voting where each vote receives points based on its
-/// rank position. Higher scored votes receive more points.
+/// Votes are ranked by score (highest first, stable for ties) and receive
+/// Borda points by rank: `n` points for the highest scored vote down to `1`
+/// for the lowest. The aggregate `weighted_mean` is the Borda-points-weighted
+/// mean of the actual scores, so it depends on the vote scores, not just the
+/// vote count.
+///
+/// Note: the Lisp and Elixir SDKs implement classic Borda over ranked
+/// preference lists (`vote.choice`) — a distinct input format.
 ///
 /// Ranking system:
 /// - Votes are sorted by score (highest to lowest)
@@ -256,24 +262,22 @@ impl AggregationStrategy for BordaCountAggregator {
         let variance = scores.iter().map(|s| (s - mean).powi(2)).sum::<f64>() / n as f64;
         let std_dev = variance.sqrt();
 
-        // Borda count calculation
-        // Sort scores with their indices to handle ties
+        // Borda count calculation: points by score-derived rank (stable sort
+        // keeps tied scores in input order). weighted_mean is the
+        // Borda-points-weighted mean of the actual scores (score-sensitive).
         let mut indexed_scores: Vec<(usize, f64)> =
             scores.iter().enumerate().map(|(i, &s)| (i, s)).collect();
         indexed_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
-        // Assign points based on rank (highest gets n points, lowest gets 1)
-        let total_points: usize = indexed_scores
-            .iter()
-            .enumerate()
-            .map(|(rank, _)| n - rank)
-            .sum();
+        let mut weighted = 0.0f64;
+        let mut total_points: usize = 0;
+        for (rank, (_, score)) in indexed_scores.iter().enumerate() {
+            let points = (n - rank) as f64;
+            weighted += points * score;
+            total_points += n - rank;
+        }
 
-        // Normalize to 0-10 scale
-        // Average points per position: total_points / n
-        let avg_points = total_points as f64 / n as f64;
-        // Normalize: avg_points / n * 10 gives us the normalized score
-        let borda_score = (avg_points / n as f64) * 10.0;
+        let borda_score = weighted / total_points as f64;
 
         Ok(AggregatedScore {
             mean,

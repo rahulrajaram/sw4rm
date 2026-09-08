@@ -13,14 +13,27 @@
 
 The scheduler service provides:
 - Task submission with priority and scope
-- Task cancellation and status queries
 - Preemption requests for running tasks
-- Activity buffer polling for agent task queues
+- Agent shutdown with a grace period
+- Activity buffer polling and purging for agent task queues
 
 The scheduler coordinates task execution across agents, handling conflicts,
 priorities, and resource constraints."))
 
 ;;;; RPC Methods
+
+(defgeneric shutdown-agent (client agent-id &key grace-period-seconds grace-period-nanos)
+  (:documentation "Request canonical SchedulerService.ShutdownAgent with an optional Duration."))
+
+(defmethod shutdown-agent ((client scheduler-client) agent-id
+                           &key grace-period-seconds grace-period-nanos)
+  (ensure-connected client)
+  (decode-shutdown-agent-response
+   (grpc-unary-call
+    (client-channel client)
+    "/sw4rm.scheduler.SchedulerService/ShutdownAgent"
+    (encode-shutdown-agent-request agent-id grace-period-seconds grace-period-nanos)
+    :deadline-ms (client-timeout-ms client))))
 
 (defgeneric submit-task (client agent-id task-id &key priority scope params content-type)
   (:documentation "Submit a task to the scheduler for execution.
@@ -71,82 +84,6 @@ Example:
                               request-bytes
                               :deadline-ms (client-timeout-ms client))))
         (decode-submit-task-response response-bytes)))))
-
-(defgeneric cancel-task (client agent-id task-id &optional reason)
-  (:documentation "Cancel a pending or running task.
-
-Requests cancellation of the specified task. If the task is running,
-the agent will be notified to abort execution. If pending, it will be
-removed from the queue.
-
-Args:
-  client: The scheduler-client instance.
-  agent-id: Agent executing or queued for the task.
-  task-id: Unique task identifier.
-  reason: Optional reason for cancellation (default: \"\").
-
-Returns:
-  Cancellation response plist with :cancelled boolean.
-
-Signals:
-  RPC-ERROR: If cancellation fails.
-
-Example:
-  (cancel-task client \"agent-1\" \"task-123\" \"User requested abort\")"))
-
-(defmethod cancel-task ((client scheduler-client) agent-id task-id &optional (reason ""))
-  (ensure-connected client)
-  (with-retry ((client-retry-max-attempts client))
-    (with-deadline ((client-timeout-ms client))
-      (let* ((request-bytes (encode-cancel-task-request agent-id task-id reason))
-             (response-bytes (grpc-unary-call
-                              (client-channel client)
-                              "/sw4rm.scheduler.SchedulerService/CancelTask"
-                              request-bytes
-                              :deadline-ms (client-timeout-ms client))))
-        (decode-cancel-task-response response-bytes)))))
-
-(defgeneric get-task-status (client agent-id task-id)
-  (:documentation "Retrieve the current status of a task.
-
-Queries the scheduler for task state, progress, and metadata.
-
-Args:
-  client: The scheduler-client instance.
-  agent-id: Agent assigned to the task.
-  task-id: Unique task identifier.
-
-Returns:
-  Task status plist with:
-    :task-id (string) - Task identifier
-    :status (keyword) - One of :pending, :running, :completed, :failed, :cancelled
-    :progress (float) - Completion percentage (0.0-1.0)
-    :message (string) - Status message
-    :started-at (timestamp, optional) - Task start time
-    :completed-at (timestamp, optional) - Task completion time
-
-Signals:
-  RPC-ERROR: If status query fails.
-
-Example:
-  (get-task-status client \"agent-1\" \"task-123\")
-  => (:task-id \"task-123\"
-      :status :running
-      :progress 0.6
-      :message \"Processing step 3 of 5\"
-      :started-at \"2026-02-11T10:30:00Z\")"))
-
-(defmethod get-task-status ((client scheduler-client) agent-id task-id)
-  (ensure-connected client)
-  (with-retry ((client-retry-max-attempts client))
-    (with-deadline ((client-timeout-ms client))
-      (let* ((request-bytes (encode-get-task-status-request agent-id task-id))
-             (response-bytes (grpc-unary-call
-                              (client-channel client)
-                              "/sw4rm.scheduler.SchedulerService/GetTaskStatus"
-                              request-bytes
-                              :deadline-ms (client-timeout-ms client))))
-        (decode-task-status-response response-bytes)))))
 
 (defgeneric preempt-agent (client agent-id task-id &optional reason)
   (:documentation "Request preemption of a running task.

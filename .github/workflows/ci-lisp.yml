@@ -17,6 +17,20 @@ jobs:
       - name: Setup Common Lisp
         uses: 40ants/setup-lisp@v4
 
+      - name: Prepare the SDK native transport runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgrpc-dev
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Prepare existing Python SDK dependencies for wire checks
+        run: |
+          python -m pip install -e ".[dev]"
+          python scripts/smoke_protos.py
+
       - name: Install dependencies
         working-directory: sdks/cl_sdk
         run: |
@@ -25,17 +39,13 @@ jobs:
                --eval '(ql:quickload :sw4rm-sdk :silent t)' \
                --eval '(format t "~%Dependencies installed successfully~%")'
 
-      - name: Run tests
-        working-directory: sdks/cl_sdk
+      - name: Run tests with every canonical RPC over native gRPC
         run: |
-          ros run --non-interactive \
-               --eval '(push (truename ".") asdf:*central-registry*)' \
+          python tests/sdk_parity/with_wire_server.py -- ros run --non-interactive \
+               --eval '(push (truename "sdks/cl_sdk/") asdf:*central-registry*)' \
                --eval '(ql:quickload :sw4rm-sdk :silent t)' \
                --eval '(ql:quickload :fiveam :silent t)' \
-               --eval '(load "test/suite.lisp")' \
-               --eval '(let ((results (fiveam:run (quote sw4rm-test::sw4rm-suite))))
-                         (fiveam:explain! results)
-                         (uiop:quit (if (fiveam:results-status results) 0 1)))'
+               --eval '(asdf:test-system :sw4rm-sdk)'
 
       - name: Verify examples load
         working-directory: sdks/cl_sdk

@@ -553,8 +553,14 @@ class ReferenceTracingInterceptor(grpc.ServerInterceptor):
 class ReferenceRateLimitInterceptor(grpc.ServerInterceptor):
     """gRPC interceptor applying per-agent message quotas."""
 
-    def __init__(self, policy: ReferenceRateLimitPolicy):
+    # Shared bucket for traffic that is not tied to a verified identity
+    # (security finding 5 / R34): when authentication is enabled, request-
+    # supplied actor fields must never be used for metering.
+    ANONYMOUS_ACTOR = "__anonymous__"
+
+    def __init__(self, policy: ReferenceRateLimitPolicy, auth_enabled: bool = False):
         self._policy = policy
+        self._auth_enabled = auth_enabled
 
     def intercept_service(self, continuation, handler_call_details):
         handler = continuation(handler_call_details)
@@ -593,7 +599,13 @@ class ReferenceRateLimitInterceptor(grpc.ServerInterceptor):
 
     def _actor_id(self, method_name: str, request: Any, context: grpc.ServicerContext) -> Optional[str]:
         metadata = getattr(context, "invocation_metadata", lambda: [])()
-        token_actor = extract_subject_from_metadata(metadata, os.getenv("REFERENCE_AUTH_JWT_SECRET", ""))
+        secret = os.getenv("REFERENCE_AUTH_JWT_SECRET", "")
+        token_actor = extract_subject_from_metadata(metadata, secret)
+        if self._auth_enabled:
+            # Meter only verified subjects.  A missing/invalid token shares the
+            # anonymous bucket; request-supplied producer/agent ids are never
+            # trusted for metering while authentication is on (R34).
+            return token_actor or self.ANONYMOUS_ACTOR
         if token_actor:
             return token_actor
         return self._policy._resolve_actor(method_name, request)
@@ -740,6 +752,9 @@ def build_auth_interceptors(service_name: Optional[str] = None) -> Sequence[grpc
 
     rate_limit_policy = ReferenceRateLimitPolicy.from_environment()
     if rate_limit_policy.enabled:
-        interceptors.append(ReferenceRateLimitInterceptor(policy=rate_limit_policy))
+        interceptors.append(ReferenceRateLimitInterceptor(
+            policy=rate_limit_policy,
+            auth_enabled=auth_policy.enabled,
+        ))
 
     return interceptors

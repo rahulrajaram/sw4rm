@@ -67,12 +67,11 @@ def read_rs_version() -> str:
 
 
 def ensure_versions_equal(expected: str):
-    spec = read_spec_version()
-    py = read_py_version()
-    js = read_js_version()
-    rs = read_rs_version()
-    if not (spec == py == js == rs == expected):
-        die(f"Version mismatch. expected={expected} spec={spec} py={py} js={js} rs={rs}")
+    from release_contract import inventory, version_errors
+    rows = inventory(lambda path: (ROOT / path).read_text())
+    errors = version_errors(rows)
+    if errors or rows[0][1] != expected:
+        die(f"Version mismatch: expected={expected}; {errors or rows}")
 
 
 def create_tag(tag: str, push: bool):
@@ -85,7 +84,7 @@ def create_tag(tag: str, push: bool):
 
 def main():
     ap = argparse.ArgumentParser(description="Create release tag for one SDK")
-    ap.add_argument("target", choices=["py", "npm", "rs"], help="Which SDK to tag")
+    ap.add_argument("target", choices=["py", "npm", "rs", "ex", "cl"], help="Which SDK to tag")
     ap.add_argument("version", help="SemVer X.Y.Z")
     ap.add_argument("--push", action="store_true", help="Push the created tag to origin")
     args = ap.parse_args()
@@ -95,7 +94,7 @@ def main():
 
     ensure_versions_equal(args.version)
 
-    prefix = {"py": "py-v", "npm": "npm-v", "rs": "rs-v"}[args.target]
+    prefix = {"py": "py-v", "npm": "npm-v", "rs": "rs-v", "ex": "ex-v", "cl": "cl-v"}[args.target]
     tag = f"{prefix}{args.version}"
     create_tag(tag, args.push)
 

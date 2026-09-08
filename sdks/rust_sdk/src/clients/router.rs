@@ -1,7 +1,9 @@
 use crate::envelope::EnvelopeData;
 use crate::proto::sw4rm::common::Envelope as ProtoEnvelope;
 use crate::proto::sw4rm::router::router_service_client::RouterServiceClient;
-use crate::proto::sw4rm::router::{SendMessageRequest, StreamRequest};
+use crate::proto::sw4rm::router::{
+    DeliveryAckOutcome, DeliveryAckRequest, SendMessageRequest, StreamRequest,
+};
 use crate::{Error, Result};
 use async_trait::async_trait;
 use std::pin::Pin;
@@ -14,6 +16,24 @@ use tracing::{debug, error, info, warn};
 pub struct SendResult {
     pub accepted: bool,
     pub reason: String,
+}
+
+/// A streamed message together with the router's pending delivery sequence.
+///
+/// The sequence is required by [`RouterClient::ack_delivery`] to release the
+/// pending row. Use [`RouterClient::stream_incoming`] when ACK tracking is not
+/// needed and only the decoded envelope is required.
+#[derive(Debug, Clone)]
+pub struct IncomingMessage {
+    pub envelope: EnvelopeData,
+    pub seq: i64,
+}
+
+/// Result returned by the router after recording a delivery acknowledgement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DeliveryAckResult {
+    /// False means that the sequence was already acknowledged or expired.
+    pub recorded: bool,
 }
 
 /// Minimal trait abstraction to allow testing and decouple ACK logic from the concrete client
@@ -66,23 +86,7 @@ impl RouterClient {
             envelope.message_id, envelope.producer_id, envelope.message_type
         );
 
-        let proto_envelope = ProtoEnvelope {
-            message_id: envelope.message_id.clone(),
-            idempotency_token: envelope.idempotency_token.clone(),
-            producer_id: envelope.producer_id.clone(),
-            correlation_id: envelope.correlation_id.clone(),
-            sequence_number: envelope.sequence_number,
-            retry_count: envelope.retry_count,
-            message_type: envelope.message_type,
-            content_type: envelope.content_type.clone(),
-            content_length: envelope.content_length,
-            repo_id: envelope.repo_id.clone(),
-            worktree_id: envelope.worktree_id.clone(),
-            hlc_timestamp: envelope.hlc_timestamp.clone(),
-            ttl_ms: envelope.ttl_ms,
-            timestamp: None, // Set by router
-            payload: envelope.payload.clone(),
-        };
+        let proto_envelope = ProtoEnvelope::from(envelope);
 
         let request = tonic::Request::new(SendMessageRequest {
             msg: Some(proto_envelope),
@@ -119,6 +123,20 @@ impl RouterClient {
         &mut self,
         agent_id: &str,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<EnvelopeData>> + Send>>> {
+        let stream = self.stream_incoming_with_seq(agent_id).await?;
+        let mapped_stream =
+            tokio_stream::StreamExt::map(stream, |result| result.map(|incoming| incoming.envelope));
+        Ok(Box::pin(mapped_stream))
+    }
+
+    /// Stream incoming messages and preserve each delivery sequence.
+    ///
+    /// The sequence is stable across redelivery and must be passed to
+    /// [`Self::ack_delivery`] after the consumer has processed the envelope.
+    pub async fn stream_incoming_with_seq(
+        &mut self,
+        agent_id: &str,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<IncomingMessage>> + Send>>> {
         info!("Starting message stream for agent: {}", agent_id);
 
         let request = tonic::Request::new(StreamRequest {
@@ -138,28 +156,12 @@ impl RouterClient {
                 if let Some(envelope) = stream_item.msg {
                     debug!("Received message {} for agent", envelope.message_id);
 
-                    let ts = envelope.timestamp.as_ref();
-                    Ok(EnvelopeData {
-                        message_id: envelope.message_id,
-                        idempotency_token: envelope.idempotency_token,
-                        producer_id: envelope.producer_id,
-                        correlation_id: envelope.correlation_id,
-                        sequence_number: envelope.sequence_number,
-                        retry_count: envelope.retry_count,
-                        message_type: envelope.message_type,
-                        content_type: envelope.content_type,
-                        content_length: envelope.content_length,
-                        repo_id: envelope.repo_id,
-                        worktree_id: envelope.worktree_id,
-                        hlc_timestamp: envelope.hlc_timestamp,
-                        timestamp_seconds: ts.map(|t| t.seconds).unwrap_or(0),
-                        timestamp_nanos: ts.map(|t| t.nanos).unwrap_or(0),
-                        ttl_ms: envelope.ttl_ms,
-                        payload: envelope.payload,
-                        state: crate::constants::envelope_state::RECEIVED,
-                        effective_policy_id: String::new(),
-                        audit_proof: Vec::new(),
-                        audit_policy_id: String::new(),
+                    // Preserve the wire-decoded stream state; forcing RECEIVED
+                    // here discarded the sender's lifecycle state (R9).
+                    let envelope = EnvelopeData::from(envelope);
+                    Ok(IncomingMessage {
+                        envelope,
+                        seq: stream_item.seq,
                     })
                 } else {
                     error!("Received stream item without envelope");
@@ -175,6 +177,58 @@ impl RouterClient {
         });
 
         Ok(Box::pin(mapped_stream))
+    }
+
+    /// Acknowledge a streamed delivery by its router sequence.
+    ///
+    /// Set `permanent_failure` when the consumer will never process the
+    /// message. The router returns `recorded = false` for an unknown,
+    /// already acknowledged, or expired sequence.
+    pub async fn ack_delivery(
+        &mut self,
+        agent_id: &str,
+        seq: i64,
+        message_id: &str,
+        permanent_failure: bool,
+    ) -> Result<DeliveryAckResult> {
+        let outcome = if permanent_failure {
+            DeliveryAckOutcome::PermanentFailure
+        } else {
+            DeliveryAckOutcome::Delivered
+        };
+        let request = tonic::Request::new(DeliveryAckRequest {
+            agent_id: agent_id.to_string(),
+            seq,
+            message_id: message_id.to_string(),
+            outcome: outcome as i32,
+        });
+
+        let response = self.client.ack_delivery(request).await.map_err(|status| {
+            error!(
+                "Failed to acknowledge delivery seq {} for agent {}: {}",
+                seq, agent_id, status
+            );
+            Error::Status(status)
+        })?;
+
+        Ok(DeliveryAckResult {
+            recorded: response.into_inner().recorded,
+        })
+    }
+
+    /// Acknowledge successful processing with no optional message ID.
+    pub async fn ack_delivered(&mut self, agent_id: &str, seq: i64) -> Result<DeliveryAckResult> {
+        self.ack_delivery(agent_id, seq, "", false).await
+    }
+
+    /// Release a delivery that the consumer cannot process permanently.
+    pub async fn ack_permanent_failure(
+        &mut self,
+        agent_id: &str,
+        seq: i64,
+        message_id: &str,
+    ) -> Result<DeliveryAckResult> {
+        self.ack_delivery(agent_id, seq, message_id, true).await
     }
 
     /// Get the endpoint this client is connected to
@@ -270,6 +324,8 @@ mod tests {
             ttl_ms: envelope.ttl_ms,
             timestamp: None,
             payload: envelope.payload.clone(),
+            state: 0,
+            parent_correlation_id: String::new(),
         };
 
         assert_eq!(proto_envelope.producer_id, "test-producer");

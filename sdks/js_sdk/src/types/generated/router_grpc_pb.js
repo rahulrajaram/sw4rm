@@ -5,6 +5,28 @@ var grpc = require('@grpc/grpc-js');
 var router_pb = require('./router_pb.js');
 var common_pb = require('./common_pb.js');
 
+function serialize_sw4rm_router_DeliveryAckRequest(arg) {
+  if (!(arg instanceof router_pb.DeliveryAckRequest)) {
+    throw new Error('Expected argument of type sw4rm.router.DeliveryAckRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_sw4rm_router_DeliveryAckRequest(buffer_arg) {
+  return router_pb.DeliveryAckRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_sw4rm_router_DeliveryAckResponse(arg) {
+  if (!(arg instanceof router_pb.DeliveryAckResponse)) {
+    throw new Error('Expected argument of type sw4rm.router.DeliveryAckResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_sw4rm_router_DeliveryAckResponse(buffer_arg) {
+  return router_pb.DeliveryAckResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_sw4rm_router_SendMessageRequest(arg) {
   if (!(arg instanceof router_pb.SendMessageRequest)) {
     throw new Error('Expected argument of type sw4rm.router.SendMessageRequest');
@@ -74,6 +96,18 @@ var RouterServiceService = exports.RouterServiceService = {
     responseDeserialize: deserialize_sw4rm_router_StreamItem,
   },
   // per-agent inbound stream
+ackDelivery: {
+    path: '/sw4rm.router.RouterService/AckDelivery',
+    requestStream: false,
+    responseStream: false,
+    requestType: router_pb.DeliveryAckRequest,
+    responseType: router_pb.DeliveryAckResponse,
+    requestSerialize: serialize_sw4rm_router_DeliveryAckRequest,
+    requestDeserialize: deserialize_sw4rm_router_DeliveryAckRequest,
+    responseSerialize: serialize_sw4rm_router_DeliveryAckResponse,
+    responseDeserialize: deserialize_sw4rm_router_DeliveryAckResponse,
+  },
+  // consumer ACK: releases the pending row
 };
 
 exports.RouterServiceClient = grpc.makeGenericClientConstructor(RouterServiceService, 'RouterService');

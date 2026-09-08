@@ -27,7 +27,7 @@ The service exposes three RPCs:
 `new ReasoningClient(options: ClientOptions)`
 
 - `options.address`: `host:port` for the ReasoningProxy endpoint.
-- Optional: `deadlineMs`, `retry`, `userAgent`, `interceptors`, `errorMapper`.
+- `ClientOptions` also accepts optional `deadlineMs`, `retry`, `userAgent`, `interceptors`, and `errorMapper` fields — see [client conventions](index.md#61-conventions).
 
 ### Rust
 

@@ -1,7 +1,8 @@
 //! Mock SW4RM services for integration testing
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 use sw4rm_sdk::proto::sw4rm;
 use tokio::sync::mpsc;
@@ -129,6 +130,7 @@ impl sw4rm::registry::registry_service_server::RegistryService for MockRegistryS
 pub struct MockRouterService {
     messages: Arc<Mutex<Vec<sw4rm::common::Envelope>>>,
     streams: Arc<Mutex<HashMap<String, mpsc::UnboundedSender<sw4rm::router::StreamItem>>>>,
+    next_seq: Arc<AtomicI64>,
 }
 
 impl Default for MockRouterService {
@@ -142,6 +144,7 @@ impl MockRouterService {
         Self {
             messages: Arc::new(Mutex::new(Vec::new())),
             streams: Arc::new(Mutex::new(HashMap::new())),
+            next_seq: Arc::new(AtomicI64::new(1)),
         }
     }
 
@@ -154,6 +157,7 @@ impl MockRouterService {
         if let Some(sender) = streams.get(agent_id) {
             let stream_item = sw4rm::router::StreamItem {
                 msg: Some(envelope),
+                seq: self.next_seq.fetch_add(1, Ordering::Relaxed),
             };
             let _ = sender.send(stream_item);
         }
@@ -222,6 +226,16 @@ impl sw4rm::router::router_service_server::RouterService for MockRouterService {
         self.streams.lock().unwrap().insert(agent_id, tx);
 
         Ok(Response::new(UnboundedReceiverStream::new(result_rx)))
+    }
+
+    async fn ack_delivery(
+        &self,
+        request: Request<sw4rm::router::DeliveryAckRequest>,
+    ) -> Result<Response<sw4rm::router::DeliveryAckResponse>, Status> {
+        let request = request.into_inner();
+        Ok(Response::new(sw4rm::router::DeliveryAckResponse {
+            recorded: request.seq > 0,
+        }))
     }
 }
 
@@ -317,6 +331,7 @@ mod tests {
     use sw4rm_sdk::constants;
     use sw4rm_sdk::envelope::EnvelopeBuilder;
     use sw4rm_sdk::types::AgentDescriptor;
+    use tokio_stream::StreamExt;
 
     #[tokio::test]
     async fn test_mock_registry_service() {
@@ -378,6 +393,66 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_router_stream_sequence_and_ack_wire_round_trip() {
+        let mock_server = MockServer::start().await.unwrap();
+        let mut client = RouterClient::new(&mock_server.router_endpoint())
+            .await
+            .unwrap();
+        let mut stream = client.stream_incoming_with_seq("consumer-1").await.unwrap();
+
+        let envelope =
+            EnvelopeBuilder::new("producer-1".to_string(), constants::message_type::DATA)
+                .with_payload(b"wire payload".to_vec())
+                .build();
+        mock_server.send_to_agent(
+            "consumer-1",
+            sw4rm::common::Envelope {
+                message_id: envelope.message_id.clone(),
+                idempotency_token: envelope.idempotency_token.clone(),
+                producer_id: envelope.producer_id.clone(),
+                correlation_id: envelope.correlation_id.clone(),
+                sequence_number: envelope.sequence_number,
+                retry_count: envelope.retry_count,
+                message_type: envelope.message_type,
+                content_type: envelope.content_type.clone(),
+                content_length: envelope.content_length,
+                repo_id: envelope.repo_id.clone(),
+                worktree_id: envelope.worktree_id.clone(),
+                hlc_timestamp: envelope.hlc_timestamp.clone(),
+                ttl_ms: envelope.ttl_ms,
+                timestamp: None,
+                payload: envelope.payload.clone(),
+                state: 0,
+                parent_correlation_id: String::new(),
+            },
+        );
+
+        let incoming = stream.next().await.unwrap().unwrap();
+        assert!(incoming.seq > 0);
+        assert_eq!(incoming.envelope.message_id, envelope.message_id);
+        assert_eq!(incoming.envelope.payload, envelope.payload);
+
+        let ack = client
+            .ack_delivery(
+                "consumer-1",
+                incoming.seq,
+                &incoming.envelope.message_id,
+                false,
+            )
+            .await
+            .unwrap();
+        assert!(ack.recorded);
+
+        let unknown = client
+            .ack_delivery("consumer-1", 0, "missing", true)
+            .await
+            .unwrap();
+        assert!(!unknown.recorded);
+
+        mock_server.shutdown().await;
+    }
+
+    #[tokio::test]
     async fn test_end_to_end_with_mock_services() {
         let mock_server = MockServer::start().await.unwrap();
 
@@ -403,7 +478,7 @@ mod tests {
             .heartbeat(
                 "e2e-test-agent",
                 sw4rm_sdk::proto::sw4rm::common::AgentState::Running,
-                Some(std::collections::HashMap::from([(
+                Some(BTreeMap::from([(
                     "status".to_string(),
                     "healthy".to_string(),
                 )])),

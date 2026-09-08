@@ -40,7 +40,13 @@ class CancellationManager:
     def handle_cancel_delegation(
         self, cancel: handoff_pb2.CancelDelegation
     ) -> handoff_pb2.CancelDelegationResponse:
-        """Set cancellation flags for correlation and any known children."""
+        """Set cancellation flags for the correlation and its DIRECT children.
+
+        Helper boundary (SW4-004 §5.3): this helper cancels the requested
+        correlation and any directly registered child delegations only.
+        Recursive cascade forwarding across deeper delegation trees is the
+        gateway's job — grandchildren are intentionally not cancelled here.
+        """
         grace_period_ms = max(int(cancel.grace_period_ms), MIN_GRACE_PERIOD_MS)
         cancel_time_ms = self._time_ms()
 

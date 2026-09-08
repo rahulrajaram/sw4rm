@@ -226,7 +226,8 @@ class TestHandoffClient:
         """Test HandoffClient initialization."""
         assert client is not None
         assert client._channel is None
-        assert client._stub is None
+        # The local-only client has no gRPC stub surface at all (R38).
+        assert not hasattr(client, "_stub")
 
     def test_request_handoff(self, client):
         """Test requesting a handoff."""

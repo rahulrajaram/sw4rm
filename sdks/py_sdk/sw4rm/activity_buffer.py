@@ -7,8 +7,12 @@ from collections import deque
 
 from . import constants as C
 from .exceptions import BufferFullError
-from .persistence import PersistenceBackend, JSONFilePersistence, PersistentActivityRecord
-from .buffer_strategy import BufferStrategy, DEFAULT_BUFFER_STRATEGY
+from .persistence import (
+    ActivityBufferLoadError,
+    PersistenceBackend,
+    JSONFilePersistence,
+    PersistentActivityRecord,
+)
 
 
 def is_terminal_state(state: int) -> bool:
@@ -62,7 +66,11 @@ class ActivityRecord:
 
 
 class ActivityBuffer:
-    """In-memory activity buffer with configurable pruning strategy.
+    """In-memory activity buffer.
+
+    Capacity is enforced per spec 10.1: registrations beyond max_items are
+    rejected with BufferFullError rather than silently evicted (no pluggable
+    eviction API; fp-ds-certification#F6 remove branch).
 
     Tracks inbound/outbound envelopes by message_id and records ACK progression.
     Supports Three-ID model: deduplication via idempotency_token, workflow linking
@@ -75,14 +83,12 @@ class ActivityBuffer:
         self,
         *,
         max_items: int = 10000,
-        strategy: Optional[BufferStrategy] = None,
         dedup_window_s: int = 3600
     ) -> None:
         self._by_id: Dict[str, ActivityRecord] = {}
         self._by_idempotency_token: Dict[str, str] = {}  # token -> message_id
         self._order: deque[str] = deque()
         self._max_items = max_items
-        self.strategy = strategy or DEFAULT_BUFFER_STRATEGY
         self.dedup_window_s = dedup_window_s  # Default: 1 hour per spec §11.1
 
     def _check_capacity(self) -> None:
@@ -115,11 +121,12 @@ class ActivityBuffer:
             del self._by_idempotency_token[token]
 
     def record_incoming(self, envelope: Dict[str, Any]) -> ActivityRecord:
-        self._check_capacity()
         mid = str(envelope.get("message_id"))
+        if mid not in self._by_id:
+            self._check_capacity()
+            self._order.append(mid)
         rec = ActivityRecord(message_id=mid, direction="in", envelope=envelope)
         self._by_id[mid] = rec
-        self._order.append(mid)
 
         # Track idempotency token for deduplication
         token = rec.idempotency_token
@@ -130,11 +137,12 @@ class ActivityBuffer:
         return rec
 
     def record_outgoing(self, envelope: Dict[str, Any]) -> ActivityRecord:
-        self._check_capacity()
         mid = str(envelope.get("message_id"))
+        if mid not in self._by_id:
+            self._check_capacity()
+            self._order.append(mid)
         rec = ActivityRecord(message_id=mid, direction="out", envelope=envelope)
         self._by_id[mid] = rec
-        self._order.append(mid)
 
         # Track idempotency token for deduplication
         token = rec.idempotency_token
@@ -162,7 +170,7 @@ class ActivityBuffer:
         return [r for r in self._by_id.values() if r.ack_stage in (C.ACK_STAGE_UNSPECIFIED, C.RECEIVED, C.READ)]
 
     def recent(self, n: int = 50) -> List[ActivityRecord]:
-        ids = self._order[-n:]
+        ids = list(self._order)[-n:] if n > 0 else []
         return [self._by_id[i] for i in ids if i in self._by_id]
 
     def update_state(self, message_id: str, new_state: int) -> Optional[ActivityRecord]:
@@ -219,58 +227,81 @@ class PersistentActivityBuffer:
         *,
         max_items: int = 10000,
         persistence: Optional[PersistenceBackend] = None,
-        strategy: Optional[BufferStrategy] = None,
-        dedup_window_s: int = 3600
+        dedup_window_s: int = 3600,
+        load_failure_mode: str = "raise",
     ):
         self._by_id: Dict[str, PersistentActivityRecord] = {}
         self._by_idempotency_token: Dict[str, str] = {}  # token -> message_id
         self._order: deque[str] = deque()
         self._max_items = max_items
         self._persistence = persistence or JSONFilePersistence()
-        self.strategy = strategy or DEFAULT_BUFFER_STRATEGY
         self.dedup_window_s = dedup_window_s
+        # "raise" (default): a corrupted persistence file fails startup loudly.
+        # "empty": catch and start empty, logging a degraded-mode warning —
+        # opt-in escape hatch for best-effort consumers; never silent.
+        if load_failure_mode not in ("raise", "empty"):
+            raise ValueError(
+                f"load_failure_mode must be 'raise' or 'empty', got {load_failure_mode!r}"
+            )
+        self.load_failure_mode = load_failure_mode
         self._dirty = False  # Track if we need to save
 
         # Load existing data on initialization
         self._load_from_persistence()
 
     def _load_from_persistence(self) -> None:
-        """Load activity records from persistent storage."""
+        """Load activity records from persistent storage.
+
+        A missing persistence file is a fresh start (no error). An
+        unreadable/corrupted file raises ActivityBufferLoadError by
+        default; with load_failure_mode="empty" it logs loudly and starts
+        degraded (never silently).
+        """
         try:
             records_data, order = self._persistence.load_records()
+        except ActivityBufferLoadError:
+            if self.load_failure_mode == "empty":
+                import logging
 
-            # Reconstruct activity records
-            self._by_id = {}
-            self._by_idempotency_token = {}
-            for message_id, data in records_data.items():
-                rec = PersistentActivityRecord.from_dict(data)
-                self._by_id[message_id] = rec
-                # Rebuild idempotency token index
-                token = rec.envelope.get("idempotency_token", "")
-                if token:
-                    self._by_idempotency_token[token] = message_id
+                logging.getLogger(__name__).exception(
+                    "[ActivityBuffer] CORRUPTED persistence; starting DEGRADED "
+                    "with an empty buffer — recovery state was not restored"
+                )
+                self._by_id = {}
+                self._by_idempotency_token = {}
+                self._order = deque()
+                return
+            raise
 
-            self._order = deque(order)
+        # Reconstruct activity records
+        self._by_id = {}
+        self._by_idempotency_token = {}
+        for message_id, data in records_data.items():
+            rec = PersistentActivityRecord.from_dict(data)
+            self._by_id[message_id] = rec
+            # Rebuild idempotency token index
+            token = rec.envelope.get("idempotency_token", "")
+            if token:
+                self._by_idempotency_token[token] = message_id
+
+        self._order = deque(order)
+        if len(self._by_id) > self._max_items:
             self._check_capacity()
 
-            print(f"[ActivityBuffer] Loaded {len(self._by_id)} records from persistence")
-        except Exception as e:
-            print(f"[ActivityBuffer] Failed to load from persistence: {e}")
-            self._by_id = {}
-            self._by_idempotency_token = {}
-            self._order = deque()
+        print(f"[ActivityBuffer] Loaded {len(self._by_id)} records from persistence")
 
     def _save_to_persistence(self) -> None:
-        """Save current state to persistent storage."""
+        """Save current state to persistent storage.
+
+        Durability contract: save failures raise — silently swallowed save
+        errors made the crash-recovery claim false.
+        """
         if not self._dirty:
             return
-            
-        try:
-            records_data = {mid: rec.to_dict() for mid, rec in self._by_id.items()}
-            self._persistence.save_records(records_data, list(self._order))
-            self._dirty = False
-        except Exception as e:
-            print(f"[ActivityBuffer] Failed to save to persistence: {e}")
+
+        records_data = {mid: rec.to_dict() for mid, rec in self._by_id.items()}
+        self._persistence.save_records(records_data, list(self._order))
+        self._dirty = False
 
     def _check_capacity(self) -> None:
         """Reject new entries when buffer is full per spec §10.1.
@@ -306,12 +337,13 @@ class PersistentActivityBuffer:
 
     def record_incoming(self, envelope: Dict[str, Any]) -> PersistentActivityRecord:
         """Record an incoming message envelope."""
-        self._check_capacity()
         mid = str(envelope.get("message_id"))
+        if mid not in self._by_id:
+            self._check_capacity()
+            self._order.append(mid)
         rec = PersistentActivityRecord(message_id=mid, direction="in", envelope=envelope)
 
         self._by_id[mid] = rec
-        self._order.append(mid)
 
         # Track idempotency token for deduplication
         token = rec.envelope.get("idempotency_token", "")
@@ -325,12 +357,13 @@ class PersistentActivityBuffer:
 
     def record_outgoing(self, envelope: Dict[str, Any]) -> PersistentActivityRecord:
         """Record an outgoing message envelope."""
-        self._check_capacity()
         mid = str(envelope.get("message_id"))
+        if mid not in self._by_id:
+            self._check_capacity()
+            self._order.append(mid)
         rec = PersistentActivityRecord(message_id=mid, direction="out", envelope=envelope)
 
         self._by_id[mid] = rec
-        self._order.append(mid)
 
         # Track idempotency token for deduplication
         token = rec.envelope.get("idempotency_token", "")
@@ -368,7 +401,7 @@ class PersistentActivityBuffer:
 
     def recent(self, n: int = 50) -> List[PersistentActivityRecord]:
         """Get the N most recent activity records."""
-        ids = self._order[-n:]
+        ids = list(self._order)[-n:] if n > 0 else []
         return [self._by_id[i] for i in ids if i in self._by_id]
 
     def flush(self) -> None:

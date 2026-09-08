@@ -157,7 +157,7 @@ def validate(self, content_type: str, payload: bytes) -> bool:
 Example:
 
 ```python
-from sw4rm.content_types import ContentTypeRegistry, SCHEDULER_SEED
+from sw4rm.content_types import ContentTypeRegistry, SCHEDULER_SEED, register_standard_types
 
 registry = ContentTypeRegistry()
 register_standard_types(registry)
@@ -386,14 +386,16 @@ register_standard_types(my_registry)
 
 ## Usage Examples
 
-### Registering Custom Content Types
+### Registering a custom content type
+
+Custom types let an application validate its own payloads while preserving the
+SW4RM vendor naming convention. Register the schema on the registry used by the
+consumer; registration does not change the wire `Envelope`.
 
 ```python
 from sw4rm.content_types import ContentTypeRegistry
 
 registry = ContentTypeRegistry()
-
-# Define a custom content type for your domain
 registry.register(
     "application/vnd.sw4rm.analytics.report+json;v=1",
     {
@@ -404,9 +406,9 @@ registry.register(
                 "type": "object",
                 "properties": {
                     "start": {"type": "string"},
-                    "end": {"type": "string"}
+                    "end": {"type": "string"},
                 },
-                "required": ["start", "end"]
+                "required": ["start", "end"],
             },
             "metrics": {
                 "type": "array",
@@ -414,93 +416,102 @@ registry.register(
                     "type": "object",
                     "properties": {
                         "name": {"type": "string"},
-                        "value": {"type": "number"}
-                    }
-                }
-            }
+                        "value": {"type": "number"},
+                    },
+                },
+            },
         },
-        "required": ["report_id", "period", "metrics"]
-    }
+        "required": ["report_id", "period", "metrics"],
+    },
 )
 ```
 
-### Schema Validation Workflow
+The registry stores schemas by the base media type, so a version parameter is
+available to the caller through `parse_content_type()` but does not create a
+second schema entry. Register separate base names when versions need different
+validation rules.
+
+### Validation and Intent Routing
+
+The per-method examples earlier on this page show `register()` and
+`get_intent()` in isolation. This loop combines validation and intent-based
+routing over the default registry — the shape most agents actually run:
 
 ```python
-from sw4rm.content_types import (
-    ContentTypeRegistry,
-    register_standard_types,
-    NEGOTIATION_PROPOSAL
-)
+from sw4rm.content_types import get_default_registry, register_standard_types
 
-def process_message(envelope: dict) -> None:
+routing_table = {
+    "scheduler": "scheduler_handler",
+    "negotiation": "negotiation_handler",
+    "intent": "intent_handler",
+    "tool": "tool_handler",
+}
+
+def route_message(envelope: dict) -> str:
+    """Validate the payload, then route by content-type intent."""
     registry = get_default_registry()
     register_standard_types(registry)
 
     content_type = envelope.get("content_type", "")
     payload = envelope.get("payload", b"")
 
-    # Validate payload against schema
     if not registry.validate(content_type, payload):
         raise ValueError(f"Invalid payload for {content_type}")
 
-    # Extract intent for routing
     intent = registry.get_intent(content_type)
-    if intent:
-        route_by_intent(intent, envelope)
-    else:
-        route_default(envelope)
-```
-
-### Intent Extraction for Routing
-
-```python
-from sw4rm.content_types import get_default_registry
-
-def route_message(envelope: dict) -> str:
-    """Route message based on content type intent."""
-    registry = get_default_registry()
-
-    content_type = envelope.get("content_type", "")
-    intent = registry.get_intent(content_type)
-
     if intent is None:
         return "default_handler"
 
-    # Route based on category
     category = intent.split(".")[0]
-
-    routing_table = {
-        "scheduler": "scheduler_handler",
-        "negotiation": "negotiation_handler",
-        "intent": "intent_handler",
-        "tool": "tool_handler",
-    }
-
     return routing_table.get(category, "default_handler")
 ```
+
+### Validation and intent extraction as separate steps
+
+For a message handler that needs to report a useful validation error before
+routing, keep the two operations explicit:
+
+```python
+from sw4rm.content_types import get_default_registry, register_standard_types
+
+def classify(envelope: dict) -> tuple[str, str | None]:
+    registry = get_default_registry()
+    register_standard_types(registry)
+    content_type = envelope.get("content_type", "")
+    payload = envelope.get("payload", b"")
+    if not registry.validate(content_type, payload):
+        raise ValueError(f"invalid payload for {content_type}")
+    return content_type, registry.get_intent(content_type)
+
+content_type, intent = classify(envelope)
+category = intent.split(".")[0] if intent else "default"
+handler = routing_table.get(category, "default_handler")
+```
+
+Unknown or unregistered media types are permissive in the Python registry: they
+validate as `True` and return no SW4RM intent. Applications that require a
+closed vocabulary should reject `intent is None` explicitly.
 
 ### Version Handling
 
 ```python
+import json
+
 from sw4rm.content_types import ContentTypeRegistry
 
 registry = ContentTypeRegistry()
 
-# Register multiple versions
+# Register the shared base schema. The registry keys schemas by base media type,
+# so version-specific rules are applied by the handler below.
 registry.register(
-    "application/vnd.sw4rm.api.response+json;v=1",
-    {"type": "object", "properties": {"data": {}}}
-)
-
-registry.register(
-    "application/vnd.sw4rm.api.response+json;v=2",
+    "application/vnd.sw4rm.api.response+json",
     {
         "type": "object",
         "properties": {
             "data": {},
-            "metadata": {"type": "object"}  # v2 adds metadata
-        }
+            "metadata": {"type": "object"},
+        },
+        "required": ["data"],
     }
 )
 
@@ -515,11 +526,10 @@ def handle_response(content_type: str, payload: bytes) -> dict:
     data = json.loads(payload)
 
     if version == "2":
-        # Handle v2-specific metadata
+        # Apply the v2-specific requirement in application code.
         return {"data": data["data"], "metadata": data.get("metadata", {})}
-    else:
-        # v1 compatibility
-        return {"data": data["data"], "metadata": {}}
+    # v1 compatibility
+    return {"data": data["data"], "metadata": {}}
 ```
 
 ## Content Type Naming Convention

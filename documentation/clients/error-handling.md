@@ -377,6 +377,20 @@ class ProductionAgent:
 
 Protect against cascading failures:
 
+```mermaid
+stateDiagram-v2
+    CLOSED --> OPEN: failures meet failure_threshold
+    OPEN --> HALF_OPEN: recovery_timeout_s elapsed
+    HALF_OPEN --> CLOSED: probe call succeeds
+    HALF_OPEN --> OPEN: probe call fails
+    note right of CLOSED
+        normal operation — requests pass through
+    end note
+    note right of OPEN
+        requests rejected immediately
+    end note
+```
+
 ```python
 from enum import Enum
 import time
@@ -471,62 +485,17 @@ except RuntimeError as e:
 
 ## Dead Letter Queue (DLQ)
 
-When messages exhaust their retry budget or encounter terminal errors, the Router moves them to a Dead Letter Queue for operator triage. Per spec §21.1, messages MUST be moved to DLQ when any of the following occur:
+DLQ is a router-side facility, not a client-side error-handling pattern: when
+messages exhaust their retry budget or encounter terminal errors, the Router
+moves them to a Dead Letter Queue for operator triage per spec §21.1 (move
+conditions, entry contents, requeue/export operator requirements, and
+retention policy are specified there). The reference router exposes triage via
+its operator tooling, not a `RouterClient` method.
 
-- **Retry budget exhausted** without successful processing.
-- **Terminal error** indicating the operation cannot succeed (validation error, permission denied, malformed message).
-- **Policy violation** (security, resource limits) or TTL expiry.
-
-### DLQ Entry Contents
-
-Each DLQ entry MUST include diagnostic context sufficient for operator triage:
-
-| Field | Description |
-|-------|-------------|
-| Final error classification | The terminal error code and stage |
-| Attempt history | Timestamps and failure reasons for each retry attempt |
-| Routing context | Producer ID, route, hops traversed |
-| Creation and failure times | When the message was created and when it finally failed |
-| Payload size and content type | Message metadata for inspection |
-| Payload excerpt or reference | Either a truncated payload or a secure reference to the full payload |
-
-### DLQ Operations
-
-Implementations SHOULD provide inspection and reprocessing tools. Operators MUST be able to:
-
-- **Requeue** selected DLQ entries for reprocessing.
-- **Export** diagnostic bundles for analysis.
-- **Filter** entries by time range, error class, route, or producer.
-
-### DLQ Retention
-
-Implementations SHOULD enforce retention policies to bound storage. Configure retention based on:
-
-- **Time-based eviction**: Remove entries older than a configured threshold (e.g., 30 days).
-- **Count-based eviction**: Cap the total number of DLQ entries per route or producer.
-
-### Python Example
-
-```python
-# DLQ inspection pattern (conceptual)
-from sw4rm.clients import RouterClient
-
-router = RouterClient(channel)
-
-# List DLQ entries filtered by error class
-dlq_entries = router.list_dlq(
-    error_class="ack_timeout",
-    time_from="2026-02-01T00:00:00Z",
-    limit=50,
-)
-
-for entry in dlq_entries:
-    print(f"message_id={entry.message_id} error={entry.error_code} "
-          f"attempts={entry.retry_count} producer={entry.producer_id}")
-
-# Requeue a specific entry for reprocessing
-router.requeue_dlq(message_id=entry.message_id)
-```
+Applications surface DLQ-failure signals to operators by observing the terminal
+ACK state (`error_code` plus retry/`ttl_ms` metadata) on outbound messages; see
+[Exceptions](./exceptions.md) for how those error codes map to client-side
+exceptions.
 
 ## See Also
 

@@ -6,7 +6,7 @@ use crate::proto::sw4rm::registry::{
 };
 use crate::types::AgentDescriptor;
 use crate::{Error, Result};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use tonic::transport::{Channel, Endpoint};
 use tracing::{debug, error, info};
 
@@ -63,6 +63,8 @@ impl RegistryClient {
             modalities_supported: agent.modalities_supported.clone(),
             reasoning_connectors: agent.reasoning_connectors.clone(),
             public_key: agent.public_key.clone(),
+            registration_type: 0,
+            max_concurrent_delegations: 0,
         };
 
         let request = tonic::Request::new(RegisterAgentRequest {
@@ -94,7 +96,7 @@ impl RegistryClient {
         &mut self,
         agent_id: &str,
         state: AgentState,
-        health: Option<HashMap<String, String>>,
+        health: Option<BTreeMap<String, String>>,
     ) -> Result<HeartbeatResponse> {
         debug!(
             "Sending heartbeat for agent: {} (state: {:?})",
@@ -212,6 +214,8 @@ mod tests {
             modalities_supported: vec!["application/json".to_string()],
             reasoning_connectors: Vec::new(),
             public_key: Vec::new(),
+            registration_type: 0,
+            max_concurrent_delegations: 0,
         };
 
         assert_eq!(proto_agent.agent_id, "test-agent");

@@ -89,6 +89,7 @@ mod activity_buffer_tests {
     #[test]
     fn test_persistent_activity_buffer() {
         let temp_file = NamedTempFile::new().unwrap();
+        std::fs::remove_file(temp_file.path()).unwrap();
         let persistence = Box::new(JsonFilePersistence::new(temp_file.path()));
         let buffer = PersistentActivityBuffer::new(10, Some(persistence)).unwrap();
 
@@ -495,6 +496,10 @@ mod delegation_tests {
         budget: VectorBudget,
         policy: VectorPolicy,
         redirect_map: HashMap<String, String>,
+        #[serde(default)]
+        accept_agents: Vec<String>,
+        #[serde(default)]
+        now_ms_epoch_ms: Option<u64>,
         expected: VectorExpected,
     }
 
@@ -530,6 +535,8 @@ mod delegation_tests {
         match name {
             "VALIDATION_ERROR" => constants::error_code::VALIDATION_ERROR,
             "REDIRECT" => REJECTION_CODE_REDIRECT,
+            "ACK_TIMEOUT" => constants::error_code::ACK_TIMEOUT,
+            "NONE" => 0,
             other => panic!("unsupported rejection_code in vector: {other}"),
         }
     }
@@ -574,11 +581,28 @@ mod delegation_tests {
                 ..SwarmDelegationPolicy::default()
             });
 
-            let now_ms = vector.budget.deadline_epoch_ms.saturating_sub(1_000);
+            let now_ms = vector
+                .now_ms_epoch_ms
+                .unwrap_or_else(|| vector.budget.deadline_epoch_ms.saturating_sub(1_000));
+            let accept_agents: std::collections::HashSet<String> =
+                vector.accept_agents.iter().cloned().collect();
             let response = delegate_to_swarm_with_runtime(
                 options,
                 |request| {
                     attempts.push(request.to_agent.clone());
+                    if accept_agents.contains(&request.to_agent) {
+                        return Ok(HandoffResponse {
+                            accepted: true,
+                            handoff_id: request.request_id.clone(),
+                            rejection_reason: None,
+                            accepting_agent: None,
+                            rejection_code: None,
+                            retry_after_ms: None,
+                            redirect_to_agent_id: None,
+                            status: HandoffStatus::Accepted,
+                            metadata: std::collections::HashMap::new(),
+                        });
+                    }
                     let target = redirect_map
                         .get(&request.to_agent)
                         .unwrap_or_else(|| panic!("vector '{}' missing redirect target", vector.id));
@@ -595,12 +619,23 @@ mod delegation_tests {
                 "vector '{}' accepted mismatch",
                 vector.id
             );
-            assert_eq!(
-                response.rejection_code,
-                Some(rejection_code_from_name(&vector.expected.rejection_code)),
-                "vector '{}' rejection code mismatch",
-                vector.id
-            );
+            let expected_code = rejection_code_from_name(&vector.expected.rejection_code);
+            if expected_code == 0 {
+                assert!(
+                    response.rejection_code.is_none()
+                        || response.rejection_code == Some(0),
+                    "vector '{}' rejection code mismatch: got {:?}, expected 0/none",
+                    vector.id,
+                    response.rejection_code
+                );
+            } else {
+                assert_eq!(
+                    response.rejection_code,
+                    Some(expected_code),
+                    "vector '{}' rejection code mismatch",
+                    vector.id
+                );
+            }
             assert_eq!(
                 attempts, vector.expected.attempts,
                 "vector '{}' attempts mismatch",

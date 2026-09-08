@@ -92,6 +92,10 @@ defmodule Sw4rm.Secrets.FileBackend do
   defp load_from_file(path) do
     case File.read(path) do
       {:ok, content} ->
+        # Best-effort tighten an existing file: secret plaintext must never
+        # be world-readable (security finding 3 / R31).
+        File.chmod(path, 0o600)
+
         case Jason.decode(content) do
           {:ok, data} when is_list(data) ->
             Enum.into(data, %{}, fn entry ->
@@ -111,6 +115,8 @@ defmodule Sw4rm.Secrets.FileBackend do
     entries = Enum.map(cache, fn {k, v} -> %{"key" => k, "value" => v} end)
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, Jason.encode!(entries, pretty: true))
+    # Secrets are plaintext on disk: never leave them world-readable (R31).
+    File.chmod!(path, 0o600)
   end
 end
 

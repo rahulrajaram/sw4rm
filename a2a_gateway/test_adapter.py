@@ -88,7 +88,7 @@ class TestMessageTranslation:
             task_id="task-456",
         )
 
-        assert envelope["producer_id"] == "user-42"
+        assert envelope["producer_id"] == "a2a-gateway"
         assert envelope["consumer_id"] == "code-writer"
         assert envelope["message_type"] == 2  # DATA
         assert envelope["correlation_id"] == "task-456"
@@ -105,6 +105,20 @@ class TestMessageTranslation:
         envelope = a2a_message_to_sw4rm_envelope(message, "agent-x", "t1")
 
         assert envelope["producer_id"] == "a2a-gateway"
+
+    def test_message_to_envelope_ignores_caller_sender_metadata(self):
+        message = {
+            "role": "user",
+            "parts": [],
+            "metadata": {"sw4rm.sender": "spoofed-identity"},
+        }
+        envelope = a2a_message_to_sw4rm_envelope(message, "agent-x", "t1")
+        assert envelope["producer_id"] == "a2a-gateway"
+
+        envelope = a2a_message_to_sw4rm_envelope(
+            message, "agent-x", "t1", producer_id="authenticated-caller"
+        )
+        assert envelope["producer_id"] == "authenticated-caller"
 
     def test_envelope_to_message_json(self):
         payload = json.dumps({

@@ -11,6 +11,7 @@ import * as common_pb from "./common_pb";
 interface IRouterServiceService extends grpc.ServiceDefinition<grpc.UntypedServiceImplementation> {
     sendMessage: IRouterServiceService_ISendMessage;
     streamIncoming: IRouterServiceService_IStreamIncoming;
+    ackDelivery: IRouterServiceService_IAckDelivery;
 }
 
 interface IRouterServiceService_ISendMessage extends grpc.MethodDefinition<router_pb.SendMessageRequest, router_pb.SendMessageResponse> {
@@ -31,12 +32,22 @@ interface IRouterServiceService_IStreamIncoming extends grpc.MethodDefinition<ro
     responseSerialize: grpc.serialize<router_pb.StreamItem>;
     responseDeserialize: grpc.deserialize<router_pb.StreamItem>;
 }
+interface IRouterServiceService_IAckDelivery extends grpc.MethodDefinition<router_pb.DeliveryAckRequest, router_pb.DeliveryAckResponse> {
+    path: "/sw4rm.router.RouterService/AckDelivery";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<router_pb.DeliveryAckRequest>;
+    requestDeserialize: grpc.deserialize<router_pb.DeliveryAckRequest>;
+    responseSerialize: grpc.serialize<router_pb.DeliveryAckResponse>;
+    responseDeserialize: grpc.deserialize<router_pb.DeliveryAckResponse>;
+}
 
 export const RouterServiceService: IRouterServiceService;
 
 export interface IRouterServiceServer extends grpc.UntypedServiceImplementation {
     sendMessage: grpc.handleUnaryCall<router_pb.SendMessageRequest, router_pb.SendMessageResponse>;
     streamIncoming: grpc.handleServerStreamingCall<router_pb.StreamRequest, router_pb.StreamItem>;
+    ackDelivery: grpc.handleUnaryCall<router_pb.DeliveryAckRequest, router_pb.DeliveryAckResponse>;
 }
 
 export interface IRouterServiceClient {
@@ -45,6 +56,9 @@ export interface IRouterServiceClient {
     sendMessage(request: router_pb.SendMessageRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: router_pb.SendMessageResponse) => void): grpc.ClientUnaryCall;
     streamIncoming(request: router_pb.StreamRequest, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<router_pb.StreamItem>;
     streamIncoming(request: router_pb.StreamRequest, metadata?: grpc.Metadata, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<router_pb.StreamItem>;
+    ackDelivery(request: router_pb.DeliveryAckRequest, callback: (error: grpc.ServiceError | null, response: router_pb.DeliveryAckResponse) => void): grpc.ClientUnaryCall;
+    ackDelivery(request: router_pb.DeliveryAckRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: router_pb.DeliveryAckResponse) => void): grpc.ClientUnaryCall;
+    ackDelivery(request: router_pb.DeliveryAckRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: router_pb.DeliveryAckResponse) => void): grpc.ClientUnaryCall;
 }
 
 export class RouterServiceClient extends grpc.Client implements IRouterServiceClient {
@@ -54,4 +68,7 @@ export class RouterServiceClient extends grpc.Client implements IRouterServiceCl
     public sendMessage(request: router_pb.SendMessageRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: router_pb.SendMessageResponse) => void): grpc.ClientUnaryCall;
     public streamIncoming(request: router_pb.StreamRequest, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<router_pb.StreamItem>;
     public streamIncoming(request: router_pb.StreamRequest, metadata?: grpc.Metadata, options?: Partial<grpc.CallOptions>): grpc.ClientReadableStream<router_pb.StreamItem>;
+    public ackDelivery(request: router_pb.DeliveryAckRequest, callback: (error: grpc.ServiceError | null, response: router_pb.DeliveryAckResponse) => void): grpc.ClientUnaryCall;
+    public ackDelivery(request: router_pb.DeliveryAckRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: router_pb.DeliveryAckResponse) => void): grpc.ClientUnaryCall;
+    public ackDelivery(request: router_pb.DeliveryAckRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: router_pb.DeliveryAckResponse) => void): grpc.ClientUnaryCall;
 }

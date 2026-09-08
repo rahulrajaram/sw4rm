@@ -1,5 +1,5 @@
 site_name: SW4RM Agentic Protocol
-site_description: Open agentic protocol with SDKs for Python, Rust, JavaScript, and Common Lisp
+site_description: Coordination protocol with SDKs for Python, Rust, JavaScript, Elixir, and Common Lisp
 site_author: SW4RM Team
 site_url: https://sw4rm.ai
 
@@ -81,6 +81,14 @@ exclude_docs: |
 nav:
   - Home: index.md
   - Overview: overview.md
+  - Release Status: release-status.md
+  - Release Verification: release-verification.md
+  - SDK Parity: sdk-parity.md
+  - Implementation Coverage: protocol/implementation.md
+  - Generated Reference:
+    - Versions and RPCs: reference/release-contract.md
+    - Protobuf Schema: reference/protobuf.md
+  - Documentation Maintenance: documentation-contract.md
   - Getting Started:
     - quickstart/index.md
     - Installation: quickstart/installation.md
@@ -88,6 +96,7 @@ nav:
     - Persistence: quickstart/persistence.md
   - Protocol Specification:
     - protocol/index.md
+    - Protocol RFC: protocol/spec.md
     - Message Types: protocol/messages.md
     - Services: protocol/services.md
     - ACK Lifecycle: protocol/acks.md
@@ -96,7 +105,27 @@ nav:
     - Content Types: protocol/content-types.md
     - Handoff Serialization: protocol/handoff-serialization.md
     - Advanced Patterns: protocol/advanced-patterns.md
-    - Protocol Extensions: protocol/extensions/index.md
+    - Protocol Extensions:
+      - protocol/extensions/index.md
+      - Versioned Releases:
+        - v0.5.0: protocol/extensions/v0.5.0.md
+        - v0.6.0: protocol/extensions/v0.6.0.md
+      - Extension Drafts:
+        - SW4-001 Failure Semantics: protocol/extensions/SW4-001-failure-semantics.md
+        - SW4-002 Timeout Profiles: protocol/extensions/SW4-002-timeout-profiles.md
+        - SW4-003 Observability: protocol/extensions/SW4-003-observability.md
+        - SW4-004 Inter-Swarm Composition: protocol/extensions/SW4-004-inter-swarm-composition.md
+        - SW4-005 Spillover Routing: protocol/extensions/SW4-005-spillover-routing.md
+        - SW4-006 Resource-Aware Scheduling: protocol/extensions/SW4-006-resource-aware-scheduling.md
+        - SW4-007 Explicit Request/Response Semantics: protocol/extensions/SW4-007-explicit-request-response-semantics.md
+        - SW4-008 Group Addressing and Pub/Sub: protocol/extensions/SW4-008-group-addressing-pubsub.md
+        - SW4-009 Workflow v2 Compensation and Branching: protocol/extensions/SW4-009-workflow-v2-compensation-branching.md
+        - SW4-010 Inference Engine Protocol: protocol/extensions/SW4-010-inference-engine-protocol.md
+        - SW4-011 Scheduler High Availability: protocol/extensions/SW4-011-scheduler-ha.md
+        - SW4-012 Agent Capability Versioning: protocol/extensions/SW4-012-agent-capability-versioning.md
+        - SW4-013 Security Wire Profile: protocol/extensions/SW4-013-security-wire-profile.md
+        - SW4-014 Dynamic Swarm Spawning: protocol/extensions/SW4-014-dynamic-swarm-spawning.md
+        - SW4-015 A2A Gateway Binding: protocol/extensions/SW4-015-a2a-gateway-binding.md
     - SDK Extensions: protocol/sdk_extensions.md
   - Examples:
     - examples/index.md
@@ -107,6 +136,7 @@ nav:
   - Architecture:
     - architecture/index.md
     - State Machines: architecture/state-machines.md
+    - Inter-Swarm Transport Testbed: production/inter-swarm-transport-testbed.md
   - SDK Clients:
     - clients/index.md
     - Router Client: clients/router.md

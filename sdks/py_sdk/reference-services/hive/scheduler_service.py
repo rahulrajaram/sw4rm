@@ -19,9 +19,11 @@ Minimal, stateless Scheduler Service for the Python reference stack.
 
 import json
 import os
+import signal
 import subprocess
+import tempfile
 from concurrent import futures
-from typing import Optional
+from typing import Any, Optional
 import traceback
 import time
 import threading
@@ -160,6 +162,77 @@ def _normalize_agent_plan(role: str, plan: object) -> Optional[dict]:
     return None
 
 
+# Shared footer for generate prompts (R45): both the legacy seed path and the
+# CONTROL plan/prompt path append this verbatim when dispatching generate.
+_GENERATE_FOOTER = (
+    "\n\nRespond with JSON ONLY, no prose or fences. Schema: "
+    '{"schema_version":1,"files":[{"path":string,"encoding":"base64","content_b64":string,"executable":boolean}]}. '
+    "Paths are relative to your generated app root. Encode all file contents in base64. "
+    "If you are the backend, implement CORS for browser access: add Access-Control-Allow-Origin: * and related headers on responses and handle OPTIONS preflight with 204."
+)
+
+
+def _plan_and_dispatch_generate(
+    router: Any,
+    agent_id: str,
+    corr: Optional[str],
+    result: dict,
+    sessions: dict,
+) -> bool:
+    """Normalize a planner result and fan out generate commands to both agents.
+
+    Shared by the legacy seed handler and the CONTROL plan/prompt handler
+    (R45): both feed an LLM result through the same plan validation (both
+    roles must yield a plan dict), ambient run-command capture, prompt footer,
+    and generate dispatch.  Returns False when the result is not a usable
+    plan so callers can continue without dispatching.
+    """
+    plan_front = _normalize_agent_plan("frontend", result.get("frontend"))
+    plan_back = _normalize_agent_plan("backend", result.get("backend"))
+    if not isinstance(plan_front, dict) or not isinstance(plan_back, dict):
+        _log_error(
+            "[scheduler] planner result missing required prompt(s) for "
+            f"frontend/backend. Got keys: {list(result.keys())}"
+        )
+        try:
+            _log(json.dumps(result)[:400])
+        except Exception:
+            pass
+        return False
+
+    sess = sessions.setdefault(corr, {
+        "generate_ok": {"frontend": False, "backend": False},
+        "run_ok": {"frontend": False, "backend": False},
+        "done": False,
+    })
+    sess["plan"] = {"frontend": plan_front, "backend": plan_back}
+
+    # Optional run commands from the planner result.
+    commands_obj = result.get("commands") or result.get("run_commands") or result.get("run_cmds")
+    if isinstance(commands_obj, dict):
+        b = str(((commands_obj.get("backend") or {}).get("run_cmd")) or "")
+        f = str(((commands_obj.get("frontend") or {}).get("run_cmd")) or "")
+        if b and f:
+            sess["run_cmds"] = {"backend": b, "frontend": f}
+
+    cmd_ct = "application/vnd.sw4rm.scheduler.command+json;v=1"
+    for role, plan in (("frontend", plan_front), ("backend", plan_back)):
+        prompt = plan.get("prompt", "") + _GENERATE_FOOTER
+        cmd = json.dumps({
+            "schema_version": 1,
+            "to": role,
+            "stage": "generate",
+            "params": {
+                "prompt": prompt,
+                "expected_artifacts": plan.get("expected_artifacts"),
+            },
+        }).encode("utf-8")
+        _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, cmd, corr)
+        _transcript_append({"event": "command", "corr": corr, "to": role, "stage": "generate"})
+    _log("[scheduler] dispatched generate commands to frontend/backend agents")
+    return True
+
+
 def _transcript_append(event: dict) -> None:
     try:
         p = _transcript_path()
@@ -181,8 +254,25 @@ def _start_heartbeats(registry: RegistryClient, agent_id: str) -> None:
     t.start()
 
 
+def _session_dir() -> Path:
+    """Per-user cache directory for the scheduler session id.
+
+    Kept outside the package tree (R35): the reference services should never
+    write state into the checkout, and the directory is 0700 so other users
+    cannot walk it.
+    """
+    base = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
+    directory = Path(base) / "sw4rm"
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        os.chmod(directory, 0o700)
+    except OSError:
+        pass
+    return directory
+
+
 def _session_file() -> Path:
-    return Path(__file__).parent / "client_server_llm" / ".scheduler_session_id"
+    return _session_dir() / "scheduler_session_id"
 
 
 def _read_session_id() -> Optional[str]:
@@ -198,7 +288,23 @@ def _read_session_id() -> Optional[str]:
 def _write_session_id(session_id: str) -> None:
     try:
         p = _session_file()
-        p.write_text(session_id, encoding="utf-8")
+        # Exclusive creation (mkstemp = O_CREAT|O_EXCL) with 0600, then an
+        # atomic rename: the session id cache cannot be redirected through a
+        # pre-planted symlink and never exposes readable plaintext (R35).
+        fd, tmp = tempfile.mkstemp(
+            dir=str(p.parent), prefix=".scheduler_session_id.", suffix=".tmp"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(session_id)
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, p)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
     except Exception:
         pass
 
@@ -269,6 +375,9 @@ def run_claude_stream_json(prompt: str) -> tuple[Optional[dict], str]:
     saw_result = False
     # Do not persist raw frames to disk (keep console/transcript only)
     stream_fp = None
+    # Bound before the stream loop: the post-loop regex/parse path reads it,
+    # and an empty or never-run stream must not NameError on it (R30).
+    full_text = ""
     for line in proc.stdout:
         line = line.strip()
         if not line:
@@ -353,14 +462,16 @@ def run_claude_stream_json(prompt: str) -> tuple[Optional[dict], str]:
                             if isinstance(t, str):
                                 text_buf.append(t)
 
-        proc.wait()
-        # no stream log to close
-        full_text = "".join(text_buf).strip()
-        if not full_text:
-            if raw_lines_sample:
-                _log("No reconstructed text; raw stream sample:")
-                for ln in raw_lines_sample:
-                    _log(ln)
+    # The stream loop above is the only reader of proc.stdout; only after it
+    # has fully drained the pipe is it safe to wait for the child (a wait()
+    # mid-loop can deadlock once the pipe buffer fills) (R30).
+    proc.wait()
+    full_text = "".join(text_buf).strip()
+    if not full_text:
+        if raw_lines_sample:
+            _log("No reconstructed text; raw stream sample:")
+            for ln in raw_lines_sample:
+                _log(ln)
         # Write summary to transcript
         _transcript_append({
             "event": "llm_stream_summary",
@@ -687,277 +798,193 @@ def main() -> int:
     # }
     sessions: dict[str, dict] = {}
 
+    from contextlib import contextmanager
+
+    @contextmanager
+    def processed_delivery(item):
+        # A normal return/continue means this demo consumed or deliberately
+        # ignored the message. Exceptions leave it available for redelivery.
+        yield
+        router.ack_delivery(agent_id, item.seq, item.msg.message_id)
+
     def handle_stream():
         for item in router.stream_incoming(agent_id):
             try:
-                msg = item.msg
-                ct = getattr(msg, "content_type", "")
-                payload = getattr(msg, "payload", b"") or b""
-                corr = getattr(msg, "correlation_id", None)
-                if corr and corr not in sessions:
-                    sessions[corr] = {
-                        "generate_ok": {"frontend": False, "backend": False},
-                        "run_ok": {"frontend": False, "backend": False},
-                        "done": False,
-                    }
+                with processed_delivery(item):
+                    msg = item.msg
+                    ct = getattr(msg, "content_type", "")
+                    payload = getattr(msg, "payload", b"") or b""
+                    corr = getattr(msg, "correlation_id", None)
+                    if corr and corr not in sessions:
+                        sessions[corr] = {
+                            "generate_ok": {"frontend": False, "backend": False},
+                            "run_ok": {"frontend": False, "backend": False},
+                            "done": False,
+                        }
 
-                with request_logging_context(
-                    request=msg,
-                    method_name="StreamIncoming",
-                    fallback_correlation_id=corr,
-                ):
-                    # Endpoint mediation/relay removed in simplified flow
-                    # Handle agent reports first (NOTIFICATION)
-                    if ct == "application/vnd.sw4rm.agent.report+json;v=1":
-                        try:
-                            rep = json.loads(payload.decode("utf-8", errors="replace"))
-                        except Exception:
-                            rep = {"stage": "?", "status": "error", "logs": "<invalid json>"}
-                        from_id = getattr(msg, "producer_id", "")
-                        corr = getattr(msg, "correlation_id", "")
-                        stage = rep.get("stage")
-                        status = rep.get("status")
-                        files = rep.get("files")
-                        files_n = len(files) if isinstance(files, list) else None
-                        extra = ''
-                        try:
-                            if from_id == 'backend' and stage == 'run_probe' and isinstance(rep.get('port'), (int, float, str)):
-                                extra = f" port={rep.get('port')}"
-                        except Exception:
-                            pass
-                        # Highlight failures
-                        if status == "ok":
-                            _log(f"report from {from_id} corr={corr} stage={stage} status={status} files={files_n}{extra}")
-                        else:
-                            _log_error(f"report from {from_id} corr={corr} stage={stage} status={status} files={files_n}{extra}")
-                        _transcript_append({
-                            "event": "report",
-                            "from": from_id,
-                            "corr": corr,
-                            "stage": stage,
-                            "status": status,
-                            "files": files_n,
-                        })
-                        # Update session state and drive next commands
-                        sess = sessions.get(corr)
-                        if isinstance(sess, dict) and not sess.get("done"):
-                            role = from_id if from_id in ("frontend", "backend") else None
-                            if stage == "generate" and role:
-                                sess["generate_ok"][role] = (status == "ok")
-                                if all(sess["generate_ok"].values()):
-                                    # Auto-run if commands present from unified plan
-                                    cmds = sess.get("run_cmds") if isinstance(sess, dict) else None
-                                    if isinstance(cmds, dict):
-                                        back_cmd_s = (cmds.get("backend") or "")
-                                        front_cmd_s = (cmds.get("frontend") or "")
-                                        if back_cmd_s and front_cmd_s:
-                                            cmd_ct = "application/vnd.sw4rm.scheduler.command+json;v=1"
-                                            back_cmd = json.dumps({"schema_version": 1, "to": "backend", "stage": "run", "params": {"cmd": back_cmd_s}}).encode("utf-8")
-                                            front_cmd = json.dumps({"schema_version": 1, "to": "frontend", "stage": "run", "params": {"cmd": front_cmd_s}}).encode("utf-8")
-                                            _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, back_cmd, corr)
-                                            _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, front_cmd, corr)
-                                            _log(f"dispatched run to frontend/backend corr={corr} (from LLM plan)")
-                            elif stage == "run" and role:
-                                sess["run_ok"][role] = (status == "ok")
-                                if all(sess["run_ok"].values()):
-                                    sess["done"] = True
-                                    _transcript_append({"event": "success_run", "corr": corr})
-                                    _log_success(f"completed session: both agents running (corr={corr})")
-                        continue
-
-                # Operator control: allow external run trigger (stage=run), and unified prompt (stage=plan/prompt)
-                if ct == "application/vnd.sw4rm.scheduler.command+json;v=1":
-                    try:
-                        obj = json.loads(payload.decode("utf-8", errors="replace"))
-                    except Exception:
-                        obj = {}
-                    if isinstance(obj, dict) and (obj.get("to") in (None, "scheduler")) and obj.get("stage") == "run":
-                        # ALWAYS route run through LLM: treat input as guidance to produce canonical commands
-                        params = obj.get("params") or {}
-                        suggested = params.get("commands") if isinstance(params, dict) else None
-                        # Build a concise run prompt
-                        run_prompt = [
-                            "You are the Scheduler. Output run commands for two agents.",
-                            "Respond JSON ONLY, no prose/fences, as {\"commands\":{",
-                            "  \"backend\":{\"run_cmd\":string},",
-                            "  \"frontend\":{\"run_cmd\":string}}}",
-                            "Constraints: backend must run on port 8000; frontend serves static files on 5173.",
-                            "Execution cwd is ./generated_app. Use 'cd backend' and 'cd frontend' (do NOT include generated_app in paths).",
-                        ]
-                        if isinstance(suggested, dict):
+                    with request_logging_context(
+                        request=msg,
+                        method_name="StreamIncoming",
+                        fallback_correlation_id=corr,
+                    ):
+                        # Endpoint mediation/relay removed in simplified flow
+                        # Handle agent reports first (NOTIFICATION)
+                        if ct == "application/vnd.sw4rm.agent.report+json;v=1":
                             try:
-                                b = (suggested.get("backend") or {}).get("run_cmd")
-                                f = (suggested.get("frontend") or {}).get("run_cmd")
-                                if b or f:
-                                    run_prompt.append("Suggested commands (may confirm or adjust):")
-                                    run_prompt.append(json.dumps({"backend": {"run_cmd": b}, "frontend": {"run_cmd": f}}))
+                                rep = json.loads(payload.decode("utf-8", errors="replace"))
+                            except Exception:
+                                rep = {"stage": "?", "status": "error", "logs": "<invalid json>"}
+                            from_id = getattr(msg, "producer_id", "")
+                            corr = getattr(msg, "correlation_id", "")
+                            stage = rep.get("stage")
+                            status = rep.get("status")
+                            files = rep.get("files")
+                            files_n = len(files) if isinstance(files, list) else None
+                            extra = ''
+                            try:
+                                if from_id == 'backend' and stage == 'run_probe' and isinstance(rep.get('port'), (int, float, str)):
+                                    extra = f" port={rep.get('port')}"
                             except Exception:
                                 pass
-                        # If caller provided a freeform message, include it
-                        freeform = params.get("prompt") if isinstance(params, dict) else None
-                        if isinstance(freeform, str) and freeform.strip():
-                            run_prompt.append("User guidance:")
-                            run_prompt.append(freeform.strip())
-                        prompt_text = "\n".join(run_prompt)
+                            # Highlight failures
+                            if status == "ok":
+                                _log(f"report from {from_id} corr={corr} stage={stage} status={status} files={files_n}{extra}")
+                            else:
+                                _log_error(f"report from {from_id} corr={corr} stage={stage} status={status} files={files_n}{extra}")
+                            _transcript_append({
+                                "event": "report",
+                                "from": from_id,
+                                "corr": corr,
+                                "stage": stage,
+                                "status": status,
+                                "files": files_n,
+                            })
+                            # Update session state and drive next commands
+                            sess = sessions.get(corr)
+                            if isinstance(sess, dict) and not sess.get("done"):
+                                role = from_id if from_id in ("frontend", "backend") else None
+                                if stage == "generate" and role:
+                                    sess["generate_ok"][role] = (status == "ok")
+                                    if all(sess["generate_ok"].values()):
+                                        # Auto-run if commands present from unified plan
+                                        cmds = sess.get("run_cmds") if isinstance(sess, dict) else None
+                                        if isinstance(cmds, dict):
+                                            back_cmd_s = (cmds.get("backend") or "")
+                                            front_cmd_s = (cmds.get("frontend") or "")
+                                            if back_cmd_s and front_cmd_s:
+                                                cmd_ct = "application/vnd.sw4rm.scheduler.command+json;v=1"
+                                                back_cmd = json.dumps({"schema_version": 1, "to": "backend", "stage": "run", "params": {"cmd": back_cmd_s}}).encode("utf-8")
+                                                front_cmd = json.dumps({"schema_version": 1, "to": "frontend", "stage": "run", "params": {"cmd": front_cmd_s}}).encode("utf-8")
+                                                _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, back_cmd, corr)
+                                                _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, front_cmd, corr)
+                                                _log(f"dispatched run to frontend/backend corr={corr} (from LLM plan)")
+                                elif stage == "run" and role:
+                                    sess["run_ok"][role] = (status == "ok")
+                                    if all(sess["run_ok"].values()):
+                                        sess["done"] = True
+                                        _transcript_append({"event": "success_run", "corr": corr})
+                                        _log_success(f"completed session: both agents running (corr={corr})")
+                            continue
 
-                        # Call LLM to obtain commands
-                        result, full_text = run_claude_stream_json(prompt_text)
-                        if not isinstance(result, dict):
-                            _log_error("run LLM did not return a JSON object; aborting run dispatch")
+                    # Operator control: allow external run trigger (stage=run), and unified prompt (stage=plan/prompt)
+                    if ct == "application/vnd.sw4rm.scheduler.command+json;v=1":
+                        try:
+                            obj = json.loads(payload.decode("utf-8", errors="replace"))
+                        except Exception:
+                            obj = {}
+                        if isinstance(obj, dict) and (obj.get("to") in (None, "scheduler")) and obj.get("stage") == "run":
+                            # ALWAYS route run through LLM: treat input as guidance to produce canonical commands
+                            params = obj.get("params") or {}
+                            suggested = params.get("commands") if isinstance(params, dict) else None
+                            # Build a concise run prompt
+                            run_prompt = [
+                                "You are the Scheduler. Output run commands for two agents.",
+                                "Respond JSON ONLY, no prose/fences, as {\"commands\":{",
+                                "  \"backend\":{\"run_cmd\":string},",
+                                "  \"frontend\":{\"run_cmd\":string}}}",
+                                "Constraints: backend must run on port 8000; frontend serves static files on 5173.",
+                                "Execution cwd is ./generated_app. Use 'cd backend' and 'cd frontend' (do NOT include generated_app in paths).",
+                            ]
+                            if isinstance(suggested, dict):
+                                try:
+                                    b = (suggested.get("backend") or {}).get("run_cmd")
+                                    f = (suggested.get("frontend") or {}).get("run_cmd")
+                                    if b or f:
+                                        run_prompt.append("Suggested commands (may confirm or adjust):")
+                                        run_prompt.append(json.dumps({"backend": {"run_cmd": b}, "frontend": {"run_cmd": f}}))
+                                except Exception:
+                                    pass
+                            # If caller provided a freeform message, include it
+                            freeform = params.get("prompt") if isinstance(params, dict) else None
+                            if isinstance(freeform, str) and freeform.strip():
+                                run_prompt.append("User guidance:")
+                                run_prompt.append(freeform.strip())
+                            prompt_text = "\n".join(run_prompt)
+
+                            # Call LLM to obtain commands
+                            result, full_text = run_claude_stream_json(prompt_text)
+                            if not isinstance(result, dict):
+                                _log_error("run LLM did not return a JSON object; aborting run dispatch")
+                                continue
+                            commands_obj = result.get("commands") or result.get("run_commands") or result.get("run_cmds")
+                            if not isinstance(commands_obj, dict):
+                                _log_error("run LLM response missing 'commands' object; aborting run dispatch")
+                                continue
+                            back_cmd_s = str(((commands_obj.get("backend") or {}).get("run_cmd")) or "")
+                            front_cmd_s = str(((commands_obj.get("frontend") or {}).get("run_cmd")) or "")
+                            if not back_cmd_s or not front_cmd_s:
+                                _log_error("run LLM response missing backend/frontend run_cmd; aborting run dispatch")
+                                continue
+                            # Dispatch run commands from LLM output
+                            cmd_ct = "application/vnd.sw4rm.scheduler.command+json;v=1"
+                            back_cmd = json.dumps({"schema_version": 1, "to": "backend", "stage": "run", "params": {"cmd": back_cmd_s}}).encode("utf-8")
+                            front_cmd = json.dumps({"schema_version": 1, "to": "frontend", "stage": "run", "params": {"cmd": front_cmd_s}}).encode("utf-8")
+                            _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, back_cmd, corr)
+                            _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, front_cmd, corr)
+                            _log_success("dispatched run (via LLM) to frontend/backend")
+                            _log(f"run cmds: backend='{back_cmd_s}', frontend='{front_cmd_s}'")
                             continue
-                        commands_obj = result.get("commands") or result.get("run_commands") or result.get("run_cmds")
-                        if not isinstance(commands_obj, dict):
-                            _log_error("run LLM response missing 'commands' object; aborting run dispatch")
+                        if isinstance(obj, dict) and (obj.get("to") in (None, "scheduler")) and obj.get("stage") in ("plan", "prompt"):
+                            params = obj.get("params") or {}
+                            seed = (params.get("seed") or params.get("prompt") or "") if isinstance(params, dict) else ""
+                            if not isinstance(seed, str) or not seed.strip():
+                                _log("scheduler CONTROL prompt missing seed/prompt text; ignoring")
+                                continue
+                            _log(f"[scheduler] received prompt ({len(seed)} bytes)")
+                            _transcript_append({"event": "seed", "len": len(seed)})
+                            # Same flow as the legacy seed path (R45).
+                            result, full_text = run_claude_stream_json(seed)
+                            if not isinstance(result, dict):
+                                _log_error("[scheduler] invalid result from claude: not a dict. Excerpt of text:")
+                                if full_text:
+                                    _log(full_text[:400])
+                                continue
+                            _plan_and_dispatch_generate(router, agent_id, corr, result, sessions)
                             continue
-                        back_cmd_s = str(((commands_obj.get("backend") or {}).get("run_cmd")) or "")
-                        front_cmd_s = str(((commands_obj.get("frontend") or {}).get("run_cmd")) or "")
-                        if not back_cmd_s or not front_cmd_s:
-                            _log_error("run LLM response missing backend/frontend run_cmd; aborting run dispatch")
-                            continue
-                        # Dispatch run commands from LLM output
-                        cmd_ct = "application/vnd.sw4rm.scheduler.command+json;v=1"
-                        back_cmd = json.dumps({"schema_version": 1, "to": "backend", "stage": "run", "params": {"cmd": back_cmd_s}}).encode("utf-8")
-                        front_cmd = json.dumps({"schema_version": 1, "to": "frontend", "stage": "run", "params": {"cmd": front_cmd_s}}).encode("utf-8")
-                        _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, back_cmd, corr)
-                        _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, front_cmd, corr)
-                        _log_success("dispatched run (via LLM) to frontend/backend")
-                        _log(f"run cmds: backend='{back_cmd_s}', frontend='{front_cmd_s}'")
+                        # Not a scheduler-directed control; ignore and continue
                         continue
-                    if isinstance(obj, dict) and (obj.get("to") in (None, "scheduler")) and obj.get("stage") in ("plan", "prompt"):
-                        params = obj.get("params") or {}
-                        seed = (params.get("seed") or params.get("prompt") or "") if isinstance(params, dict) else ""
-                        if not isinstance(seed, str) or not seed.strip():
-                            _log("scheduler CONTROL prompt missing seed/prompt text; ignoring")
-                            continue
-                        _log(f"[scheduler] received prompt ({len(seed)} bytes)")
-                        _transcript_append({"event": "seed", "len": len(seed)})
-                        # Use same flow as legacy seed
-                        result, full_text = run_claude_stream_json(seed)
-                        if not isinstance(result, dict):
-                            _log_error("[scheduler] invalid result from claude: not a dict. Excerpt of text:")
-                            if full_text:
-                                _log(full_text[:400])
-                            continue
-                        raw_front = result.get("frontend")
-                        raw_back = result.get("backend")
-                        plan_front = _normalize_agent_plan("frontend", raw_front)
-                        plan_back = _normalize_agent_plan("backend", raw_back)
-                        # Save session
-                        sess = sessions.setdefault(corr, {"generate_ok": {"frontend": False, "backend": False}, "run_ok": {"frontend": False, "backend": False}, "done": False})
-                        sess["plan"] = {"frontend": plan_front, "backend": plan_back}
-                        # Optional run commands
-                        commands_obj = result.get("commands") or result.get("run_commands") or result.get("run_cmds")
-                        if isinstance(commands_obj, dict):
-                            b = str(((commands_obj.get("backend") or {}).get("run_cmd")) or "")
-                            f = str(((commands_obj.get("frontend") or {}).get("run_cmd")) or "")
-                            if b and f:
-                                sess["run_cmds"] = {"backend": b, "frontend": f}
-                        # Dispatch generate if present
-                        cmd_ct = "application/vnd.sw4rm.scheduler.command+json;v=1"
-                        if isinstance(plan_front, dict):
-                            front_prompt = plan_front.get("prompt", "") + (
-                                "\n\nRespond with JSON ONLY, no prose or fences. Schema: "
-                                "{\"schema_version\":1,\"files\":[{\"path\":string,\"encoding\":\"base64\",\"content_b64\":string,\"executable\":boolean}]}. "
-                                "Paths are relative to your generated app root. Encode all file contents in base64. "
-                                "If you are the backend, implement CORS for browser access: add Access-Control-Allow-Origin: * and related headers on responses and handle OPTIONS preflight with 204."
-                            )
-                            cmd_front = json.dumps({"schema_version": 1, "to": "frontend", "stage": "generate", "params": {"prompt": front_prompt, "expected_artifacts": plan_front.get("expected_artifacts")}}).encode("utf-8")
-                            _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, cmd_front, corr)
-                            _transcript_append({"event": "command", "corr": corr, "to": "frontend", "stage": "generate"})
-                        if isinstance(plan_back, dict):
-                            back_prompt = plan_back.get("prompt", "") + (
-                                "\n\nRespond with JSON ONLY, no prose or fences. Schema: "
-                                "{\"schema_version\":1,\"files\":[{\"path\":string,\"encoding\":\"base64\",\"content_b64\":string,\"executable\":boolean}]}. "
-                                "Paths are relative to your generated app root. Encode all file contents in base64. "
-                                "If you are the backend, implement CORS for browser access: add Access-Control-Allow-Origin: * and related headers on responses and handle OPTIONS preflight with 204."
-                            )
-                            cmd_back = json.dumps({"schema_version": 1, "to": "backend", "stage": "generate", "params": {"prompt": back_prompt, "expected_artifacts": plan_back.get("expected_artifacts")}}).encode("utf-8")
-                            _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, cmd_back, corr)
-                            _transcript_append({"event": "command", "corr": corr, "to": "backend", "stage": "generate"})
+
+                    if ct != "application/vnd.sw4rm.scheduler.seed+json;v=1":
                         continue
-                    # Not a scheduler-directed control; ignore and continue
-                    continue
 
-                if ct != "application/vnd.sw4rm.scheduler.seed+json;v=1":
-                    continue
-
-                # Expect JSON payload {"seed": string}
-                try:
-                    seed_obj = json.loads(payload.decode("utf-8", errors="replace"))
-                    seed = seed_obj.get("seed", "")
-                except Exception:
-                    seed = payload.decode("utf-8", errors="replace")
-                _log(f"[scheduler] received seed ({len(seed)} bytes)")
-                _transcript_append({"event": "seed", "len": len(seed)})
-
-                # Always use Claude CLI stream-json
-                result, full_text = run_claude_stream_json(seed)
-                if not isinstance(result, dict):
-                    _log_error("[scheduler] invalid result from claude: not a dict. Excerpt of text:")
-                    if full_text:
-                        _log(full_text[:400])
-                    continue
-                # Normalize planner schema: accept string prompts and fill defaults
-                raw_front = result.get("frontend")
-                raw_back = result.get("backend")
-                plan_front = _normalize_agent_plan("frontend", raw_front)
-                plan_back = _normalize_agent_plan("backend", raw_back)
-                if not isinstance(plan_front, dict) or not isinstance(plan_back, dict):
-                    _log_error(f"[scheduler] planner result missing required prompt(s) for frontend/backend. Got keys: {list(result.keys())}")
+                    # Expect JSON payload {"seed": string}
                     try:
-                        _log(json.dumps(result)[:400])
+                        seed_obj = json.loads(payload.decode("utf-8", errors="replace"))
+                        seed = seed_obj.get("seed", "")
                     except Exception:
-                        pass
-                    continue
+                        seed = payload.decode("utf-8", errors="replace")
+                    _log(f"[scheduler] received seed ({len(seed)} bytes)")
+                    _transcript_append({"event": "seed", "len": len(seed)})
 
-                # Persist per-correlation plan in-memory only (stateless process)
-                corr = getattr(msg, "correlation_id", None)
-                sess = sessions.setdefault(corr, {
-                    "generate_ok": {"frontend": False, "backend": False},
-                    "run_ok": {"frontend": False, "backend": False},
-                    "done": False,
-                })
-                sess["plan"] = {"frontend": plan_front, "backend": plan_back}
-                # Optional run commands from planner result
-                try:
-                    commands_obj = result.get("commands") or result.get("run_commands") or result.get("run_cmds")
-                    if isinstance(commands_obj, dict):
-                        b = str(((commands_obj.get("backend") or {}).get("run_cmd")) or "")
-                        f = str(((commands_obj.get("frontend") or {}).get("run_cmd")) or "")
-                        if b and f:
-                            sess["run_cmds"] = {"backend": b, "frontend": f}
-                except Exception:
-                    pass
-
-                # Build prompts with strict base64 schema footer
-                FOOTER = (
-                    "\n\nRespond with JSON ONLY, no prose or fences. Schema: "
-                    "{\"schema_version\":1,\"files\":[{\"path\":string,\"encoding\":\"base64\",\"content_b64\":string,\"executable\":boolean}]}. "
-                    "Paths are relative to your generated app root. Encode all file contents in base64. "
-                    "If you are the backend, implement CORS for browser access: add Access-Control-Allow-Origin: * and related headers on responses and handle OPTIONS preflight with 204."
-                )
-                front_prompt = plan_front.get("prompt", "") + FOOTER
-                back_prompt = plan_back.get("prompt", "") + FOOTER
-
-                # Fan out generate commands
-                cmd_ct = "application/vnd.sw4rm.scheduler.command+json;v=1"
-                cmd_front = json.dumps({
-                    "schema_version": 1,
-                    "to": "frontend",
-                    "stage": "generate",
-                    "params": {"prompt": front_prompt, "expected_artifacts": plan_front.get("expected_artifacts")},
-                }).encode("utf-8")
-                cmd_back = json.dumps({
-                    "schema_version": 1,
-                    "to": "backend",
-                    "stage": "generate",
-                    "params": {"prompt": back_prompt, "expected_artifacts": plan_back.get("expected_artifacts")},
-                }).encode("utf-8")
-                _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, cmd_front, corr)
-                _send(router, agent_id, common_pb2.MessageType.CONTROL, cmd_ct, cmd_back, corr)
-                _transcript_append({"event": "command", "corr": corr, "to": "frontend", "stage": "generate"})
-                _transcript_append({"event": "command", "corr": corr, "to": "backend", "stage": "generate"})
-                _log("[scheduler] dispatched generate commands to frontend/backend agents")
+                    # Always use Claude CLI stream-json
+                    result, full_text = run_claude_stream_json(seed)
+                    if not isinstance(result, dict):
+                        _log_error("[scheduler] invalid result from claude: not a dict. Excerpt of text:")
+                        if full_text:
+                            _log(full_text[:400])
+                        continue
+                    corr = getattr(msg, "correlation_id", None)
+                    _plan_and_dispatch_generate(router, agent_id, corr, result, sessions)
             except Exception as e:
                 _log_error(f"[scheduler] stream error: {e}")
 

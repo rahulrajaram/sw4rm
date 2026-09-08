@@ -14,6 +14,7 @@
         "acknowledged": true,
         "effective_grace_period_ms": 5000,
         "cancelled": ["corr-1"],
+        "not_cancelled": ["not-cancelled"],
         "grace_expiry_checks": [
           {
             "correlation_id": "corr-1",
@@ -66,6 +67,7 @@
         "acknowledged": true,
         "effective_grace_period_ms": 10000,
         "cancelled": ["parent-corr", "child-a", "child-b"],
+        "not_cancelled": ["not-cancelled"],
         "grace_expiry_checks": [
           {
             "correlation_id": "parent-corr",
@@ -99,6 +101,39 @@
           ],
           "offset_ms": 0,
           "expected": ["parent-corr", "child-a", "child-b"]
+        }
+      }
+    },
+    {
+      "id": "cancels_direct_children_only",
+      "children": [
+        {"parent": "root-corr", "child": "child-a"},
+        {"parent": "child-a", "child": "grandchild-a"},
+        {"parent": "root-corr", "child": "child-b"},
+        {"parent": "unrelated-corr", "child": "other-child"}
+      ],
+      "request": {
+        "correlation_id": "root-corr",
+        "reason": "abort",
+        "grace_period_ms": 10000
+      },
+      "expected": {
+        "acknowledged": true,
+        "effective_grace_period_ms": 10000,
+        "cancelled": ["root-corr", "child-a", "child-b"],
+        "not_cancelled": ["grandchild-a", "other-child", "unrelated-corr"],
+        "grace_expiry_checks": [
+          {"correlation_id": "root-corr", "offset_ms": -1, "expired": false},
+          {"correlation_id": "root-corr", "offset_ms": 0, "expired": true}
+        ],
+        "forced_preemption_checks": [
+          {"correlation_id": "root-corr", "offset_ms": -1, "error_code": "ERROR_CODE_UNSPECIFIED"},
+          {"correlation_id": "root-corr", "offset_ms": 0, "error_code": "FORCED_PREEMPTION"}
+        ],
+        "collect_forced": {
+          "active_correlations": ["root-corr", "child-a", "child-b", "grandchild-a", "other-child"],
+          "offset_ms": 0,
+          "expected": ["root-corr", "child-a", "child-b"]
         }
       }
     }

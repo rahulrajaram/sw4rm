@@ -85,8 +85,69 @@ class RouterServiceImpl(router_pb2_grpc.RouterServiceServicer):
         self.message_log: List[Dict] = []
         self.lock = threading.RLock()
 
+        # Consumer-ACK delivery contract (at-least-once with redelivery):
+        # rows yielded to a consumer are marked in-flight and released only
+        # on AckDelivery (or removal); a lease sweeper redelivers rows whose
+        # consumer never acknowledged. Consumers that never ack fall back
+        # to lease-based redelivery and must dedupe consumer-side.
+        self.delivery_lease_seconds = float(
+            os.getenv("SW4RM_DELIVERY_LEASE_SECONDS", "30")
+        )
+        self._sweeper_stop = threading.Event()
+        self._sweeper_thread: Optional[threading.Thread] = None
+
         self._restore_state()
+        self._start_lease_sweeper()
         logging.info("Router service initialized")
+
+    def _start_lease_sweeper(self) -> None:
+        """Background sweeper: redeliver in-flight rows whose ack lease expired."""
+        if self._sweeper_thread is not None:
+            return
+
+        def _sweep_loop() -> None:
+            while not self._sweeper_stop.wait(timeout=1.0):
+                try:
+                    self._sweep_expired_leases()
+                except Exception:  # pragma: no cover - sweeper must not die
+                    logging.exception("Delivery lease sweep failed")
+
+        self._sweeper_thread = threading.Thread(
+            target=_sweep_loop, name="router-lease-sweeper", daemon=True
+        )
+        self._sweeper_thread.start()
+
+    def _sweep_expired_leases(self) -> int:
+        """Expire ack-lease rows and re-enqueue them; returns redelivered count."""
+        expired = self._state_store.expire_in_flight(self.delivery_lease_seconds)
+        redelivered = 0
+        for seq, agent_id, blob in expired:
+            envelope = common_pb2.Envelope()
+            try:
+                envelope.ParseFromString(blob)
+            except Exception:
+                self._state_store.dequeue_message(seq)
+                continue
+            with self.lock:
+                self._ensure_agent_queue(agent_id)
+                # Expired in-flight rows are not in the queue (they were
+                # consumed by a dead/stalled stream); re-enqueue directly.
+                try:
+                    self.agent_queues[agent_id].put_nowait((seq, envelope))
+                except queue.Full:
+                    # Leave the row pending in the state store; the next
+                    # sweep or stream start retries. No data loss.
+                    logging.warning(
+                        f"Redelivery queue full for {agent_id}; message {seq} stays pending"
+                    )
+                    continue
+                self._queue_index_map[agent_id][seq] = None
+                redelivered += 1
+                logging.info(
+                    f"Redelivering message seq={seq} to {agent_id} "
+                    f"(ack lease of {self.delivery_lease_seconds}s expired)"
+                )
+        return redelivered
 
     def _apply_runtime_config(self, config: ReferenceServiceConfig) -> None:
         self.max_queue_size = max(1, int(config.router_max_queue_size))
@@ -210,6 +271,34 @@ class RouterServiceImpl(router_pb2_grpc.RouterServiceServicer):
                     reason="No recipients available",
                 )
 
+    def AckDelivery(self, request, context):
+        """Consumer acknowledged delivery: release the pending row."""
+        outcome = request.outcome
+        if not request.agent_id or request.seq <= 0 or outcome not in (
+            router_pb2.DELIVERY_ACK_OUTCOME_DELIVERED,
+            router_pb2.DELIVERY_ACK_OUTCOME_PERMANENT_FAILURE,
+        ):
+            return router_pb2.DeliveryAckResponse(recorded=False)
+        with self.lock:
+            recorded = self._state_store.ack_delivery(int(request.seq), request.agent_id)
+            if recorded:
+                self._queue_index_map.get(request.agent_id, {}).pop(int(request.seq), None)
+                logging.info(
+                    f"Delivery acked: seq={request.seq} agent={request.agent_id} "
+                    f"message={request.message_id or '-'} outcome={request.outcome}"
+                )
+            else:
+                logging.debug(
+                    f"Delivery ack for unknown seq={request.seq} agent={request.agent_id} "
+                    "(already acked or expired for redelivery)"
+                )
+        if outcome == router_pb2.DELIVERY_ACK_OUTCOME_PERMANENT_FAILURE:
+            logging.warning(
+                f"Consumer {request.agent_id} reported permanent failure for seq={request.seq}; "
+                "row released (no retry)"
+            )
+        return router_pb2.DeliveryAckResponse(recorded=recorded)
+
     def StreamIncoming(self, request, context):
         """Stream incoming messages for a specific agent."""
         agent_id = request.agent_id
@@ -222,6 +311,28 @@ class RouterServiceImpl(router_pb2_grpc.RouterServiceServicer):
         with self._shutdown_manager.track_request("StreamIncoming"):
             with self.lock:
                 self._ensure_agent_queue(agent_id)
+                # A (re)connecting consumer may have in-flight rows from a
+                # previous stream it never acked. Reset them to pending and
+                # replay, so the reconnecting consumer is redelivered.
+                for seq, blob in self._state_store.reset_in_flight(agent_id):
+                    envelope = common_pb2.Envelope()
+                    try:
+                        envelope.ParseFromString(blob)
+                    except Exception:
+                        self._state_store.dequeue_message(seq)
+                        continue
+                    # In-flight rows are by definition not sitting in the
+                    # queue; drop any stale index entry from a broken stream
+                    # and re-enqueue unconditionally. mark_in_flight in the
+                    # stream loop is the delivery-side dedup authority.
+                    self._queue_index_map[agent_id].pop(seq, None)
+                    try:
+                        self.agent_queues[agent_id].put_nowait((seq, envelope))
+                        self._queue_index_map[agent_id][seq] = None
+                    except queue.Full:
+                        logging.warning(
+                            f"Replay queue full for {agent_id}; seq={seq} stays pending"
+                        )
                 if agent_id not in self.active_streams:
                     self.active_streams[agent_id] = []
                 self.active_streams[agent_id].append(context)
@@ -235,11 +346,30 @@ class RouterServiceImpl(router_pb2_grpc.RouterServiceServicer):
                             break
                     try:
                         seq, envelope = self.agent_queues[agent_id].get(timeout=1.0)
-                        stream_item = router_pb2.StreamItem(msg=envelope)
-                        yield stream_item
-                        self._state_store.dequeue_message(seq)
-                        self._queue_index_map[agent_id].pop(seq, None)
-                        logging.debug(f"Streamed message to {agent_id}")
+                        # If this stream's consumer died while we were blocked
+                        # in get(), hand the item back to the queue instead of
+                        # marking it in-flight (which would park it until the
+                        # ack lease expires).
+                        if not context.is_active():
+                            try:
+                                self.agent_queues[agent_id].put_nowait((seq, envelope))
+                            except queue.Full:
+                                # Leave pending in the store; sweep/stream-start
+                                # replays it. No data loss.
+                                pass
+                            break
+                        # Consumer-ACK contract: mark in-flight instead of
+                        # deleting. The row is released by AckDelivery, or
+                        # redelivered after the ack lease expires.
+                        if self._state_store.mark_in_flight(seq):
+                            stream_item = router_pb2.StreamItem(msg=envelope, seq=seq)
+                            yield stream_item
+                            self._queue_index_map[agent_id].pop(seq, None)
+                            logging.debug(f"Streamed message seq={seq} to {agent_id} (in-flight, awaiting ack)")
+                        else:
+                            logging.debug(
+                                f"Skipped streaming seq={seq} to {agent_id}; row no longer pending"
+                            )
                     except queue.Empty:
                         continue
                     except Exception as e:
@@ -346,6 +476,7 @@ def serve():
         )
     finally:
         config_watcher.close()
+        router_service._sweeper_stop.set()
 
 
 if __name__ == '__main__':

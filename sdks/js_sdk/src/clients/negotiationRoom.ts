@@ -57,7 +57,6 @@
 
 import {
   NegotiationRoomStore,
-  InMemoryNegotiationRoomStore,
   getDefaultStore,
 } from './negotiationRoomStore.js';
 

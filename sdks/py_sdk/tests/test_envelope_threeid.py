@@ -19,9 +19,9 @@ class TestEnvelopeStateManagement:
     """Test envelope state transitions and helpers."""
 
     def test_build_envelope_default_state(self):
-        """Test that envelopes default to CREATED state."""
+        """Test that envelopes default to SENT state."""
         env = build_envelope(producer_id="agent-1", message_type=C.DATA)
-        assert env["state"] == C.CREATED
+        assert env["state"] == C.SENT
 
     def test_build_envelope_custom_state(self):
         """Test creating envelope with custom initial state."""
@@ -35,7 +35,7 @@ class TestEnvelopeStateManagement:
     def test_update_envelope_state(self):
         """Test state transition helper."""
         env = build_envelope(producer_id="agent-1", message_type=C.DATA)
-        assert env["state"] == C.CREATED
+        assert env["state"] == C.SENT
 
         env = update_envelope_state(env, C.PENDING)
         assert env["state"] == C.PENDING
@@ -51,7 +51,7 @@ class TestEnvelopeStateManagement:
         env = build_envelope(producer_id="agent-1", message_type=C.TOOL_CALL)
 
         # Initial state
-        assert env["state"] == C.CREATED
+        assert env["state"] == C.SENT
         assert not is_terminal_state(env["state"])
 
         # Sent to router
@@ -73,7 +73,7 @@ class TestEnvelopeStateManagement:
         """Test terminal state detection."""
         # Non-terminal states
         assert not is_terminal_state(C.ENVELOPE_STATE_UNSPECIFIED)
-        assert not is_terminal_state(C.CREATED)
+        assert not is_terminal_state(C.SENT)
         assert not is_terminal_state(C.PENDING)
         assert not is_terminal_state(C.RUNNING_ENVELOPE)
 
@@ -390,7 +390,7 @@ class TestActivityBufferDeduplication:
         env = build_envelope(
             producer_id="agent-1",
             message_type=C.DATA,
-            state=C.CREATED
+            state=C.SENT
         )
         rec = buffer.record_incoming(env)
         msg_id = rec.message_id

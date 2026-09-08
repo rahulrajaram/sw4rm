@@ -29,7 +29,8 @@ defmodule Sw4rm.QuorumPolicy do
     details = %{
       votes_received: received,
       votes_expected: expected,
-      threshold: threshold
+      threshold: threshold,
+      all_votes: votes
     }
 
     if received >= threshold do

@@ -24,7 +24,19 @@ jobs:
 
       - name: Build SDK
         working-directory: sdks/js_sdk
-        run: npm run build
+        run: |
+          npm run build
+          npm run check:artifact
+
+      - name: Setup Python for cross-SDK wire checks
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Prepare Python reference router bindings
+        run: |
+          python -m pip install -e ".[dev]"
+          python scripts/smoke_protos.py
 
       - name: Run JS tests
         working-directory: sdks/js_sdk

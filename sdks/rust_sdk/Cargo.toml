@@ -1,6 +1,6 @@
 [package]
 name = "sw4rm-sdk"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 description = "SW4RM Agentic Protocol - Reference Rust SDK"
 license = "Apache-2.0"
@@ -59,6 +59,7 @@ protoc-bin-vendored = "3"
 tokio-test = "0.4"
 tempfile = "3.0"
 criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
+flate2 = "1.0"
 
 [features]
 default = ["proto"]

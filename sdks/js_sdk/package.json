@@ -1,6 +1,6 @@
 {
   "name": "@sw4rm/js-sdk",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "SW4RM Agentic Protocol JavaScript/TypeScript SDK",
   "type": "module",
   "main": "./dist/cjs/index.cjs",
@@ -19,15 +19,18 @@
     "example": "tsx",
     "build:proto": "npm run proto:js && npm run proto:ts",
     "build:lib": "npm run build:esm && npm run build:cjs && npm run build:types",
-    "build:esm": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/esm/index.js --external:@grpc/grpc-js --external:keytar",
-    "build:cjs": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/cjs/index.cjs --external:@grpc/grpc-js --external:keytar",
+    "build:esm": "esbuild src/index.ts --bundle --packages=external --platform=node --target=node18 --format=esm --outfile=dist/esm/index.js --external:@grpc/grpc-js --external:keytar",
+    "build:cjs": "esbuild src/index.ts --bundle --packages=external --platform=node --target=node18 --format=cjs --outfile=dist/cjs/index.cjs --external:@grpc/grpc-js --external:keytar --define:import.meta.url=__sw4rmModuleUrl --banner:js='const __sw4rmModuleUrl = require(\"node:url\").pathToFileURL(__filename).href;'",
     "build:types": "tsc --emitDeclarationOnly --project tsconfig.json --outDir dist/types",
     "proto:js": "grpc_tools_node_protoc --js_out=import_style=commonjs,binary:src/types/generated --grpc_out=grpc_js:src/types/generated --proto_path=../../protos ../../protos/*.proto",
     "proto:ts": "grpc_tools_node_protoc --plugin=protoc-gen-ts=./node_modules/.bin/protoc-gen-ts --ts_out=grpc_js:src/types/generated --proto_path=../../protos ../../protos/*.proto",
-    "test": "vitest",
+    "test": "vitest run",
     "test:coverage": "vitest --coverage",
     "lint": "eslint src --ext .ts,.js",
-    "format": "prettier --write src"
+    "format": "prettier --write src",
+    "test:watch": "vitest",
+    "check:examples": "tsc -p tsconfig.examples.json",
+    "check:artifact": "node scripts/check-artifact.mjs"
   },
   "files": [
     "dist",

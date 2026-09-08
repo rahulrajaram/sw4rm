@@ -1,4 +1,9 @@
-# Installation
+# 2.1 Installation
+
+Published packages remain **0.6.0**; the **0.7.0 development contract** requires
+using this checkout consistently for SDKs and reference servers. See
+[release status and migration](../release-status.md). Package installation does
+not upgrade running reference servers.
 
 Install only the toolchains you need. The repo checkout is the source of truth for local example runs and proto generation.
 
@@ -6,7 +11,7 @@ Install only the toolchains you need. The repo checkout is the source of truth f
 
 | SDK | Minimum | Install |
 |---|---|---|
-| Python | 3.11 | Editable install from the repo root |
+| Python | Package metadata: 3.9+; repository verification: 3.11+ | Editable install from the repo root |
 | Rust | stable | Cargo install or local cargo run |
 | JavaScript/TypeScript | Node.js 20+ | npm install in `sdks/js_sdk` |
 | Common Lisp | SBCL 2.3+ or CCL 1.12+ | Load the ASDF system from `sdks/cl_sdk` |

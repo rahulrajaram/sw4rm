@@ -194,4 +194,48 @@ defmodule Sw4rm.EnvelopeTest do
       assert updated.producer_id == env.producer_id
     end
   end
+
+  describe "proto state round-trip (R10)" do
+    test ":unspecified round-trips through the wire path" do
+      env = Envelope.new(producer_id: "p", message_type: :DATA, state: :unspecified)
+
+      proto = Envelope.to_proto(env)
+      assert proto.state == :ENVELOPE_STATE_UNSPECIFIED
+
+      restored = Envelope.from_proto(proto)
+      assert restored.state == :unspecified
+    end
+
+    test "a default-state wire envelope decodes and re-encodes (R10)" do
+      # A wire envelope with the proto3 default state (no explicit state) —
+      # previously a FunctionClauseError path.
+      wire = %Sw4rm.Proto.Common.Envelope{message_id: "m1", producer_id: "p"}
+      assert wire.state == :ENVELOPE_STATE_UNSPECIFIED
+
+      restored = Envelope.from_proto(wire)
+      assert restored.state == :unspecified
+
+      reencoded = Envelope.to_proto(restored)
+      assert reencoded.state == :ENVELOPE_STATE_UNSPECIFIED
+    end
+
+    test "all local states translate to wire keys and back" do
+      for {wire_key, local} <- [
+            {:SENT, :sent},
+            {:RECEIVED, :received},
+            {:READ, :read},
+            {:FULFILLED, :fulfilled},
+            {:REJECTED, :rejected},
+            {:FAILED, :failed},
+            {:TIMED_OUT, :timed_out},
+            {:ENVELOPE_STATE_UNSPECIFIED, :unspecified}
+          ] do
+        env = Envelope.new(producer_id: "p", message_type: :DATA, state: local)
+        assert Envelope.to_proto(env).state == wire_key
+
+        wire = %Sw4rm.Proto.Common.Envelope{state: wire_key}
+        assert Envelope.from_proto(wire).state == local
+      end
+    end
+  end
 end

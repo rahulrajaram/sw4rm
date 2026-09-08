@@ -206,29 +206,32 @@ class MajorityVoteAggregator:
 
 
 class BordaCountAggregator:
-    """Borda count aggregation strategy.
+    """Borda count aggregation strategy (score-derived ranks).
 
-    Implements ranked voting where each vote receives points based on its
-    rank position. Higher scored votes receive more points.
+    Votes are ranked by score (highest first, stable for ties) and each vote
+    receives Borda points by rank: the highest scored vote receives ``n``
+    points, the second ``n - 1``, and the lowest ``1``.  The aggregate
+    ``weighted_mean`` is the Borda-points-weighted mean of the actual scores,
+    so the result depends on the vote scores, not just the vote count:
 
-    Ranking system:
-    - Votes are sorted by score (highest to lowest)
-    - Highest score receives n points (where n = number of votes)
-    - Second highest receives n-1 points
-    - Lowest score receives 1 point
-    - Points are summed and normalized to 0-10 scale
+        weighted_mean = sum(points_i * score_i) / sum(points_i)
 
-    This method is resistant to strategic voting and reduces impact of outliers.
+    This method is resistant to strategic voting and reduces impact of
+    outliers while remaining score-sensitive.
+
+    Note: the Lisp and Elixir SDKs implement classic Borda over ranked
+    preference lists (``vote.choice``) — a distinct input format producing
+    per-choice winners, not a scored-vote aggregate.
     """
 
     def aggregate(self, votes: list[NegotiationVote]) -> AggregatedScore:
-        """Aggregate votes using Borda count.
+        """Aggregate votes using score-derived Borda count.
 
         Args:
             votes: List of critic votes to aggregate
 
         Returns:
-            AggregatedScore with Borda count normalized score
+            AggregatedScore with the Borda-weighted mean score
 
         Raises:
             ValueError: If votes list is empty
@@ -246,26 +249,19 @@ class BordaCountAggregator:
         variance = sum((s - mean) ** 2 for s in scores) / n
         std_dev = variance ** 0.5
 
-        # Borda count calculation
-        # Sort scores with their indices to handle ties
+        # Borda count calculation: points by score-derived rank (stable sort
+        # keeps tied scores in input order).
         indexed_scores = [(score, idx) for idx, score in enumerate(scores)]
         indexed_scores.sort(key=lambda x: x[0], reverse=True)
 
-        # Assign points based on rank (highest gets n points, lowest gets 1)
+        weighted = 0.0
         total_points = 0
-        for rank, (score, idx) in enumerate(indexed_scores):
+        for rank, (score, _idx) in enumerate(indexed_scores):
             points = n - rank
+            weighted += points * score
             total_points += points
 
-        # Normalize to 0-10 scale
-        # Maximum possible points: n + (n-1) + ... + 1 = n(n+1)/2
-        max_possible_points = n * (n + 1) / 2
-        # For a single vote's contribution, max is n points out of max_possible
-        # We want the normalized score as if each vote contributed equally
-        # Average points per position: max_possible / n = (n+1)/2
-        avg_points = total_points / n
-        # Normalize: avg_points / n * 10 gives us the normalized score
-        borda_score = (avg_points / n) * 10.0
+        borda_score = weighted / total_points
 
         return AggregatedScore(
             mean=mean,

@@ -17,6 +17,17 @@ The core specification (`spec.md`) is a static document: only the version number
 | 0.5.0 | [v0.5.0.md](./v0.5.0.md) | 2026-01-04 |
 | 0.6.0 | [v0.6.0.md](./v0.6.0.md) | 2026-02-15 |
 
+## Draft Proposal and Version-Bump Policy
+
+The repository distinguishes between tracked extension proposal drafts and shipped protocol releases:
+
+- `documentation/protocol/extensions/SW4-*.md` files are tracked draft or rejected proposal documents. They may evolve without changing the core protocol version by themselves.
+- `documentation/protocol/extensions/v0.N.0.md` files are shipped release summaries. Updating one is a normative protocol release action and must accompany a version bump.
+- `documentation/protocol/spec.md` and `protos/` remain version-gated normative surfaces.
+- `documentation/protocol/extensions/index.md` is catalog and policy documentation; updating it does not, by itself, trigger a protocol version bump.
+
+This policy matches the pre-commit hook: proposal drafts stay reviewable in version control, while shipped release files and core normative surfaces remain semver-gated.
+
 ## Extension Index
 
 | ID | Title | Status | Extends |
@@ -26,6 +37,16 @@ The core specification (`spec.md`) is a static document: only the version number
 | [SW4-003](./SW4-003-observability.md) | Observability | Draft | Core §4 |
 | [SW4-004](./SW4-004-inter-swarm-composition.md) | Inter-Swarm Composition | Draft | Core §4, §7.2, §11, §17.6, §18.6, SW4-002, SW4-003 |
 | [SW4-005](./SW4-005-spillover-routing.md) | Spillover Routing | Draft | SW4-004 §2.2, §9.3, §9.4 |
+| [SW4-006](./SW4-006-resource-aware-scheduling.md) | Resource-Aware Scheduling | Rejected | — |
+| [SW4-007](./SW4-007-explicit-request-response-semantics.md) | Explicit Request/Response Semantics | Draft | Core §10, §11, §13, §21 |
+| [SW4-008](./SW4-008-group-addressing-pubsub.md) | Group Addressing and Pub/Sub | Planning | Core §11, §14, §21 |
+| [SW4-009](./SW4-009-workflow-v2-compensation-branching.md) | Workflow v2 Compensation and Branching | Planning | Core §17.7 |
+| [SW4-010](./SW4-010-inference-engine-protocol.md) | Inference Engine Protocol | Planning | Core §9.3, §20, §23 |
+| [SW4-011](./SW4-011-scheduler-ha.md) | Scheduler High Availability | Planning | Core §4, §14, §19, §21 |
+| [SW4-012](./SW4-012-agent-capability-versioning.md) | Agent Capability Versioning | Rejected | Core §14 |
+| [SW4-013](./SW4-013-security-wire-profile.md) | Security Wire Profile | Planning | Core §6, §23 |
+| [SW4-014](./SW4-014-dynamic-swarm-spawning.md) | Dynamic Swarm Spawning | Draft | Core §4, §17.6, §17.7 |
+| [SW4-015](./SW4-015-a2a-gateway-binding.md) | A2A Gateway Binding | Draft | Core §3.9, §11, SW4-007 |
 
 ## Implementation Profile Cross-Links
 
@@ -72,6 +93,7 @@ This table is the canonical public cross-SDK implementation status; supporting e
 2. **Candidate**: Implementation experience gathered
 3. **Stable**: Proven in production, normative
 4. **Deprecated**: Superseded by newer extension
+5. **Rejected**: Evaluated and determined out of scope
 
 ## Contributing
 
@@ -81,6 +103,10 @@ To propose a new extension:
 2. Assign the next available ID
 3. Submit for review
 4. Gather implementation feedback
+
+## MkDocs Navigation
+
+Tracked extension drafts and shipped extension release files are intentionally surfaced in MkDocs navigation for direct review and cross-linking.
 
 ## Template
 
@@ -113,4 +139,4 @@ To propose a new extension:
 
 ---
 
-*Last updated: 2026-03-24*
+*Last updated: 2026-03-28*

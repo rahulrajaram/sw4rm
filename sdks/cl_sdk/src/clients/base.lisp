@@ -40,7 +40,11 @@
     :initarg :channel
     :accessor client-channel
     :initform nil
-    :documentation "gRPC channel instance (implementation-specific)."))
+    :documentation "gRPC channel instance (implementation-specific).")
+   (connect-lock
+    :initform (bordeaux-threads:make-lock "sw4rm-client-connect")
+    :accessor client-connect-lock
+    :documentation "Serializes first-connect so concurrent callers share one channel."))
   (:documentation "Base class for all SW4RM gRPC service clients.
 
 Provides common functionality for connection management, metadata handling,
@@ -75,12 +79,25 @@ Returns:
   "Create a gRPC channel to the service address.
 
 When libgrpc is available, creates a real grpc-channel instance.
-Falls back to a string placeholder when libgrpc is not loaded."
+Falls back to a string placeholder when libgrpc is not loaded.
+
+Connection is serialized under the client's connect lock: concurrent first
+connectors block, and the loser's freshly created channel is disposed
+instead of leaking a native channel that nothing references."
   (unless (client-channel client)
-    (setf (client-channel client)
-          (if *grpc-available*
-              (make-grpc-channel (client-address client))
-              (format nil "grpc-channel://~A" (client-address client)))))
+    (let ((loser nil))
+      (bordeaux-threads:with-lock-held ((client-connect-lock client))
+        (unless (client-channel client)
+          (let ((new-channel
+                  (if *grpc-available*
+                      (make-grpc-channel (client-address client))
+                      (format nil "grpc-channel://~A" (client-address client)))))
+            (if (client-channel client)
+                ;; Another thread won the race while we were creating ours.
+                (setf loser new-channel)
+                (setf (client-channel client) new-channel)))))
+      (when (and loser (typep loser 'grpc-channel))
+        (destroy-grpc-channel loser))))
   client)
 
 (defgeneric disconnect (client)
@@ -123,13 +140,32 @@ Example:
   (make-metadata client
                  :correlation-id \"wf-123\"
                  :agent-id \"agent-1\")
-  => ((:correlation-id . \"wf-123\") (:agent-id . \"agent-1\"))"))
+  => ((\"correlation-id\" . \"wf-123\") (\"agent-id\" . \"agent-1\"))"))
+
+(defun %metadata-key-name (key)
+  "Normalize a metadata KEY to the lowercase string form gRPC requires."
+  (etypecase key
+    (string key)
+    (symbol (string-downcase (symbol-name key)))))
 
 (defmethod make-metadata ((client base-client) &rest kvpairs)
-  "Convert keyword-value pairs to metadata alist."
+  "Convert keyword-value pairs to metadata alist with STRING keys.
+
+The native transport requires lowercase string keys (e.g.\ :correlation-id
+becomes \"correlation-id\").  Octet-vector values require a key with the
+-bin suffix per the gRPC wire spec and are rejected otherwise.
+"
   (loop for (key value) on kvpairs by #'cddr
         when (and key value)
-        collect (cons key value)))
+        collect (let ((name (%metadata-key-name key))
+                      (octets? (and (vectorp value)
+                                    (equal (array-element-type value)
+                                           '(unsigned-byte 8)))))
+                  (when (and octets?
+                             (not (and (>= (length name) 4)
+                                       (string= name "-bin" :start1 (- (length name) 4)))))
+                    (error "Metadata value for ~A is an octet vector; the key must end in -bin" name))
+                  (cons name value))))
 
 ;;;; Deadline and Retry Utilities
 

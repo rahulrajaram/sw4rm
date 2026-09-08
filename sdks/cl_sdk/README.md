@@ -2,9 +2,25 @@
 
 Reference Common Lisp SDK for the SW4RM Agentic Protocol. This is one of five SDKs in this repository (Python, Rust, JavaScript, Elixir, Common Lisp) and provides a full peer implementation with idiomatic CL condition/restart error handling patterns.
 
+## Complete wire interface (0.7.0 development target)
+
+`sw4rm-sdk:protocol-client`, `call-protocol-rpc`, and `stream-protocol-rpc` cover
+all 15 canonical services and 57 RPCs. Messages are keyword plists; maps are alists
+and bytes are octet vectors. Use `wait-for-stream` to join a stream and surface
+remote errors. This complete interface complements the older convenience clients.
+
+Native gRPC was tested on Linux x86-64 with SBCL 2.2.9 and libgrpc 1.51.1. The
+loader accepts the runtime library `libgrpc.so.29` as well as `libgrpc.so`; a
+separate development symlink is not required. Other native ABIs and TLS handshakes
+need separate qualification.
+
+See the [SDK parity contract](../../documentation/sdk-parity.md) for message
+representations, portable idempotency, local-only helpers and verification.
+
+
 ## Features
 
-- **Full protocol coverage**: Clients for all SW4RM services (Registry, Router, Scheduler, HITL, Worktree, Tool, Connector, Negotiation, Reasoning, Logging)
+- **Canonical protocol coverage**: `protocol-client` covers all 15 services and 57 RPCs
 - **Condition/restart error handling**: Idiomatic CL error recovery via `with-sw4rm-error-handling`
 - **Envelope helpers**: Three-ID model envelope construction with HLC timestamps
 - **Activity buffer**: Persistent message tracking with reconciliation
@@ -14,9 +30,43 @@ Reference Common Lisp SDK for the SW4RM Agentic Protocol. This is one of five SD
 - **State machine**: 12-state agent lifecycle matching the protocol spec
 - **LLM client layer**: Provider-agnostic Groq/Anthropic/mock clients with adaptive rate limiting
 
+### Router consumer acknowledgements
+
+The Common Lisp client uses the existing libgrpc CFFI transport when it is
+available. `open-stream` keeps its envelope callback shape and adds the router
+delivery sequence as `:delivery-seq`:
+
+```lisp
+(let ((stream (open-stream client "worker-1"
+                           (lambda (envelope)
+                             (process-envelope envelope)
+                             (ack-delivery client "worker-1"
+                                           (stream-item-seq envelope)
+                                           :message-id (getf envelope :message-id))))))
+  (declare (ignore stream)))
+```
+
+Call `ack-delivery` only after the side effect completes. Unacknowledged rows
+may be redelivered after the router lease expires. When libgrpc is unavailable
+the SDK retains its documented placeholder channel and signals `UNIMPLEMENTED`
+for network calls; it does not claim a native gRPC implementation in that
+mode.
+
+The JSON file persistence backend writes a synced temporary file, atomically
+renames it, and syncs the containing directory on SBCL/POSIX. Other Common
+Lisp implementations retain atomic rename but cannot claim fsync durability
+without a platform-specific sync API.
+
+`aggregate-votes` returns a `score-summary` with arithmetic mean, min/max,
+population standard deviation, and confidence-weighted mean. With all
+confidence values zero, the weighted mean falls back to the arithmetic mean;
+empty input signals an error. This follows the shared `score-summary-v1`
+contract.
+
 ## Install
 
-Requires [SBCL](http://www.sbcl.org/) and [Quicklisp](https://www.quicklisp.org/).
+Requires [SBCL](http://www.sbcl.org/), [Quicklisp](https://www.quicklisp.org/),
+and the native libgrpc runtime for network calls.
 
 ```lisp
 ;; Add the SDK to your ASDF load path (one-time setup):
@@ -27,7 +77,6 @@ Requires [SBCL](http://www.sbcl.org/) and [Quicklisp](https://www.quicklisp.org/
 ```
 
 Dependencies (resolved automatically via Quicklisp):
-- `cl-protobufs` - Protocol buffer support
 - `alexandria` - Common utilities
 - `bordeaux-threads` - Thread portability
 - `local-time` - Time handling
@@ -35,6 +84,9 @@ Dependencies (resolved automatically via Quicklisp):
 - `uuid` - UUID generation
 - `jonathan` - Fast JSON parsing/encoding
 - `cl-ppcre` - Regular expressions
+- `split-sequence`, `cl-json`, `babel` - Codec and string support
+- `cffi`, `cffi-libffi` - Native gRPC bindings, including structs passed by value
+- `drakma` - HTTP for optional LLM clients
 
 ## Quick Start
 
@@ -96,11 +148,11 @@ make test-lisp
 
 # Directly with SBCL
 cd sdks/cl_sdk
-sbcl --load ~/quicklisp/setup.lisp \
+sbcl --non-interactive --load ~/quicklisp/setup.lisp \
      --eval '(push (truename ".") asdf:*central-registry*)' \
      --eval '(ql:quickload :sw4rm-sdk)' \
-     --eval '(load "test/suite.lisp")' \
-     --eval '(fiveam:run! (quote sw4rm-test::sw4rm-suite))'
+     --eval '(ql:quickload :fiveam)' \
+     --eval '(asdf:test-system :sw4rm-sdk)'
 ```
 
 ## LLM Client

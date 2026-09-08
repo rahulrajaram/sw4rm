@@ -2,7 +2,8 @@ use crate::{Error, Result};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::Path;
 
 /// Trait for persistence backends
@@ -59,9 +60,27 @@ impl PersistenceBackend for JsonFilePersistence {
         let temp_path = self.file_path.with_extension("tmp");
         let json_data = serde_json::to_string_pretty(&data).map_err(Error::Serialization)?;
 
-        fs::write(&temp_path, json_data).map_err(Error::Io)?;
+        let write_result = (|| -> std::io::Result<()> {
+            let mut file = OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(&temp_path)?;
+            file.write_all(json_data.as_bytes())?;
+            file.flush()?;
+            file.sync_all()?;
+            fs::rename(&temp_path, &self.file_path)?;
 
-        fs::rename(temp_path, &self.file_path).map_err(Error::Io)?;
+            // The rename is only durable after the parent directory itself is
+            // synchronized. This is required for crash-safe replacement.
+            let directory =
+                fs::File::open(self.file_path.parent().unwrap_or_else(|| Path::new(".")))?;
+            directory.sync_all()
+        })();
+        if let Err(error) = write_result {
+            let _ = fs::remove_file(&temp_path);
+            return Err(Error::Io(error));
+        }
 
         Ok(())
     }
@@ -74,16 +93,19 @@ impl PersistenceBackend for JsonFilePersistence {
         let content = fs::read_to_string(&self.file_path).map_err(Error::Io)?;
 
         if content.trim().is_empty() {
-            return Ok((HashMap::new(), Vec::new()));
+            return Err(Error::Persistence(format!(
+                "Activity buffer persistence file is empty: {}",
+                self.file_path.display()
+            )));
         }
 
-        let data: PersistedData = match serde_json::from_str(&content) {
-            Ok(d) => d,
-            Err(_) => {
-                // Gracefully handle corrupted/empty content by returning empty
-                return Ok((HashMap::new(), Vec::new()));
-            }
-        };
+        let data: PersistedData = serde_json::from_str(&content).map_err(|error| {
+            Error::Persistence(format!(
+                "Activity buffer persistence file is corrupted: {}: {}",
+                self.file_path.display(),
+                error
+            ))
+        })?;
 
         // Validate data consistency
         let valid_order: Vec<String> = data
@@ -168,15 +190,15 @@ mod tests {
     }
 
     #[test]
-    fn test_json_persistence_empty_file() {
+    fn test_json_persistence_empty_file_fails_loudly() {
         let temp_file = NamedTempFile::new().unwrap();
         temp_file.as_file().set_len(0).unwrap(); // Empty file
 
         let mut persistence = JsonFilePersistence::new(temp_file.path());
-        let (records, order) = persistence.load_records().unwrap();
-
-        assert!(records.is_empty());
-        assert!(order.is_empty());
+        assert!(matches!(
+            persistence.load_records(),
+            Err(Error::Persistence(message)) if message.contains("empty")
+        ));
     }
 
     #[test]
@@ -399,10 +421,12 @@ mod tests {
 
         let mut persistence = JsonFilePersistence::new(&file_path);
 
-        // Loading corrupted file should return empty data (graceful degradation)
-        let (records, order) = persistence.load_records().unwrap();
-        assert!(records.is_empty());
-        assert!(order.is_empty());
+        // Loading corrupted file must fail loudly so callers cannot mistake
+        // data loss for a fresh start.
+        assert!(matches!(
+            persistence.load_records(),
+            Err(Error::Persistence(message)) if message.contains("corrupted")
+        ));
 
         // Should be able to write new data after corruption
         let mut new_records = HashMap::new();
@@ -454,5 +478,17 @@ mod tests {
         let (empty_records, empty_order) = persistence.load_records().unwrap();
         assert!(empty_records.is_empty());
         assert!(empty_order.is_empty());
+    }
+
+    #[test]
+    fn test_json_persistence_corrupt_file_fails_loudly() {
+        let temp_file = NamedTempFile::new().unwrap();
+        fs::write(temp_file.path(), b"{corrupted").unwrap();
+
+        let mut persistence = JsonFilePersistence::new(temp_file.path());
+        assert!(matches!(
+            persistence.load_records(),
+            Err(Error::Persistence(message)) if message.contains("corrupted")
+        ));
     }
 }

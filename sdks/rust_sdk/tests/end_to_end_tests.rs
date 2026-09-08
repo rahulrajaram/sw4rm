@@ -61,6 +61,7 @@ async fn test_envelope_complete_lifecycle() {
 #[tokio::test]
 async fn test_activity_buffer_ack_lifecycle() {
     let temp_file = NamedTempFile::new().unwrap();
+    std::fs::remove_file(temp_file.path()).unwrap();
     let persistence = Box::new(JsonFilePersistence::new(temp_file.path()));
     let buffer = PersistentActivityBuffer::new(100, Some(persistence)).unwrap();
 

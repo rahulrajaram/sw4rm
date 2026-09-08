@@ -13,6 +13,45 @@
   (timestamp (get-universal-time) :type integer)
   (metadata nil :type list))
 
+;;; Runtime-neutral scored-vote summary (score-summary-v1)
+
+(defstruct (score-summary (:constructor make-score-summary
+                              (mean min-score max-score std-dev weighted-mean vote-count)))
+  "Descriptive and confidence-weighted statistics for negotiation scores."
+  mean min-score max-score std-dev weighted-mean vote-count)
+
+(defun %scored-vote-value (vote key)
+  (cond
+    ((listp vote)
+     (if (getf vote key)
+         (getf vote key)
+         (error "Scored vote is missing ~S: ~S" key vote)))
+    (t (error "Scored vote must be a plist: ~S" vote))))
+
+(defun aggregate-votes (votes)
+  "Aggregate scored vote plists using score-summary-v1 semantics.
+
+Returns arithmetic mean, min/max, population standard deviation, and a
+confidence-weighted mean. When all confidences are zero, weighted-mean falls
+back to the arithmetic mean. Empty input signals an error."
+  (when (null votes)
+    (error "Cannot aggregate empty list of votes"))
+  (let* ((scores (mapcar (lambda (vote) (%scored-vote-value vote :score)) votes))
+         (confidences (mapcar (lambda (vote) (%scored-vote-value vote :confidence)) votes))
+         (count (length scores))
+         (mean (/ (reduce #'+ scores) count))
+         (variance (/ (reduce #'+ (mapcar (lambda (score)
+                                            (expt (- score mean) 2))
+                                          scores))
+                             count))
+         (total-confidence (reduce #'+ confidences))
+         (weighted-mean (if (plusp total-confidence)
+                            (/ (reduce #'+ (mapcar #'* scores confidences))
+                               total-confidence)
+                            mean)))
+    (make-score-summary mean (reduce #'min scores) (reduce #'max scores)
+                        (sqrt variance) weighted-mean count)))
+
 ;;; Aggregation Strategy Protocol
 
 (defgeneric aggregate (strategy votes)

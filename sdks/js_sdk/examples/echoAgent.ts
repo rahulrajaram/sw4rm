@@ -155,7 +155,7 @@ async function main(): Promise<number> {
       ackManager.mark(messageId, AckStage.RECEIVED);
 
       // Echo back DATA messages (type 2)
-      if (messageType === MessageType.DATA || messageType === 2) {
+      if (messageType === MessageType.DATA) {
         const echoEnvelope = buildEnvelope({
           producer_id: args.agentId,
           message_type: MessageType.DATA,

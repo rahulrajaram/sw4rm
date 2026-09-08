@@ -25,9 +25,11 @@ type DelegationVector = {
     max_redirects: number;
   };
   redirect_map: Record<string, string>;
+  accept_agents?: string[];
+  now_ms_epoch_ms?: number;
   expected: {
     accepted: boolean;
-    rejection_code: 'VALIDATION_ERROR' | 'REDIRECT';
+    rejection_code: 'VALIDATION_ERROR' | 'REDIRECT' | 'ACK_TIMEOUT' | 'NONE';
     attempts: string[];
     reason_contains?: string;
     redirect_to_agent_id?: string;
@@ -50,6 +52,7 @@ type CancellationVector = {
     acknowledged: boolean;
     effective_grace_period_ms: number;
     cancelled: string[];
+    not_cancelled?: string[];
     grace_expiry_checks: Array<{
       correlation_id: string;
       offset_ms: number;
@@ -89,12 +92,12 @@ const cancellationVectorSuite: CancellationVectorSuite = JSON.parse(
   readFileSync(cancellationVectorsPath, 'utf-8')
 ) as CancellationVectorSuite;
 
-const delegationRejectionCodeByName: Record<
-  DelegationVector['expected']['rejection_code'],
-  ErrorCode
+const delegationRejectionCodeByName: Partial<
+  Record<DelegationVector['expected']['rejection_code'], ErrorCode>
 > = {
   VALIDATION_ERROR: ErrorCode.VALIDATION_ERROR,
   REDIRECT: ErrorCode.REDIRECT,
+  ACK_TIMEOUT: ErrorCode.ACK_TIMEOUT,
 };
 
 const cancellationErrorCodeByName: Record<
@@ -109,10 +112,18 @@ describe('Shared SW4-005 gateway/delegation conformance vectors', () => {
   for (const vector of delegationVectorSuite.vectors) {
     it(`executes vector ${vector.id}`, async () => {
       const attempts: string[] = [];
+      const acceptAgents = new Set(vector.accept_agents ?? []);
 
       const response = await delegateToSwarm({
         sendHandoffFn: (request: HandoffRequest): HandoffResponse => {
           attempts.push(request.toAgent);
+          if (acceptAgents.has(request.toAgent)) {
+            return {
+              requestId: request.requestId,
+              accepted: true,
+              rejectionCode: 0,
+            };
+          }
           return {
             requestId: request.requestId,
             accepted: false,
@@ -132,13 +143,18 @@ describe('Shared SW4-005 gateway/delegation conformance vectors', () => {
           allowSpilloverRouting: vector.policy.allow_spillover_routing,
           maxRedirects: vector.policy.max_redirects,
         },
-        nowMsFn: () => vector.budget.deadline_epoch_ms - 1_000,
+        nowMsFn: () =>
+          vector.now_ms_epoch_ms ?? vector.budget.deadline_epoch_ms - 1_000,
       });
 
       expect(response.accepted).toBe(vector.expected.accepted);
-      expect(response.rejectionCode).toBe(
-        delegationRejectionCodeByName[vector.expected.rejection_code]
-      );
+      if (vector.expected.rejection_code === 'NONE') {
+        expect(response.rejectionCode).toBe(0);
+      } else {
+        expect(response.rejectionCode).toBe(
+          delegationRejectionCodeByName[vector.expected.rejection_code]
+        );
+      }
       expect(attempts).toEqual(vector.expected.attempts);
 
       if (vector.expected.reason_contains) {
@@ -176,6 +192,12 @@ describe('Shared SW4-004 cancellation conformance vectors', () => {
 
       for (const correlationId of vector.expected.cancelled) {
         expect(manager.isCancelled(correlationId)).toBe(true);
+      }
+
+      // Negative assertions: correlations outside the direct-children
+      // cascade must remain active (R21).
+      for (const correlationId of vector.expected.not_cancelled ?? []) {
+        expect(manager.isCancelled(correlationId)).toBe(false);
       }
 
       for (const check of vector.expected.grace_expiry_checks) {

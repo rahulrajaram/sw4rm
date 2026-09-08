@@ -169,6 +169,15 @@ For delegation chains deeper than 2 (i.e., swarm A → swarm B → swarm C), the
 
 Implementations SHOULD maintain an index on `(correlation_id, parent_correlation_id)` pairs in `envelope_log` to support efficient ancestor lookups. Without this index, reconstruction requires a full scan per hop and degrades at scale.
 
+```mermaid
+graph RL
+    C["envelope C\ncorrelation_id=c\nparent_correlation_id=b"] --> B["envelope B\ncorrelation_id=b\nparent_correlation_id=a"]
+    B --> A["envelope A (root)\ncorrelation_id=a\nparent_correlation_id=(empty)"]
+```
+
+The walk starts at the leaf envelope `C`, follows its `parent_correlation_id`
+edge to `B`, then to root `A`, where the chain terminates.
+
 ## 4. Backpressure and `OVERLOADED`
 
 ### 4.1 Error Code Extension
@@ -243,6 +252,26 @@ Upon receiving a `CancelDelegation` request, the gateway MUST:
 ### 5.3 Cascading Cancellation
 
 At delegation depth > 1, cancellation propagates recursively: a gateway that receives `CancelDelegation` MUST forward it to all child gateways it delegated to, using the child delegation's `correlation_id`. Each child gateway follows the same acknowledge → propagate → enforce → report sequence.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Caller as Caller
+    participant GA as Gateway A
+    participant GB as Gateway B (child)
+    Caller->>GA: CancelDelegation (correlation_id, grace_period_ms)
+    GA-->>Caller: acknowledged=true (receipt, not completion)
+    note over GA: set cancellation flag on active work items
+    GA->>GB: CancelDelegation (child correlation_id)
+    GB-->>GA: acknowledged=true
+    par cooperative stop
+        note over GA,GB: agents stop new work at safe points;<br/>at-exit handlers run within remaining grace
+    and grace period
+        note over GA,GB: timer expires → force-terminate remaining work<br/>with error_code=FORCED_PREEMPTION
+    end
+    GB-->>GA: terminal handoff status
+    GA-->>Caller: terminal handoff status
+```
 
 ### 5.4 Cooperative Preemption Integration
 
@@ -363,7 +392,7 @@ Implementations claiming SW4-004 conformance, and implementations that additiona
 
 1. Redirect target normalization is mandatory for parity: gateways MUST emit `redirect_to_agent_id` using the canonical registry `agent_id` string with no leading or trailing ASCII whitespace, and callers MUST trim leading/trailing ASCII whitespace before policy checks, then resolve to a canonical registry `agent_id`; if canonical resolution fails, callers MUST terminate the attempt with validation failure and MUST NOT retry that hop.
 2. Redirect loop detection: callers MUST track visited redirect targets by canonical `agent_id` per delegation attempt and MUST terminate the attempt when a canonical redirect target repeats.
-3. Effective default redirect bound: callers MUST treat `SwarmDelegationPolicy.max_redirects` values of `0` or unset as an effective bound of `2`.
+3. Effective default redirect bound: callers MUST treat `SwarmDelegationPolicy.max_redirects` (the field is allocated by SW4-005 §3.3) values of `0` or unset as an effective bound of `2`.
 4. Deadline and wall-time monotonicity: callers MUST deduct elapsed wall-clock time from `BudgetEnvelope.wall_time_remaining_ms` on every redirect hop, and receivers/callers MUST NOT increase `deadline_epoch_ms` at any cross-swarm boundary.
 5. Cancellation propagation and grace handling: gateways receiving cancellation MUST follow acknowledge -> cascade -> enforce behavior (§5.2), and each child delegation's grace window MUST be clamped to remaining parent grace time with a minimum effective floor of `5000ms`.
 6. Overloaded fallback when spillover is disabled: when `allow_spillover_routing=false` (or delegation policy is absent), gateways MUST return SW4-004 `OVERLOADED` behavior and MUST NOT emit redirect signaling.
@@ -387,7 +416,7 @@ The following table defines normative test scenarios. An implementation claiming
 | T-011 | Parent correlation on boundary | Required | §3 — `parent_correlation_id` is set on first envelope crossing a swarm boundary |
 | T-012 | Non-preemptible section during cancel | Recommended | §5.4 — Agent in non-preemptible section defers cancellation to next safe point per Core §7.2 |
 | T-013 | Redirect loop rejection | Required | §9.4 — Caller terminates attempt when a redirect target repeats |
-| T-014 | Effective default redirect bound | Required | §9.4 — `max_redirects` unset/`0` behaves as effective value `2` |
+| T-014 | Effective default redirect bound | Required | §9.4 — `max_redirects` (allocated by SW4-005 §3.3) unset/`0` behaves as effective value `2` |
 | T-015 | Redirect budget/deadline monotonicity | Required | §9.4 — `wall_time_remaining_ms` strictly decreases by elapsed routing time and `deadline_epoch_ms` never increases |
 | T-016 | Cascading cancellation grace clamp | Required | §5.2, §9.4 — Child cancellation grace is clamped to parent remaining grace with `5000ms` minimum floor |
 | T-017 | Spillover-disabled overload fallback | Required | §9.4 — Gateway returns `OVERLOADED` and does not emit redirect when spillover is disabled |
@@ -443,6 +472,12 @@ To prevent field number collisions across extensions sharing the same protobuf m
 | SW4-003 (Observability) | 60–69 | Pre-allocated; none used yet |
 | SW4-004 (Inter-Swarm Composition) | 100–109 | 100–101 used in AgentDescriptor, HandoffRequest, HandoffResponse, Envelope |
 | SW4-005+ (Future) | 110+ | Must be claimed in a future extension document |
+
+> **Note:** SW4-001 (Failure Semantics) predates this registry and already
+> allocates fields 100–105 in `NegotiationProposal`/`NegotiationDecision` and
+> 1–3 in `LateVote`. These do not collide with SW4-004's allocations, which
+> cover different messages; the registry applies to extensions claiming
+> ranges after SW4-004 v0.3.0.
 
 ### A.2 ErrorCode Enum Allocation
 

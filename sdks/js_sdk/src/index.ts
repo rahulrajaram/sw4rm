@@ -13,9 +13,10 @@
 // limitations under the License.
 
 // SW4RM JavaScript SDK
-export const version = '0.6.0';
+export const version = '0.7.0';
 
 // Clients
+export * from './clients/protocol.js';
 export * from './clients/router.js';
 export * from './clients/scheduler.js';
 export * from './clients/schedulerPolicy.js';
@@ -80,6 +81,7 @@ export * from './persistence/persistence.js';
 
 // Phase 2 Runtime (Voting, Policy Store, Agent State)
 export * from './runtime/voting.js';
+export * from './runtime/quorum.js';
 export * from './runtime/policyStore.js';
 export {
   AgentState,
@@ -121,6 +123,7 @@ export * from './agentConfig.js';
 // Persistent Activity Buffer (Three-ID model)
 export {
   type EnvelopeRecord,
+  ActivityBufferLoadError,
   PersistentActivityBuffer,
   // Skip PersistenceBackend, JSONFilePersistence — canonical versions exported from persistence/persistence.js
 } from './persistentActivityBuffer.js';

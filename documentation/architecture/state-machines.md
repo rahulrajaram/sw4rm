@@ -49,22 +49,25 @@ stateDiagram-v2
 
 | State | Value | Entry Condition | Exit Transitions | Lifecycle Hook |
 |-------|-------|-----------------|------------------|----------------|
-| INITIALIZING | 0 | Agent created | RUNNABLE | `on_startup()` |
-| RUNNABLE | 1 | Ready for work | SCHEDULED | - |
-| SCHEDULED | 2 | Task assigned | RUNNING | `on_scheduled(task_id)` |
-| RUNNING | 3 | Processing | WAITING, WAITING_RESOURCES, SUSPENDED, COMPLETED, FAILED, SHUTTING_DOWN | - |
-| WAITING | 4 | Awaiting message/event | RUNNING | - |
-| WAITING_RESOURCES | 5 | Awaiting resources | RUNNING | - |
-| SUSPENDED | 6 | Preempted | RESUMED | `on_suspend()` |
-| RESUMED | 7 | Resuming | RUNNING | `on_resume()` |
-| COMPLETED | 8 | Task finished | RUNNABLE | - |
-| FAILED | 9 | Error occurred | RECOVERING | - |
-| SHUTTING_DOWN | 10 | Graceful stop | FAILED | `on_shutdown()` |
-| RECOVERING | 11 | Recovery in progress | RUNNABLE, FAILED, SHUTTING_DOWN | `on_recovery_start()`, `on_recovery_complete()` |
+| INITIALIZING | 1 | Agent created | RUNNABLE | `on_startup()` |
+| RUNNABLE | 2 | Ready for work | SCHEDULED | - |
+| SCHEDULED | 3 | Task assigned | RUNNING | `on_scheduled(task_id)` |
+| RUNNING | 4 | Processing | WAITING, WAITING_RESOURCES, SUSPENDED, COMPLETED, FAILED, SHUTTING_DOWN | - |
+| WAITING | 5 | Awaiting message/event | RUNNING | - |
+| WAITING_RESOURCES | 6 | Awaiting resources | RUNNING | - |
+| SUSPENDED | 7 | Preempted | RESUMED | `on_suspend()` |
+| RESUMED | 8 | Resuming | RUNNING | `on_resume()` |
+| COMPLETED | 9 | Task finished | RUNNABLE | - |
+| FAILED | 10 | Error occurred | RECOVERING | - |
+| SHUTTING_DOWN | 11 | Graceful stop | FAILED | `on_shutdown()` |
+| RECOVERING | 12 | Recovery in progress | RUNNABLE, FAILED, SHUTTING_DOWN | `on_recovery_start()`, `on_recovery_complete()` |
+
+> Values match the `AgentState` enum in `common.proto` (UNSPECIFIED = 0;
+> not a valid agent state).
 
 ## State Descriptions
 
-### INITIALIZING (0)
+### INITIALIZING (1)
 
 The agent is being created and configured. This is the initial state for all agents.
 
@@ -72,14 +75,14 @@ The agent is being created and configured. This is the initial state for all age
 - **Exit:** Call `start()` to transition to RUNNABLE
 - **Hook:** `on_startup()` is called before transitioning out
 
-### RUNNABLE (1)
+### RUNNABLE (2)
 
 The agent is ready to be scheduled for work. It has completed initialization and is waiting for task assignment.
 
 - **Entry:** Successful `start()` call or recovery completion
 - **Exit:** Call `schedule(task_id)` when a task is assigned
 
-### SCHEDULED (2)
+### SCHEDULED (3)
 
 The agent has been assigned a task and is preparing to execute it.
 
@@ -87,28 +90,28 @@ The agent has been assigned a task and is preparing to execute it.
 - **Exit:** Call `run()` to begin execution
 - **Hook:** `on_scheduled(task_id)` is called after entering this state
 
-### RUNNING (3)
+### RUNNING (4)
 
 The agent is actively executing its assigned task. This is the primary working state.
 
 - **Entry:** Call `run()` from SCHEDULED, WAITING, WAITING_RESOURCES, or RESUMED
 - **Exit:** Multiple transitions available depending on outcome
 
-### WAITING (4)
+### WAITING (5)
 
 The agent is waiting for external input such as a message from another agent or an external event.
 
 - **Entry:** Call `wait()` when awaiting input
 - **Exit:** Transition back to RUNNING when input is received
 
-### WAITING_RESOURCES (5)
+### WAITING_RESOURCES (6)
 
 The agent is waiting for resources to become available (memory, compute capacity, external service limits).
 
 - **Entry:** Call `wait_resources()` when resources are unavailable
 - **Exit:** Transition back to RUNNING when resources are available
 
-### SUSPENDED (6)
+### SUSPENDED (7)
 
 The agent has been preempted and execution is suspended. State should be preserved for later resumption.
 
@@ -116,7 +119,7 @@ The agent has been preempted and execution is suspended. State should be preserv
 - **Exit:** Call `resume()` to begin resumption
 - **Hook:** `on_suspend()` is called before entering this state
 
-### RESUMED (7)
+### RESUMED (8)
 
 The agent is resuming from suspension and preparing to continue execution.
 
@@ -124,21 +127,21 @@ The agent is resuming from suspension and preparing to continue execution.
 - **Exit:** Automatically transitions to RUNNING
 - **Hook:** `on_resume()` is called after entering this state
 
-### COMPLETED (8)
+### COMPLETED (9)
 
-The agent has successfully finished its task. This is a terminal state.
+The agent has successfully finished its task. COMPLETED is terminal for the current task; an explicit re-schedule/ready transition returns the agent to RUNNABLE (see the state reference table).
 
 - **Entry:** Call `complete()` when task finishes successfully
-- **Exit:** None (terminal state)
+- **Exit:** To RUNNABLE on an explicit re-schedule/ready transition
 
-### FAILED (9)
+### FAILED (10)
 
 The agent has encountered an error and cannot continue normal execution.
 
 - **Entry:** Call `fail(reason)` when an error occurs
 - **Exit:** Call `recover()` to attempt recovery
 
-### SHUTTING_DOWN (10)
+### SHUTTING_DOWN (11)
 
 The agent is performing graceful shutdown procedures.
 
@@ -146,7 +149,7 @@ The agent is performing graceful shutdown procedures.
 - **Exit:** Transitions to FAILED on timeout
 - **Hook:** `on_shutdown()` is called before entering this state
 
-### RECOVERING (11)
+### RECOVERING (12)
 
 The agent is attempting to recover from a failure.
 

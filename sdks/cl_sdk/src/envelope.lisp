@@ -33,7 +33,7 @@ Returns:
 ;;;; Hybrid Logical Clock (HLC) Stub
 ;;;
 ;;; Implementations MAY enable HLC timestamping per spec §4.
-;;; This is a placeholder using Unix milliseconds.
+;;; This is a placeholder using Unix microseconds at one-second resolution.
 
 (defun generate-hlc-timestamp ()
   "Generate HLC timestamp in canonical format HLC:<wall>:<logical>:<node>.
@@ -46,7 +46,7 @@ concurrent events within the same microsecond.
 Returns:
   String in format HLC:<unix_microseconds>:0:<hostname>."
   (format nil "HLC:~D:0:~A"
-          (truncate (* (get-universal-time) 1000000))
+          (* (- (get-universal-time) 2208988800) 1000000)
           (machine-instance)))
 
 ;;;; Deterministic Hash Computation
@@ -54,7 +54,9 @@ Returns:
 ;;; For idempotency token generation per spec §11.2.
 
 (defun compute-deterministic-hash (params-plist)
-  "Compute deterministic SHA256 hash from canonical operation parameters.
+  "Legacy plist hash, retained only for compatibility with existing tokens.
+This algorithm sorts plist items independently and can lose key/value associations.
+Use COMPUTE-IDEMPOTENCY-TOKEN with canonical bytes for new portable identities.
 
 Args:
   PARAMS-PLIST: Property list of parameters that uniquely identify the operation.
@@ -139,12 +141,29 @@ Returns:
 ;;;
 ;;; Build message envelopes with Three-ID model support.
 
+(defun %current-timestamp ()
+  "Return a Google Timestamp plist (:seconds ... :nanos ...) for now.
+
+On SBCL the wall clock is read with sub-second precision via
+SB-UNIX:UNIX-GETTIMEOFDAY, so envelopes do not truncate to whole seconds
+(proximity-consistency finding 16 / R42).  Non-SBCL hosts fall back to
+whole seconds with zero nanos."
+  #+sbcl
+  (multiple-value-bind (status seconds microseconds)
+      (sb-unix:unix-gettimeofday)
+    (declare (ignore status))
+    (list :seconds seconds :nanos (* microseconds 1000)))
+  #-sbcl
+  (list :seconds (- (get-universal-time) 2208988800) :nanos 0))
+
 (defun make-envelope (&key
                       producer-id
                       message-type
                       (content-type "application/json")
                       (payload #())
                       correlation-id
+                      parent-correlation-id
+                      timestamp
                       idempotency-token
                       sequence-number
                       (retry-count 0)
@@ -163,6 +182,8 @@ Args:
   CONTENT-TYPE: MIME type of payload (default: 'application/json')
   PAYLOAD: Message payload as byte array (default: empty)
   CORRELATION-ID: Workflow/session identifier (auto-generated if nil)
+  PARENT-CORRELATION-ID: Parent workflow correlation for delegated work
+  TIMESTAMP: Google Timestamp plist (:seconds ... :nanos ...); defaults to now
   IDEMPOTENCY-TOKEN: Stable token for deduplication (optional)
   SEQUENCE-NUMBER: Sequence number for ordering (default: 1)
   RETRY-COUNT: Number of retry attempts (default: 0)
@@ -202,6 +223,8 @@ Example:
         :idempotency-token (or idempotency-token "")
         :producer-id producer-id
         :correlation-id (or correlation-id (generate-uuid))
+        :parent-correlation-id (or parent-correlation-id "")
+        :timestamp (or timestamp (%current-timestamp))
         :sequence-number (or sequence-number 1)
         :retry-count retry-count
         :message-type message-type
@@ -296,3 +319,20 @@ Returns:
                       (>= (getf envelope :retry-count) 0))
                  "retry-count must be non-negative integer"))
   t)
+
+(defun compute-idempotency-token (producer-id operation canonical-bytes)
+  "Portable bytes-v1 token. Supply identical canonical bytes in every SDK.
+The digest covers UTF-8 producer, LF, UTF-8 operation, LF, and the exact bytes.
+The legacy plist hash uses a different format and must not be used for portability.
+Signals VALIDATION-ERROR if PRODUCER-ID or OPERATION contains a newline (R43):
+LF is the digest field separator, so an embedded LF makes the prefix ambiguous."
+  (when (or (position #\Newline producer-id) (position #\Newline operation))
+    (error 'validation-error
+           :message "producer-id/operation must not contain LF in the bytes-v1 digest"
+           :field "producer-id/operation"
+           :constraint "no LF"))
+  (let* ((prefix (babel:string-to-octets (format nil "~A~%~A~%" producer-id operation) :encoding :utf-8))
+         (digest (ironclad:digest-sequence :sha256
+                   (concatenate '(vector (unsigned-byte 8)) prefix canonical-bytes))))
+    (make-idempotency-token producer-id operation
+      (subseq (ironclad:byte-array-to-hex-string digest) 0 16))))

@@ -1,1037 +1,380 @@
-# Services
-
-Complete API reference for all SW4RM protocol services. Each service provides specialized functionality and can be scaled independently in production deployments.
-
-## Core Services
-
-### Registry Service
-
-**Purpose**: Agent lifecycle management, discovery, and health monitoring.
-
-#### Register Agent
-
-```protobuf
-rpc Register(RegisterAgentRequest) returns (RegisterAgentResponse);
-
-message RegisterAgentRequest {
-  string agent_id = 1;
-  string display_name = 2;
-  repeated string capabilities = 3;
-  map<string, string> metadata = 4;
-  HealthConfig health_config = 5;
-}
-
-message RegisterAgentResponse {
-  bool success = 1;
-  string registration_token = 2;
-  uint64 heartbeat_interval_ms = 3;
-  repeated PolicyRule policies = 4;
-}
-```
-
-**Example**:
-```json
-{
-  "agent_id": "log-analyzer-001",
-  "display_name": "Production Log Analyzer",
-  "capabilities": ["log_parsing", "anomaly_detection", "alerting"],
-  "metadata": {
-    "version": "2.1.0",
-    "environment": "production",
-    "region": "us-west-2"
-  },
-  "health_config": {
-    "check_interval_ms": 30000,
-    "timeout_ms": 5000
-  }
-}
-```
-
-Note: Deployments include additional declaration fields aligned with the spec, such as `communication_class` and `max_parallel_instances`. Field names and placement vary by schema version. Include these fields where supported to enable correct routing and scheduling policies.
-
-#### Discover Agents
-
-```protobuf
-rpc DiscoverAgents(DiscoverAgentsRequest) returns (DiscoverAgentsResponse);
-
-message DiscoverAgentsRequest {
-  repeated string required_capabilities = 1;
-  map<string, string> metadata_filters = 2;
-  bool include_health_status = 3;
-}
-
-message DiscoverAgentsResponse {
-  repeated AgentInfo agents = 1;
-  
-  message AgentInfo {
-    string agent_id = 1;
-    string display_name = 2;
-    repeated string capabilities = 3;
-    HealthStatus health_status = 4;
-    uint64 last_seen_timestamp = 5;
-  }
-}
-```
-
-#### Health Monitoring
-
-```protobuf
-rpc SendHeartbeat(HeartbeatRequest) returns (HeartbeatResponse);
-
-message HeartbeatRequest {
-  string agent_id = 1;
-  string registration_token = 2;
-  HealthMetrics metrics = 3;
-}
-
-message HealthMetrics {
-  uint64 messages_processed = 1;
-  double cpu_usage_percent = 2;
-  uint64 memory_usage_mb = 3;
-  double error_rate_percent = 4;
-  repeated string active_capabilities = 5;
-}
-```
-
-### Router Service
-
-**Purpose**: Reliable message routing, delivery guarantees, and load balancing.
-
-#### Send Message
-
-```protobuf
-rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
-
-message SendMessageRequest {
-  Envelope envelope = 1;
-  DeliveryOptions delivery_options = 2;
-}
-
-message DeliveryOptions {
-  uint32 retry_attempts = 1;        // Max retry attempts
-  uint64 retry_delay_ms = 2;        // Initial retry delay
-  double retry_backoff_factor = 3;  // Exponential backoff multiplier
-  uint64 ttl_ms = 4;               // Message time-to-live
-  bool require_ack = 5;            // Wait for acknowledgment
-  uint64 ack_timeout_ms = 6;       // Acknowledgment timeout
-}
-
-message SendMessageResponse {
-  bool accepted = 1;
-  string delivery_id = 2;
-  ErrorCode error_code = 3;
-  string error_message = 4;
-}
-```
-
-#### Stream Messages
-
-```protobuf
-rpc StreamMessages(StreamMessagesRequest) returns (stream Envelope);
-
-message StreamMessagesRequest {
-  string agent_id = 1;
-  repeated MessageType message_types = 2;
-  map<string, string> filters = 3;
-  uint32 buffer_size = 4;
-  bool include_acks = 5;
-}
-```
-
-#### Message Status
-
-```protobuf
-rpc GetMessageStatus(GetMessageStatusRequest) returns (GetMessageStatusResponse);
-
-message GetMessageStatusRequest {
-  repeated string message_ids = 1;
-}
-
-message GetMessageStatusResponse {
-  map<string, MessageStatus> statuses = 1;
-  
-  message MessageStatus {
-    string message_id = 1;
-    DeliveryStage stage = 2;
-    repeated Ack acknowledgments = 3;
-    uint64 last_update_timestamp = 4;
-    ErrorCode error_code = 5;
-  }
-}
-```
-
-### Scheduler Service
-
-**Purpose**: Work coordination, task distribution, and resource management.
-
-#### Submit Task
-
-```protobuf
-rpc SubmitTask(SubmitTaskRequest) returns (SubmitTaskResponse);
-
-message SubmitTaskRequest {
-  string task_id = 1;
-  TaskDefinition task = 2;
-  TaskConstraints constraints = 3;
-  map<string, string> metadata = 4;
-}
-
-message TaskDefinition {
-  string task_type = 1;
-  bytes payload = 2;
-  repeated string required_capabilities = 3;
-  TaskPriority priority = 4;
-  uint64 deadline_timestamp = 5;
-}
-
-message TaskConstraints {
-  repeated string preferred_agents = 1;
-  repeated string excluded_agents = 2;
-  ResourceRequirements resources = 3;
-  uint32 max_retries = 4;
-  bool allow_preemption = 5;
-}
-```
-
-#### Query Tasks
-
-```protobuf
-rpc QueryTasks(QueryTasksRequest) returns (QueryTasksResponse);
-
-message QueryTasksRequest {
-  repeated TaskStatus status_filter = 1;
-  string agent_id_filter = 2;
-  uint64 since_timestamp = 3;
-  uint32 limit = 4;
-}
-
-message QueryTasksResponse {
-  repeated TaskInfo tasks = 1;
-  
-  message TaskInfo {
-    string task_id = 1;
-    TaskStatus status = 2;
-    string assigned_agent = 3;
-    uint64 created_timestamp = 4;
-    uint64 started_timestamp = 5;
-    uint64 completed_timestamp = 6;
-    ExecutionMetrics metrics = 7;
-  }
-}
-```
-
-## Extended Services
-
-### HITL Service
-
-**Purpose**: Human-in-the-loop workflows, approvals, and manual interventions.
-
-#### Request Approval
-
-```protobuf
-rpc RequestApproval(ApprovalRequest) returns (ApprovalResponse);
-
-message ApprovalRequest {
-  string request_id = 1;
-  ApprovalType approval_type = 2;
-  string context = 3;
-  repeated string approver_roles = 4;
-  uint64 deadline_timestamp = 5;
-  ApprovalPolicy policy = 6;
-}
-
-message ApprovalPolicy {
-  uint32 required_approvals = 1;
-  bool allow_self_approval = 2;
-  string auto_timeout_action = 3;  // "APPROVE", "DENY", "ESCALATE"
-  repeated ApprovalRule rules = 4;
-}
-```
-
-#### Poll Decisions
-
-```protobuf
-rpc PollDecisions(PollDecisionsRequest) returns (stream ApprovalDecision);
-
-message ApprovalDecision {
-  string request_id = 1;
-  DecisionType decision = 2;      // APPROVED, DENIED, ESCALATED
-  string approver_id = 3;
-  string reason = 4;
-  uint64 timestamp = 5;
-  map<string, string> metadata = 6;
-}
-```
-
-### Worktree Service
-
-**Purpose**: Repository context management, workspace isolation, and version control.
-
-#### Bind Worktree
-
-```protobuf
-rpc BindWorktree(BindWorktreeRequest) returns (BindWorktreeResponse);
-
-message BindWorktreeRequest {
-  string agent_id = 1;
-  string repo_id = 2;
-  string worktree_id = 3;
-  WorktreeConfig config = 4;
-}
-
-message WorktreeConfig {
-  string branch = 1;
-  string commit_sha = 2;
-  IsolationLevel isolation_level = 3;
-  repeated PolicyHook hooks = 4;
-  map<string, string> environment = 5;
-}
-
-message BindWorktreeResponse {
-  bool success = 1;
-  string workspace_path = 2;
-  WorktreeInfo info = 3;
-  repeated string available_commands = 4;
-}
-```
-
-#### Execute Git Command
-
-```protobuf
-rpc ExecuteGitCommand(GitCommandRequest) returns (GitCommandResponse);
-
-message GitCommandRequest {
-  string agent_id = 1;
-  string worktree_id = 2;
-  repeated string command_args = 3;
-  map<string, string> options = 4;
-  uint64 timeout_ms = 5;
-}
-
-message GitCommandResponse {
-  int32 exit_code = 1;
-  string stdout = 2;
-  string stderr = 3;
-  uint64 execution_time_ms = 4;
-  WorktreeInfo updated_info = 5;
-}
-```
-
-### Tool Service
-
-**Purpose**: External tool execution, API integration, and result management.
-
-#### Execute Tool
-
-```protobuf
-rpc ExecuteTool(ToolExecutionRequest) returns (ToolExecutionResponse);
-
-message ToolExecutionRequest {
-  string tool_name = 1;
-  string operation = 2;
-  map<string, bytes> parameters = 3;
-  ExecutionPolicy policy = 4;
-  string correlation_id = 5;
-}
-
-message ExecutionPolicy {
-  uint64 timeout_ms = 1;
-  uint32 retry_attempts = 2;
-  IsolationLevel isolation = 3;
-  ResourceLimits limits = 4;
-  repeated string allowed_domains = 5;
-  bool capture_output = 6;
-}
-
-message ToolExecutionResponse {
-  bool success = 1;
-  int32 exit_code = 2;
-  bytes result_data = 3;
-  string error_message = 4;
-  ExecutionMetrics metrics = 5;
-  repeated string logs = 6;
-}
-```
-
-#### List Available Tools
-
-```protobuf
-rpc ListTools(ListToolsRequest) returns (ListToolsResponse);
-
-message ListToolsResponse {
-  repeated ToolDefinition tools = 1;
-  
-  message ToolDefinition {
-    string name = 1;
-    string description = 2;
-    repeated string supported_operations = 3;
-    ParameterSchema parameter_schema = 4;
-    repeated string required_permissions = 5;
-    ToolCapabilities capabilities = 6;
-  }
-}
-```
-
-### Negotiation Service
-
-**Purpose**: Multi-agent consensus, artifact approval workflows, and coordination.
-
-**Port**: 50064
-
-#### Submit Proposal
-
-```protobuf
-rpc SubmitProposal(NegotiationProposal) returns (ProposalResponse);
-
-message NegotiationProposal {
-  string artifact_type = 1;           // REQUIREMENTS, PLAN, CODE, DEPLOYMENT
-  string artifact_id = 2;             // Unique identifier
-  bytes artifact = 3;                 // Binary content
-  string artifact_content_type = 4;   // MIME type
-  repeated string requested_critics = 5; // Critic agent IDs
-  string negotiation_room_id = 6;     // Session identifier
-  string producer_id = 7;             // Submitting agent
-}
-
-message ProposalResponse {
-  bool accepted = 1;
-  string proposal_id = 2;
-  string negotiation_room_id = 3;
-  repeated string assigned_critics = 4;
-}
-```
-
-#### Submit Vote
-
-```protobuf
-rpc SubmitVote(NegotiationVote) returns (VoteResponse);
-
-message NegotiationVote {
-  string artifact_id = 1;
-  string critic_id = 2;
-  float score = 3;                    // 0-10 score
-  float confidence = 4;               // 0-1 confidence level
-  bool passed = 5;                    // Meets minimum criteria
-  repeated string strengths = 6;
-  repeated string weaknesses = 7;
-  repeated string recommendations = 8;
-  string negotiation_room_id = 9;
-}
-```
-
-#### Wait for Decision
-
-```protobuf
-rpc WaitForDecision(WaitRequest) returns (NegotiationDecision);
-
-message NegotiationDecision {
-  string artifact_id = 1;
-  DecisionOutcome outcome = 2;        // APPROVED, REVISION_REQUESTED, ESCALATED_TO_HITL
-  repeated NegotiationVote votes = 3;
-  AggregatedScore aggregated_score = 4;
-  string rationale = 5;
-  string policy_version = 6;
-}
-
-message AggregatedScore {
-  float mean = 1;
-  float weighted_mean = 2;
-  float min_score = 3;
-  float max_score = 4;
-  float std_dev = 5;
-  int32 vote_count = 6;
-}
-```
-
-### Reasoning Service
-
-**Purpose**: Decision support, parallelism evaluation, and debate orchestration.
-
-**Port**: 50065
-
-#### Evaluate Options
-
-```protobuf
-rpc EvaluateOptions(EvaluationRequest) returns (EvaluationResponse);
-
-message EvaluationRequest {
-  string evaluation_id = 1;
-  repeated OptionCandidate candidates = 2;
-  EvaluationCriteria criteria = 3;
-  string context = 4;
-}
-
-message OptionCandidate {
-  string option_id = 1;
-  string description = 2;
-  bytes data = 3;
-  map<string, float> estimated_scores = 4;
-}
-
-message EvaluationCriteria {
-  repeated CriterionWeight weights = 1;
-  float minimum_threshold = 2;
-  EvaluationStrategy strategy = 3;  // WEIGHTED_SUM, PARETO, MULTI_OBJECTIVE
-}
-
-message EvaluationResponse {
-  string evaluation_id = 1;
-  repeated RankedOption results = 2;
-  string selected_option_id = 3;
-  string rationale = 4;
-}
-```
-
-#### Start Debate
-
-```protobuf
-rpc StartDebate(DebateRequest) returns (DebateSession);
-
-message DebateRequest {
-  string topic = 1;
-  repeated string participant_agents = 2;
-  DebateConfig config = 3;
-}
-
-message DebateConfig {
-  int32 max_rounds = 1;
-  int64 round_timeout_ms = 2;
-  string moderator_policy = 3;
-  repeated string position_types = 4;  // PRO, CON, NEUTRAL
-}
-
-message DebateSession {
-  string session_id = 1;
-  string status = 2;
-  repeated DebateRound rounds = 3;
-  DebateSummary summary = 4;
-}
-```
-
-### Logging Service
-
-**Purpose**: Distributed logging, audit trails, and compliance reporting.
-
-**Port**: 50066
-
-#### Emit Log Entry
-
-```protobuf
-rpc EmitLog(LogEntry) returns (LogResponse);
-
-message LogEntry {
-  string log_id = 1;
-  string agent_id = 2;
-  LogLevel level = 3;                 // DEBUG, INFO, WARN, ERROR, FATAL
-  string message = 4;
-  map<string, string> attributes = 5;
-  string correlation_id = 6;
-  string span_id = 7;
-  uint64 timestamp = 8;
-}
-
-enum LogLevel {
-  LOG_LEVEL_UNSPECIFIED = 0;
-  DEBUG = 1;
-  INFO = 2;
-  WARN = 3;
-  ERROR = 4;
-  FATAL = 5;
-}
-
-message LogResponse {
-  bool accepted = 1;
-  string log_id = 2;
-}
-```
-
-#### Query Logs
-
-```protobuf
-rpc QueryLogs(LogQuery) returns (stream LogEntry);
-
-message LogQuery {
-  repeated string agent_ids = 1;
-  LogLevel min_level = 2;
-  uint64 start_timestamp = 3;
-  uint64 end_timestamp = 4;
-  map<string, string> attribute_filters = 5;
-  string correlation_id = 6;
-  int32 limit = 7;
-}
-```
-
-#### Emit Audit Event
-
-```protobuf
-rpc EmitAuditEvent(AuditEvent) returns (AuditResponse);
-
-message AuditEvent {
-  string event_id = 1;
-  string actor_id = 2;                // Agent or user performing action
-  string action = 3;                  // CREATE, READ, UPDATE, DELETE, EXECUTE
-  string resource_type = 4;           // message, task, worktree, etc.
-  string resource_id = 5;
-  string result = 6;                  // SUCCESS, FAILURE, DENIED
-  map<string, string> metadata = 7;
-  uint64 timestamp = 8;
-}
-```
-
-### Connector Service
-
-**Purpose**: External API integration, tool provider registration, and capability bridging.
-
-**Port**: 50067
-
-#### Register Provider
-
-```protobuf
-rpc RegisterProvider(ProviderRegistration) returns (RegistrationResponse);
-
-message ProviderRegistration {
-  string provider_id = 1;
-  string provider_name = 2;
-  ProviderType provider_type = 3;     // MCP, REST, GRPC, CUSTOM
-  repeated ToolDescriptor tools = 4;
-  ConnectionConfig connection = 5;
-  HealthCheckConfig health_config = 6;
-}
-
-message ToolDescriptor {
-  string tool_name = 1;
-  string description = 2;
-  bytes input_schema = 3;             // JSON Schema
-  bytes output_schema = 4;            // JSON Schema
-  repeated string required_permissions = 5;
-  bool is_idempotent = 6;
-  bool supports_streaming = 7;
-}
-
-message ConnectionConfig {
-  string endpoint = 1;
-  AuthConfig auth = 2;
-  TlsConfig tls = 3;
-  int64 timeout_ms = 4;
-  int32 max_concurrent_requests = 5;
-}
-```
-
-#### Invoke Tool
-
-```protobuf
-rpc InvokeTool(ToolInvocation) returns (ToolResult);
-
-message ToolInvocation {
-  string provider_id = 1;
-  string tool_name = 2;
-  bytes arguments = 3;                // JSON-encoded arguments
-  string correlation_id = 4;
-  ExecutionPolicy policy = 5;
-}
-
-message ToolResult {
-  bool success = 1;
-  bytes result = 2;                   // JSON-encoded result
-  string error_message = 3;
-  int64 execution_time_ms = 4;
-  map<string, string> metadata = 5;
-}
-```
-
-#### List Providers
-
-```protobuf
-rpc ListProviders(ListProvidersRequest) returns (ListProvidersResponse);
-
-message ListProvidersResponse {
-  repeated ProviderInfo providers = 1;
-
-  message ProviderInfo {
-    string provider_id = 1;
-    string provider_name = 2;
-    ProviderType provider_type = 3;
-    HealthStatus health_status = 4;
-    repeated string available_tools = 5;
-    uint64 last_seen_timestamp = 6;
-  }
-}
-```
-
-### Scheduler Policy Service
-
-**Purpose**: Negotiation policy configuration, profile management, and evaluation reporting.
-
-**Port**: 50070
-
-**Package**: `sw4rm.scheduler`
-
-#### Set Negotiation Policy
-
-```protobuf
-rpc SetNegotiationPolicy(SetNegotiationPolicyRequest) returns (SetNegotiationPolicyResponse);
-
-message SetNegotiationPolicyRequest {
-  NegotiationPolicy policy = 1;
-}
-
-message SetNegotiationPolicyResponse {
-  bool ok = 1;
-  string reason = 2;
-}
-```
-
-#### Get Negotiation Policy
-
-```protobuf
-rpc GetNegotiationPolicy(GetNegotiationPolicyRequest) returns (GetNegotiationPolicyResponse);
-
-message GetNegotiationPolicyResponse {
-  NegotiationPolicy policy = 1;
-}
-```
-
-#### Set/List Policy Profiles
-
-```protobuf
-rpc SetPolicyProfiles(SetPolicyProfilesRequest) returns (SetPolicyProfilesResponse);
-rpc ListPolicyProfiles(ListPolicyProfilesRequest) returns (ListPolicyProfilesResponse);
-```
-
-#### Get Effective Policy
-
-```protobuf
-rpc GetEffectivePolicy(GetEffectivePolicyRequest) returns (GetEffectivePolicyResponse);
-
-message GetEffectivePolicyRequest {
-  string negotiation_id = 1;
-}
-
-message GetEffectivePolicyResponse {
-  EffectivePolicy effective = 1;
-}
-```
-
-#### Submit Evaluation / HITL Action
-
-```protobuf
-rpc SubmitEvaluation(SubmitEvaluationRequest) returns (SubmitEvaluationResponse);
-rpc HitlAction(HitlActionRequest) returns (HitlActionResponse);
-```
-
-For client usage details, see [Scheduler Policy Client](../clients/scheduler-policy.md).
-
-### Negotiation Room Service
-
-**Purpose**: Multi-agent artifact approval workflows with producer-critic-coordinator pattern.
-
-**Port**: 50068
-
-**Package**: `sw4rm.negotiation_room`
-
-#### Submit Proposal
-
-```protobuf
-rpc SubmitProposal(SubmitProposalRequest) returns (SubmitProposalResponse);
-
-message SubmitProposalRequest {
-  NegotiationProposal proposal = 1;
-}
-
-message SubmitProposalResponse {
-  string artifact_id = 1;
-  string negotiation_room_id = 2;
-}
-```
-
-#### Submit Vote
-
-```protobuf
-rpc SubmitVote(SubmitVoteRequest) returns (SubmitVoteResponse);
-
-message SubmitVoteRequest {
-  NegotiationVote vote = 1;
-}
-
-message SubmitVoteResponse {
-  string artifact_id = 1;
-  string critic_id = 2;
-}
-```
-
-#### Get Votes / Get Decision / Wait For Decision
-
-```protobuf
-rpc GetVotes(GetVotesRequest) returns (GetVotesResponse);
-rpc GetDecision(GetDecisionRequest) returns (GetDecisionResponse);
-rpc WaitForDecision(WaitForDecisionRequest) returns (WaitForDecisionResponse);
-```
-
-`WaitForDecision` blocks until a decision is rendered or `timeout_seconds` expires.
-
-For client usage details, see [Negotiation Room Client](../clients/negotiation-room.md).
-
-### Handoff Service
-
-**Purpose**: Safe delegation of work between agents when capability requirements change or workload balancing is needed.
-
-**Port**: 50071
-
-**Package**: `sw4rm.handoff`
-
-#### Request Handoff
-
-```protobuf
-rpc RequestHandoff(HandoffRequest) returns (Empty);
-
-message HandoffRequest {
-  string request_id = 1;
-  string from_agent = 2;
-  string to_agent = 3;
-  string reason = 4;
-  bytes context_snapshot = 5;
-  repeated string capabilities_required = 6;
-  int32 priority = 7;
-  google.protobuf.Duration timeout = 8;
-}
-```
-
-#### Accept / Reject Handoff
-
-```protobuf
-rpc AcceptHandoff(HandoffResponse) returns (Empty);
-rpc RejectHandoff(HandoffResponse) returns (Empty);
-
-message HandoffResponse {
-  string request_id = 1;
-  bool accepted = 2;
-  string accepting_agent = 3;
-  string rejection_reason = 4;
-}
-```
-
-#### Get Pending Handoffs / Complete Handoff
-
-```protobuf
-rpc GetPendingHandoffs(GetPendingHandoffsRequest) returns (GetPendingHandoffsResponse);
-rpc CompleteHandoff(CompleteHandoffRequest) returns (CompleteHandoffResponse);
-```
-
-Handoff states: `PENDING` → `ACCEPTED`/`REJECTED` → `COMPLETED`/`EXPIRED`.
-
-For client usage details, see [Handoff Client](../clients/handoff.md).
-
-### Workflow Service
-
-**Purpose**: DAG-based multi-agent task coordination where nodes represent agent-executed steps with explicit dependencies.
-
-**Port**: 50072
-
-**Package**: `sw4rm.workflow`
-
-#### Create Workflow
-
-```protobuf
-rpc CreateWorkflow(CreateWorkflowRequest) returns (CreateWorkflowResponse);
-
-message CreateWorkflowRequest {
-  WorkflowDefinition definition = 1;
-}
-
-message CreateWorkflowResponse {
-  string workflow_id = 1;
-  bool success = 2;
-  string error = 3;
-}
-```
-
-Implementations MUST validate the workflow definition forms a valid DAG (no cycles) before persisting. On cycle detection, CreateWorkflow MUST fail with `error_code=workflow_cycle_detected`.
-
-#### Start / Get State / Resume Workflow
-
-```protobuf
-rpc StartWorkflow(StartWorkflowRequest) returns (StartWorkflowResponse);
-rpc GetWorkflowState(GetWorkflowStateRequest) returns (GetWorkflowStateResponse);
-rpc ResumeWorkflow(ResumeWorkflowRequest) returns (ResumeWorkflowResponse);
-```
-
-Node statuses: `PENDING` → `READY` → `RUNNING` → `COMPLETED`/`FAILED`/`SKIPPED`.
-
-For client usage details, see [Workflow Client](../clients/workflow.md).
-
-### Activity Service
-
-**Purpose**: Artifact storage and retrieval for negotiation rounds (contracts, diffs, decisions, scores).
-
-**Port**: 50069
-
-**Package**: `sw4rm.activity`
-
-#### Append Artifact
-
-```protobuf
-rpc AppendArtifact(AppendArtifactRequest) returns (AppendArtifactResponse);
-
-message Artifact {
-  string negotiation_id = 1;
-  string kind = 2;           // contract|diff|decision|score|note
-  string version = 3;        // e.g., v3
-  string content_type = 4;
-  bytes content = 5;
-  string created_at = 6;     // ISO-8601
-}
-
-message AppendArtifactResponse {
-  bool ok = 1;
-  string reason = 2;
-}
-```
-
-#### List Artifacts
-
-```protobuf
-rpc ListArtifacts(ListArtifactsRequest) returns (ListArtifactsResponse);
-
-message ListArtifactsRequest {
-  string negotiation_id = 1;
-  string kind = 2;           // Optional filter by artifact kind
-}
-
-message ListArtifactsResponse {
-  repeated Artifact items = 1;
-}
-```
-
-For client usage details, see [Activity Client](../clients/activity.md).
-
-## Service Discovery and Health
-
-### Service Registry Pattern
-
-All services register with a central service registry. The following message defines the registration format:
-
-```protobuf
-message ServiceRegistration {
-  string service_name = 1;
-  string service_version = 2;
-  repeated ServiceEndpoint endpoints = 3;
-  HealthCheckConfig health_config = 4;
-  map<string, string> metadata = 5;
-}
-
-message ServiceEndpoint {
-  string address = 1;          // host:port
-  string protocol = 2;         // "grpc", "http"
-  bool tls_enabled = 3;
-  map<string, string> tags = 4; // "region", "zone", "env"
-}
-```
-
-### Load Balancing Strategies
-
-Services support the following load balancing strategies:
-
-- **Round Robin**: The load balancer distributes requests evenly across endpoints.
-- **Least Connections**: The load balancer routes to the endpoint with fewest active connections.
-- **Weighted**: The load balancer routes based on endpoint capacity weights.
-- **Locality Aware**: The load balancer prefers endpoints in the same region or zone.
-- **Health Based**: The load balancer excludes unhealthy endpoints from rotation.
-
-### Circuit Breaker Pattern
-
-All service clients implement circuit breakers with the following configuration:
-
-```protobuf
-message CircuitBreakerConfig {
-  uint32 failure_threshold = 1;      // Failures before opening
-  uint64 recovery_timeout_ms = 2;    // Time before trying to close
-  uint64 request_timeout_ms = 3;     // Individual request timeout
-  double failure_rate_threshold = 4; // Percentage failure rate
-}
-```
-
-**States**:
-
-- **CLOSED**: The circuit allows requests to pass through during normal operation.
-- **OPEN**: The circuit rejects requests immediately during failure mode.
-- **HALF_OPEN**: The circuit allows limited requests to test recovery.
-
-## Error Handling Patterns
-
-### Standard Error Response
-
-```protobuf
-message ErrorResponse {
-  ErrorCode code = 1;
-  string message = 2;
-  repeated ErrorDetail details = 3;
-  string request_id = 4;
-  uint64 timestamp = 5;
-}
-
-message ErrorDetail {
-  string field = 1;
-  string violation = 2;
-  string help_text = 3;
-}
-```
-
-### Retry Policies
-
-All services implement exponential backoff with jitter. The following function shows the calculation:
+# Service and wire contract reference
+
+SW4RM's service surface is defined by the canonical protobuf files in
+[source-derived schema reference](../reference/protobuf.md). This page explains which services are exercised by
+Python reference servers and where the remaining wire contracts stand. The
+source schemas and generated [RPC inventory](../reference/release-contract.md)
+are authoritative for method names, request fields, response fields, and field
+tags.
+
+## Running Python reference services
+
+The Python reference deployment currently implements four services with
+persistent local state:
+
+| Service | Canonical schema | Python implementation | Scope |
+| --- | --- | --- | --- |
+| Registry | [`registry.proto`](../reference/protobuf.md#registryproto) | `sdks/py_sdk/reference-services/hive/registry_service.py` | Agent registration, heartbeat, and deregistration backed by SQLite. |
+| Router | [`router.proto`](../reference/protobuf.md#routerproto) | `sdks/py_sdk/reference-services/hive/router_service.py` | Recipient queues, pending delivery rows, consumer delivery ACK, and lease redelivery. |
+| Scheduler | [`scheduler.proto`](../reference/protobuf.md#schedulerproto) | `sdks/py_sdk/reference-services/hive/scheduler_service.py` | Task submission, preemption, shutdown, and activity-buffer operations. |
+| Negotiation room | [`negotiation_room.proto`](../reference/protobuf.md#negotiation_roomproto) | `sdks/py_sdk/reference-services/coordination/negotiation_room_service.py` | Proposal, vote, decision persistence, and startup replay. |
+
+Registry, Router, and Scheduler use the hive state store; NegotiationRoom has
+its own SQLite store. The
+router's delivery ACK releases a pending delivery row only after the consumer
+identifies itself and reports an accepted outcome. Application ACK stages are
+separate and do not release router delivery rows.
+
+The reference services are local single-process implementations. They do not
+provide replicated consensus, multi-host failover, recipient authentication,
+or an exactly-once external-effect transaction. See
+[implementation coverage](implementation.md) for the boundary between shipped
+services and protocol requirements.
+
+## Contract-only services
+
+The other canonical services have generated wire bindings and may have SDK
+helpers or examples, but they do not have a Python reference server in this
+release:
+
+| Service | Canonical schema | Contract |
+| --- | --- | --- |
+| Activity | [`activity.proto`](../reference/protobuf.md#activityproto) | Artifact append and listing. |
+| Connector | [`connector.proto`](../reference/protobuf.md#connectorproto) | Provider and tool descriptor registration. |
+| Handoff | [`handoff.proto`](../reference/protobuf.md#handoffproto) | Handoff, cancellation, and completion operations. |
+| HITL | [`hitl.proto`](../reference/protobuf.md#hitlproto) | Human decision invocation and response. |
+| Logging | [`logging.proto`](../reference/protobuf.md#loggingproto) | Structured log ingestion. |
+| Negotiation | [`negotiation.proto`](../reference/protobuf.md#negotiationproto) | Lower-level negotiation lifecycle operations. |
+| Reasoning proxy | [`reasoning.proto`](../reference/protobuf.md#reasoningproto) | Parallelism, debate evaluation, and summarization. |
+| Scheduler policy | [`scheduler_policy.proto`](../reference/protobuf.md#scheduler_policyproto) | Policy profiles, effective policy, evaluations, and HITL actions. |
+| Tool | [`tool.proto`](../reference/protobuf.md#toolproto) | Unary, streaming, and cancellation tool calls. |
+| Workflow | [`workflow.proto`](../reference/protobuf.md#workflowproto) | Workflow creation, execution, state lookup, and resume. |
+| Worktree | [`worktree.proto`](../reference/protobuf.md#worktreeproto) | Bind, switch, approval, rejection, and status operations. |
+
+A generated client or a schema entry in this table does not imply a running
+server. Deployments may supply their own implementations subject to the
+canonical wire contract.
+
+## Canonical service inventory
+
+Use the [generated RPC inventory](../reference/release-contract.md#rpc-inventory)
+for all current method names and input/output types. The full
+[schema reference](../reference/protobuf.md) includes exact fields and tags.
+Both pages are regenerated and checked against source in CI.
+
+For SDK client behavior, see the [router client reference](../clients/router.md),
+[negotiation room guide](../clients/negotiation-room.md) (the lower-level
+[negotiation client](../clients/negotiation.md) is separate), and the
+language-specific SDK documentation. For the normative requirements, see the
+[protocol specification](spec.md).
+
+## Core service workflows
+
+The following procedures explain how to use the contracts. Request examples
+use Python generated protobuf bindings from this checkout; the same fields
+are available in the other SDKs. They construct requests without contacting a
+server. Configure a channel and use the linked client guide to execute them.
+
+### Registry: register, report health, deregister
+
+Register the agent's identity and capabilities before starting its work loop.
+`RegisterAgentRequest.agent` contains the descriptor; registration returns
+`accepted` and `reason`, not a registration token or heartbeat interval.
 
 ```python
-def calculate_delay(attempt: int, base_delay_ms: int, max_delay_ms: int) -> int:
-    """Calculate retry delay with exponential backoff and jitter."""
-    delay = min(base_delay_ms * (2 ** attempt), max_delay_ms)
-    jitter = random.uniform(0.1, 0.9) * delay
-    return int(delay + jitter)
+from sw4rm.protos import common_pb2, registry_pb2
+
+registration = registry_pb2.RegisterAgentRequest(
+    agent=registry_pb2.AgentDescriptor(
+        agent_id="log-analyzer-001",
+        name="Log Analyzer",
+        description="Parses logs and reports anomalies",
+        capabilities=["log_parsing", "anomaly_detection"],
+        modalities_supported=["application/json"],
+        communication_class=common_pb2.STANDARD,
+    )
+)
+heartbeat = registry_pb2.HeartbeatRequest(
+    agent_id=registration.agent.agent_id,
+    state=common_pb2.RUNNABLE,
+    health={"queue_depth": "0", "status": "ready"},
+)
 ```
 
-<!-- Performance and Scaling section removed to avoid implying guarantees. Configuration patterns should be documented alongside concrete implementations. -->
+Check registration acceptance, send `Heartbeat` on the deployment's configured
+schedule, and inspect `ok`. On graceful exit, stop accepting work, finish or
+checkpoint in-flight work, then call `DeregisterAgent` with a reason.
+Capabilities describe what the agent can do; they are not authorization grants.
+The core Registry has no `DiscoverAgents` or list RPC. Supply discovery through
+your deployment's configured agent inventory or an explicitly supported
+extension. See [Registry Client](../clients/registry.md).
 
-## Security Considerations
+### Router: publish, consume, acknowledge responsibility
 
-### Authentication
+1. Start `StreamIncoming` with the receiving `agent_id` and keep both `msg` and
+   `seq` from each `StreamItem`.
+2. Publish an Envelope inside `SendMessageRequest.msg`. Check `accepted` and
+   `reason`; acceptance does not mean the handler completed.
+3. Process the item, or durably transfer responsibility to an application inbox.
+4. Call `AckDelivery` with the receiving agent ID, delivery sequence, and
+   message ID. This releases that recipient's pending row.
 
-Services use mutual TLS authentication with the following configuration:
+```python
+from sw4rm.protos import router_pb2
 
-```yaml
-tls_config:
-  cert_file: "/etc/certs/service.pem"
-  key_file: "/etc/certs/service.key"
-  ca_file: "/etc/certs/ca.pem"
-  verify_client_cert: true
-  min_tls_version: "1.3"
+def delivery_receipt(agent_id, item):
+    return router_pb2.DeliveryAckRequest(
+        agent_id=agent_id,
+        seq=item.seq,
+        message_id=item.msg.message_id,
+        outcome=router_pb2.DELIVERY_ACK_OUTCOME_DELIVERED,
+    )
 ```
 
-### Authorization
+If the consumer crashes before the receipt is recorded, the item can return on
+reconnect or lease expiry. Deduplicate logical work using the idempotency token
+and a durable outcome record. `recorded=false` can mean the row is already gone;
+it is not evidence that the business operation failed. A permanent-failure
+receipt releases the row without retry, so preserve diagnostic evidence first.
 
-The system enforces role-based access control per service:
+The Python reference router broadcasts to eligible known queues other than the
+producer; the Envelope has no general destination field. There is no
+`GetMessageStatus` RPC or per-send `DeliveryOptions` object. Track application
+ACKs and outcomes in your own lifecycle state. See [Router Client](../clients/router.md)
+for runnable send/receive examples and [ACK Lifecycle](acks.md) for the two ACK layers.
 
-```protobuf
-message ServicePermission {
-  string service_name = 1;
-  repeated string allowed_methods = 2;
-  repeated string required_roles = 3;
-  repeated ResourceConstraint resource_constraints = 4;
-}
+### Scheduler: submit work and manage interruption
+
+`SubmitTask` names the target `agent_id`, a `task_id`, priority, serialized
+`params`, `content_type`, and resource `scope`. Lower priority numbers are more
+urgent in the specified range, −19 through 20.
+
+```python
+import json
+from sw4rm.protos import scheduler_pb2
+
+task = scheduler_pb2.SubmitTaskRequest(
+    agent_id="log-analyzer-001",
+    task_id="analyze-batch-42",
+    priority=0,
+    params=json.dumps({"batch_id": "batch-42"}).encode("utf-8"),
+    content_type="application/json",
+    scope="logs/batch-42",
+)
 ```
 
-### Audit Logging
+Check `accepted` before recording a successful submission. Request cooperative
+interruption with `RequestPreemption(agent_id, task_id, reason)`; `enqueued`
+means the request was queued, not that execution has stopped. `ShutdownAgent`
+carries a protobuf `Duration` grace period. The agent runtime and deployment
+must implement the actual safe points and shutdown behavior.
 
-All service operations generate audit logs with the following structure:
+Use `PollActivityBuffer` to inspect activity entries and `PurgeActivity` only
+after selecting the completed task IDs you intend to remove. The response
+reports `purged`. This activity list is not a task-status query API and is
+distinct from both the SDK's local message buffer and ActivityService artifacts.
+See [Scheduler Client](../clients/scheduler.md).
 
-```json
-{
-  "timestamp": "2024-08-08T15:30:00Z",
-  "service": "router",
-  "method": "SendMessage", 
-  "agent_id": "log-analyzer-001",
-  "resource": "msg-abc123",
-  "action": "CREATE",
-  "result": "SUCCESS",
-  "duration_ms": 125,
-  "request_id": "req-def456"
-}
-```
+## Coordination and capability service workflows
+
+The procedures below describe the wire contract. Apart from NegotiationRoom,
+these require a server supplied by your deployment; constructing a client does
+not start one. Local SDK helpers are identified in the linked client pages.
+
+### NegotiationRoom: submit an artifact and collect a decision
+
+The producer sends `SubmitProposalRequest.proposal` with an artifact ID, room
+ID, producer ID, artifact type, bytes, MIME type, and requested critics. Each
+critic sends `SubmitVoteRequest.vote` for the same artifact and room. Scores
+are 0–10; confidence is 0–1, and `passed` records the critic's acceptance judgment.
+
+Use `GetVotes` to inspect participation, `GetDecision` for an available result,
+or `WaitForDecision` with `timeout_seconds` to wait. Set the RPC deadline to
+accommodate that wait. A wait timeout is not a negative vote or an approval.
+Inspect `decision.outcome`, `reason`, `policy_version`, votes, and aggregate
+statistics before acting on the artifact. Outcomes are `APPROVED`,
+`REVISION_REQUESTED`, and `ESCALATED_TO_HITL`.
+
+The Python reference server persists proposals, votes, and decisions. Actual
+critic work and a human approval interface remain application responsibilities.
+See [Negotiation Room Client](../clients/negotiation-room.md) for tabbed examples
+and [Voting Strategies](voting-strategies.md) for aggregation choices.
+
+### Negotiation: manage a debate lifecycle
+
+Use `Open` to declare a negotiation ID, correlation ID, topic, participants,
+intensity, and debate timeout. Participants then `Propose`, `Counter`, and
+`Evaluate`; `Decide` records the chosen result and `Abort` carries a reason for
+stopping. Proposals and results carry bytes with a declared content type.
+
+These calls return `Empty`. They do not return NegotiationRoom proposals,
+votes, or blocking decisions. Retain lifecycle state and use the event fanout
+contract when implementing a debate coordinator. See
+[Negotiation Client](../clients/negotiation.md) and RFC §17.
+
+### Scheduler policy: bound negotiation and explain outcomes
+
+Set and retrieve the base policy with `SetNegotiationPolicy` and
+`GetNegotiationPolicy`. Use `SetPolicyProfiles` and `ListPolicyProfiles` for
+named profiles. Before a negotiation round, retrieve `GetEffectivePolicy` for
+its negotiation ID so participants use the authoritative policy rather than
+their advisory preferences alone.
+
+Send deterministic scores, confidence, notes, and change summaries through
+`SubmitEvaluation`. Apply an authorized human decision through `HitlAction`,
+including its rationale. Inspect each response's `ok` or `accepted` flag and
+`reason`. A policy object does not itself execute a round or enforce a budget;
+the coordinator must do that. See [Scheduler Policy Client](../clients/scheduler-policy.md).
+
+### Handoff: transfer responsibility with an explicit decision
+
+The source calls `RequestHandoff` with `request_id`, `from_agent`, `to_agent`,
+reason, serialized `context_snapshot`, required capabilities, priority, and
+timeout. The recipient discovers requests with `GetPendingHandoffs` and either
+`AcceptHandoff`s or `RejectHandoff`s using the same request ID. An `Empty` RPC
+response is not proof that the recipient accepted or completed the work.
+
+Keep the source's recovery state until responsibility has been accepted.
+The eventual `CompleteHandoff` includes an explicit status; inspect `success`
+and `message`. A rejected request does not pass through completion. For
+cross-swarm cancellation, `CancelDelegation.acknowledged` confirms receipt,
+while cleanup and terminal outcome happen separately. See
+[Handoff Client](../clients/handoff.md), [serialization](handoff-serialization.md),
+and [SW4-004](extensions/SW4-004-inter-swarm-composition.md).
+
+### Workflow: define dependencies, start, inspect, resume
+
+Build a `WorkflowDefinition` whose `nodes` map contains unique node IDs, target
+agent IDs, dependency IDs, trigger types, and input/output mappings. Validate
+that dependencies exist and the graph is acyclic before `CreateWorkflow`.
+Inspect `success` and `error`; this response has no `error_code` field.
+
+`StartWorkflow` supplies initial `workflow_data` as a JSON string. Inspect
+`GetWorkflowState.state.node_states` to distinguish pending dependencies from
+running, completed, failed, or skipped nodes. `ResumeWorkflow` specifies a node
+ID and updated data; do not restart already completed side effects blindly.
+The wire client requires a server. The separate local
+[Workflow Engine](../clients/workflow-engine.md) executes an in-process DAG.
+See [Workflow Client](../clients/workflow.md) for wire examples.
+
+### HITL: obtain a human decision
+
+`Decide` takes a `HitlInvocation`: a canonical `reason_type`, context bytes,
+proposed action strings, and priority. The result has `action`,
+`decision_payload`, and `rationale`. Validate the returned action against your
+allowed choices and preserve the decision before proceeding.
+
+If the human service is unavailable or the deadline expires, pause, defer, or
+reject according to the workflow's policy. Never convert a timeout into an
+implicit approval. Approval routing, authentication, and the human interface
+belong to the server you supply. See [HITL Client](../clients/hitl.md).
+
+### Worktree: bind a context and control switches
+
+Call `Bind(agent_id, repo_id, worktree_id)` and inspect `ok` and `reason`.
+`Status` returns the current repository, worktree, and binding state. To move
+to another context, use `RequestSwitch` with `requires_hitl`; an authorized
+decision calls `ApproveSwitch` with a TTL or `RejectSwitch` with a reason.
+Confirm the resulting status before issuing file operations. Use `Unbind`
+when releasing the association.
+
+These operations manage binding state. They are not an `ExecuteGitCommand`
+API, and a worktree ID alone does not enforce filesystem isolation. The
+deployment must resolve allowed paths and confine its tools. See
+[Worktree Client](../clients/worktree.md).
+
+### Connector and Tool: discover a descriptor, then execute
+
+Connector `RegisterProvider` associates a provider ID with tool descriptors.
+`DescribeTools(provider_id)` returns their input/output schemas, idempotency,
+worktree requirement, default timeout, concurrency limit, and side-effect class.
+Use those descriptors to validate arguments and decide whether retries are safe.
+
+Execution goes to ToolService: `Call` for unary completion or `CallStream` for
+frames. A `ToolCall` carries `call_id`, tool/provider IDs, argument bytes,
+content type, execution policy, and stream flag. Track each `ToolFrame` by
+`call_id` and `frame_no`; consume `data` and inspect `final` and optional
+`summary`. Preserve partial output if the stream fails. `Cancel` is best effort
+and returns a `ToolError` shape; it does not guarantee rollback of prior effects.
+
+ExecutionPolicy expresses timeout, retry budget, worktree requirement, network
+and privilege policy, and CPU/wall budgets. Enforcement belongs to the tool
+server. See [Connector Client](../clients/connector.md) and
+[Tool Client](../clients/tool.md).
+
+### Reasoning: request an assessment
+
+Use `CheckParallelism` with two resource scope descriptions, `EvaluateDebate`
+with the negotiation ID and two proposals, or `Summarize` with ordered text
+segments and a token limit. The first two return a confidence score and notes;
+summarization returns summary, tokens, cost, and model metadata.
+
+Treat confidence as input to your scheduling or review policy, not authority
+to bypass resource locks or human approval. The service contract neither
+launches a debate nor supplies an inference engine. See
+[Reasoning Client](../clients/reasoning.md).
+
+### Logging and Activity: preserve evidence
+
+Logging `Ingest` accepts a `LogEvent` with timestamp, correlation ID, agent ID,
+event type, level string, and `details_json`. Record the operation, resource,
+result, and message IDs in details when useful; redact sensitive payloads.
+Inspect `ok`. Retrieval, retention, and immutable storage are backend concerns,
+not additional Logging RPCs.
+
+Activity `AppendArtifact` stores a negotiation artifact's kind, version,
+content type, bytes, and creation time. Check `ok` and `reason`. Use
+`ListArtifacts` with the negotiation ID and optional kind filter to reconstruct
+contracts, diffs, scores, or decisions. This is artifact evidence, not the
+Scheduler activity list or the SDK's message recovery buffer. See
+[Logging Client](../clients/logging.md) and [Activity Client](../clients/activity.md).
+
+## Operating a service boundary
+
+### Discovery, health, and balancing
+
+Configure each endpoint explicitly or resolve it through your deployment's
+service discovery. Agent heartbeats report agent health; they do not prove
+every dependency is ready. Before accepting work, probe the required RPCs and
+verify that persistent storage is writable. The canonical schemas do not
+define a generic `ServiceRegistration` or `CircuitBreakerConfig` message.
+
+For a custom replicated service, choose load balancing according to state
+ownership: round-robin fits interchangeable stateless workers; weighted or
+least-connections routing can suit unequal capacity; locality routing can
+reduce network cost. Exclude unhealthy endpoints. Do not put independent
+reference SQLite routers behind round-robin and assume they share pending
+deliveries. Stream affinity and shared/partitioned durable state must be
+designed together.
+
+### Failure and retry procedure
+
+First distinguish a gRPC transport failure from a negative application response
+(`accepted=false`, `ok=false`, or `success=false`) and from a terminal application
+ACK. Preserve the corresponding status, reason, and identifiers.
+
+Retry only when the operation is safe to repeat and the failure is transient.
+Use bounded exponential backoff with jitter and an overall deadline; stop on
+validation or permission failures until their cause is corrected. A timeout
+may occur after the server committed a mutation, so inspect existing state or
+deduplicate before repeating it. See [Error Handling](../clients/error-handling.md).
+
+If your integration uses a circuit breaker, CLOSED admits normal traffic,
+OPEN fails fast while the dependency recovers, and HALF_OPEN admits limited
+probes. Keep failed work pending or explicitly terminalize it; a fallback must
+not report successful processing of work it skipped. Circuit breakers and
+retry loops are deployment/SDK-specific, not universal wire behavior.
+
+### Authentication, authorization, and audit
+
+For deployment beyond the local reference setup, configure authenticated
+transport, bind the peer identity to the claimed agent ID, and authorize each
+method and resource. Verify this at the server boundary: possession of a
+descriptor or a message's `producer_id` is not proof of identity. Configure
+certificate/key loading through your server and channel implementation; there
+is no universal SW4RM `tls_config` YAML object.
+
+Record actor, service, method, resource, result, correlation ID, and timing for
+privileged operations. Define payload redaction, access to logs, and retention
+before exporting evidence. RFC §6 and §23 describe security requirements;
+the local reference services do not supply a complete mTLS/RBAC/audit platform.

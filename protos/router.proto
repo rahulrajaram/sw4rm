@@ -8,9 +8,32 @@ message SendMessageRequest { sw4rm.common.Envelope msg = 1; }
 message SendMessageResponse { bool accepted = 1; string reason = 2; }
 
 message StreamRequest { string agent_id = 1; }
-message StreamItem { sw4rm.common.Envelope msg = 1; }
+message StreamItem { sw4rm.common.Envelope msg = 1; int64 seq = 2; }
+
+// Consumer-ACK delivery contract (at-least-once with redelivery).
+// After receiving a StreamItem, the consumer acknowledges delivery by seq.
+// Rows the router has marked in-flight but never acknowledged are
+// redelivered after a lease expiry (or on the consumer's next stream),
+// so a consumer that dies between receive and process does not lose the
+// message. Deduplication is consumer-side via the envelope idempotency
+// token. Consumers that never acknowledge fall back to lease-based
+// redelivery and must deduplicate.
+enum DeliveryAckOutcome {
+  DELIVERY_ACK_OUTCOME_DELIVERED = 0;
+  DELIVERY_ACK_OUTCOME_PERMANENT_FAILURE = 1;
+}
+message DeliveryAckRequest {
+  string agent_id = 1;
+  int64 seq = 2;
+  string message_id = 3;
+  DeliveryAckOutcome outcome = 4;
+}
+message DeliveryAckResponse {
+  bool recorded = 1;   // false when the seq is unknown (already acked or expired)
+}
 
 service RouterService {
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
   rpc StreamIncoming(StreamRequest) returns (stream StreamItem); // per-agent inbound stream
+  rpc AckDelivery(DeliveryAckRequest) returns (DeliveryAckResponse); // consumer ACK: releases the pending row
 }

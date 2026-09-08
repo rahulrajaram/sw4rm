@@ -33,6 +33,7 @@ fi
 
 echo "🛑 Stopping JS reference services (Local Node)"
 
+# shellcheck disable=SC1091
 source ../scripts/lib.sh
 kill_from_pidfiles_then_patterns .registry.pid .router.pid .scheduler.pid -- \
   "src/registry-service" "src/router-service" "src/scheduler-service"

@@ -141,6 +141,8 @@ pub async fn run_control() -> Result<()> {
                 let _ = router.send_message(&env_out).await;
             }
         } else if stage == "run" {
+            // Campaign R2: every dispatched run command must survive the
+            // shared allowlist; caller pass-through is validated, not trusted.
             let mut commands = params.get("commands").cloned();
             if commands.is_none() {
                 let guidance = params.get("prompt").cloned().unwrap_or(serde_json::json!(""));
@@ -148,18 +150,32 @@ pub async fn run_control() -> Result<()> {
                     "{}{}{}\n\nGuidance: {}",
                     "Return JSON ONLY as {\\\"commands\\\": { backend: { run_cmd }, frontend: { run_cmd } } }.",
                     " Execution cwd for agents is ./generated_app.",
-                    " Backend: 'cd backend && python3 server.py'; Frontend: 'cd frontend && python3 -m http.server 5173'.",
+                    " Single program + arguments only (no shell compounds, no cd). Backend example: 'python3 backend/server.py'; Frontend example: 'python3 -m http.server 5173 --directory frontend'.",
                     guidance
                 );
                 let run_obj = run_claude(&run_prompt);
                 commands = run_obj.get("commands").cloned();
             }
-            let backend_cmd = commands.as_ref().and_then(|c| c.get("backend").and_then(|b| b.get("run_cmd")).and_then(|v| v.as_str())).unwrap_or("cd backend && python3 server.py");
-            let frontend_cmd = commands.as_ref().and_then(|c| c.get("frontend").and_then(|b| b.get("run_cmd")).and_then(|v| v.as_str())).unwrap_or("cd frontend && python3 -m http.server 5173");
-            let mk_run = |to: &str, cmdline: &str| serde_json::json!({"schema_version":1, "to": to, "stage":"run", "params": {"cmd": cmdline}});
-            for (to, cmdline) in [("backend", backend_cmd), ("frontend", frontend_cmd)] {
+            let resolve_argv = |raw: Option<&str>| -> Result<Vec<String>, String> {
+                match raw {
+                    Some(cmd) if !cmd.trim().is_empty() => super::run_policy::validate_run_cmd_string(cmd),
+                    _ => Err("missing run_cmd".into()),
+                }
+            };
+            let backend_argv = resolve_argv(commands.as_ref().and_then(|c| c.get("backend").and_then(|b| b.get("run_cmd")).and_then(|v| v.as_str())));
+            let frontend_argv = resolve_argv(commands.as_ref().and_then(|c| c.get("frontend").and_then(|b| b.get("run_cmd")).and_then(|v| v.as_str())));
+            let (backend_argv, frontend_argv) = match (backend_argv, frontend_argv) {
+                (Ok(b), Ok(f)) => (b, f),
+                (b, f) => {
+                    warn!("[scheduler] run command rejected by allowlist: backend={:?} frontend={:?}",
+                        b.err(), f.err());
+                    continue;
+                }
+            };
+            let mk_run = |to: &str, argv: &[String]| serde_json::json!({"schema_version":1, "to": to, "stage":"run", "params": {"cmd_argv": argv, "confirm": true}});
+            for (to, argv) in [("backend", backend_argv), ("frontend", frontend_argv)] {
                 let env_out = EnvelopeBuilder::new(agent_id.clone(), constants::message_type::CONTROL)
-                    .with_payload(serde_json::to_vec(&mk_run(to, cmdline)).unwrap())
+                    .with_payload(serde_json::to_vec(&mk_run(to, &argv)).unwrap())
                     .with_content_type(CT_SCHED_CMD.to_string())
                     .with_correlation_id(corr.clone())
                     .build();

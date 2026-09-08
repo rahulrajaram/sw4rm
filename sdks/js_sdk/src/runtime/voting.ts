@@ -20,7 +20,8 @@
  * - SimpleAverageAggregator: Arithmetic mean of all scores
  * - ConfidenceWeightedAggregator: Weight votes by confidence (POMDP-based)
  * - MajorityVoteAggregator: Count passed vs failed votes
- * - BordaCountAggregator: Ranked voting with position-based points
+ * - BordaCountAggregator: Score-derived rank points with a score-sensitive
+ *   Borda-weighted mean
  *
  * Based on Python SDK voting/strategies.py and voting/aggregation.py.
  */
@@ -47,6 +48,9 @@ export interface VotingAggregator {
    */
   aggregate(votes: NegotiationVote[]): AggregatedScore;
 }
+
+/** Runtime-neutral score summary shape used by the Python policy helpers. */
+export type ScoreSummary = AggregatedScore;
 
 /**
  * Simple arithmetic mean aggregation strategy.
@@ -151,6 +155,15 @@ export class ConfidenceWeightedAggregator implements VotingAggregator {
       voteCount: votes.length,
     };
   }
+}
+
+/**
+ * Aggregate votes with the runtime-neutral Python semantics: arithmetic
+ * statistics plus a confidence-weighted mean, falling back to the arithmetic
+ * mean when every confidence is zero.
+ */
+export function aggregateScoreSummary(votes: NegotiationVote[]): ScoreSummary {
+  return new ConfidenceWeightedAggregator().aggregate(votes);
 }
 
 /**
@@ -265,23 +278,21 @@ export class BordaCountAggregator implements VotingAggregator {
       scores.reduce((sum, s) => sum + Math.pow(s - mean, 2), 0) / n;
     const stdDev = Math.sqrt(variance);
 
-    // Borda count calculation
-    // Sort scores with their indices to handle ties
+    // Borda count calculation: points by score-derived rank (stable sort
+    // keeps tied scores in input order). weighted_mean is the
+    // Borda-points-weighted mean of the actual scores (score-sensitive).
     const indexedScores = scores.map((score, idx) => ({ score, idx }));
     indexedScores.sort((a, b) => b.score - a.score);
 
-    // Assign points based on rank (highest gets n points, lowest gets 1)
+    let weighted = 0;
     let totalPoints = 0;
     for (let rank = 0; rank < indexedScores.length; rank++) {
       const points = n - rank;
+      weighted += points * indexedScores[rank].score;
       totalPoints += points;
     }
 
-    // Normalize to 0-10 scale
-    // Average points per position
-    const avgPoints = totalPoints / n;
-    // Normalize: avgPoints / n * 10 gives us the normalized score
-    const bordaScore = (avgPoints / n) * 10.0;
+    const bordaScore = weighted / totalPoints;
 
     return {
       mean,

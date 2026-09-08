@@ -6,6 +6,7 @@ use crate::proto::sw4rm::router::{
 use crate::proto::sw4rm::common::MessageType;
 use dashmap::DashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -29,6 +30,7 @@ pub struct MessageInfo {
 pub struct RouterServiceImpl {
     agent_senders: Arc<DashMap<String, mpsc::UnboundedSender<Result<StreamItem, Status>>>>,
     message_log: Arc<DashMap<String, MessageInfo>>,
+    next_seq: Arc<AtomicI64>,
 }
 
 impl RouterServiceImpl {
@@ -36,6 +38,7 @@ impl RouterServiceImpl {
         Self {
             agent_senders: Arc::new(DashMap::new()),
             message_log: Arc::new(DashMap::new()),
+            next_seq: Arc::new(AtomicI64::new(1)),
         }
     }
 
@@ -124,6 +127,7 @@ impl RouterService for RouterServiceImpl {
             if let Some(sender) = self.agent_senders.get(agent_id) {
                 let stream_item = StreamItem {
                     msg: Some(envelope.clone()),
+                    seq: self.next_seq.fetch_add(1, Ordering::Relaxed),
                 };
                 
                 if sender.send(Ok(stream_item)).is_ok() {
@@ -175,6 +179,19 @@ impl RouterService for RouterServiceImpl {
         // The agent_senders entry is cleaned up in the stream event handlers above
 
         Ok(Response::new(stream))
+    }
+
+    /// The lightweight reference router does not retain pending rows. It
+    /// exposes the ACK endpoint for wire compatibility, but reports that no
+    /// delivery was recorded; use the Python router for lease/redelivery
+    /// semantics.
+    async fn ack_delivery(
+        &self,
+        _request: Request<crate::proto::sw4rm::router::DeliveryAckRequest>,
+    ) -> Result<Response<crate::proto::sw4rm::router::DeliveryAckResponse>, Status> {
+        Ok(Response::new(crate::proto::sw4rm::router::DeliveryAckResponse {
+            recorded: false,
+        }))
     }
 }
 
