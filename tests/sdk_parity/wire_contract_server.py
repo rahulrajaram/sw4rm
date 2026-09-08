@@ -16,6 +16,7 @@ import threading
 
 import grpc
 from google.protobuf import descriptor_pool, message_factory
+from google.protobuf.descriptor import FieldDescriptor
 
 ROOT = Path(__file__).resolve().parents[2]
 with gzip.open(ROOT / "tests/conformance_vectors/wire_vectors.json.gz", "rt") as _handle:
@@ -40,6 +41,46 @@ def fixture_message(name, variant="sample"):
     return message_type(name).FromString(bytes.fromhex(VECTORS[f"{name}:{variant}"]["wire_hex"]))
 
 
+def _normalize_zero_floats(message):
+    """Normalize only signed zero in present protobuf float fields.
+
+    Proto3 scalar floats with implicit presence may be omitted by prost when
+    their value is either signed zero. Some runtimes retain the sign when
+    decoding an explicitly encoded ``-0.0`` and include it in message
+    equality. Only those singular fields are normalized; explicit-presence,
+    repeated, and map fields retain their exact values. Cloning first
+    preserves unknown fields and all non-float values exactly.
+    """
+    for field, value in message.ListFields():
+        if field.message_type and field.message_type.GetOptions().map_entry:
+            value_field = field.message_type.fields_by_name["value"]
+            if value_field.message_type:
+                for item in value.values():
+                    _normalize_zero_floats(item)
+        elif field.label == FieldDescriptor.LABEL_REPEATED:
+            if field.message_type:
+                for item in value:
+                    _normalize_zero_floats(item)
+        elif field.message_type:
+            _normalize_zero_floats(value)
+        elif (field.type in (FieldDescriptor.TYPE_FLOAT, FieldDescriptor.TYPE_DOUBLE)
+              and not field.has_presence and value == 0.0):
+            setattr(message, field.name, 0.0)
+
+
+def protobuf_semantically_equal(actual, expected):
+    """Compare messages while accounting for prost's signed-zero omission."""
+    normalized_actual = actual.__class__()
+    normalized_actual.CopyFrom(actual)
+    normalized_expected = expected.__class__()
+    normalized_expected.CopyFrom(expected)
+    _normalize_zero_floats(normalized_actual)
+    _normalize_zero_floats(normalized_expected)
+    return (normalized_actual == normalized_expected
+            and normalized_actual.SerializeToString(deterministic=True)
+            == normalized_expected.SerializeToString(deterministic=True))
+
+
 def handler_for(rpc):
     def check(request_bytes, context):
         metadata = dict(context.invocation_metadata())
@@ -52,7 +93,7 @@ def handler_for(rpc):
         variant = metadata.get("sw4rm-vector", "sample")
         actual = message_type(rpc["request"]).FromString(request_bytes)
         expected = fixture_message(rpc["request"], variant)
-        if actual != expected:
+        if not protobuf_semantically_equal(actual, expected):
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, f"request differs from {rpc['request']}:{variant}")
         return variant
 

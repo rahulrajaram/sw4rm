@@ -5,7 +5,18 @@ import argparse
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import zipfile
+
+
+def _probe_unpacked_wheel(wheel: Path, code: str, modules: tuple[str, ...]) -> None:
+    # Wheels are installed as files, not imported as ZIP archives. In particular,
+    # ZIP imports cannot discover this wheel's implicit protobuf namespace.
+    with tempfile.TemporaryDirectory(prefix='sw4rm-wheel-') as temporary:
+        with zipfile.ZipFile(wheel) as archive:
+            archive.extractall(temporary)
+        subprocess.run([sys.executable, '-I', '-c', code, temporary, *modules],
+                       cwd=temporary, check=True)
 
 
 def check(wheel: Path) -> None:
@@ -21,10 +32,10 @@ def check(wheel: Path) -> None:
             raise ValueError(f'Wheel missing runtime files: {sorted(missing)}')
     code = '''
 import importlib, pathlib, sys
-wheel = sys.argv[1]
-sys.path.insert(0, wheel)
+installed = pathlib.Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(installed))
 import sw4rm
-assert sw4rm.__file__.startswith(wheel), sw4rm.__file__
+assert pathlib.Path(sw4rm.__file__).resolve().is_relative_to(installed), sw4rm.__file__
 from sw4rm.protos import router_pb2
 from sw4rm.clients.router import RouterClient
 from sw4rm.clients import ProtocolClient
@@ -49,11 +60,18 @@ for module in sorted({entry[0] for entry in PROTOCOL_METHODS.values()}):
         if name.endswith('Stub'): getattr(stub_module, name)(channel)
 assert set(ProtocolClient.rpc_paths()) == channel.paths
 assert callable(compute_idempotency_token)
+for name, module in tuple(sys.modules.items()):
+    if name.split('.')[0] not in ('sw4rm', 'sw4rm_policies'):
+        continue
+    filename = getattr(module, '__file__', None)
+    locations = [filename] if filename else list(getattr(module, '__path__', ()))
+    assert locations and all(pathlib.Path(location).resolve().is_relative_to(installed)
+                             for location in locations), (name, locations)
 print('Wheel imports, ACK and all canonical RPC bindings OK:', sw4rm.__version__)
 '''
     modules = tuple(name[:-3].replace('/', '.') for name in sorted(names)
                     if name.startswith('sw4rm/protos/') and name.endswith(('_pb2.py', '_pb2_grpc.py')))
-    subprocess.run([sys.executable, '-I', '-c', code, str(wheel.resolve()), *modules], check=True)
+    _probe_unpacked_wheel(wheel, code, modules)
 
 
 def main() -> None:

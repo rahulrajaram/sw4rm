@@ -53,9 +53,11 @@ defmodule Sw4rm.WireContractTest do
       # (empty) map entries on decode, so vectors that lose bytes there are
       # pinned semantically instead; all other vectors are byte-exact.
       reencoded = module.encode(module.decode(wire))
+
       if byte_size(reencoded) == byte_size(wire) do
         assert reencoded == wire
       end
+
       assert module.decode(module.encode(module.decode(wire))) == expected
     end
   end

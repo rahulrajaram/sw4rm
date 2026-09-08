@@ -1,13 +1,17 @@
 """Release gates must detect real package/version/schema drift."""
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from release_contract import CARRIERS, bump, inventory, protocol_copy_errors, reference_document, rpc_inventory, schema_document, version_errors  # noqa: E402
+from release_contract import (CARRIERS, bump, inventory,
+                              protocol_copy_errors, reference_document, resolve_base_ref,
+                              rpc_inventory, schema_document, staged_base_version_errors,
+                              version_errors)  # noqa: E402
 
 
 @pytest.fixture
@@ -79,3 +83,102 @@ def test_rpc_inventory_matches_real_protobuf_compiler(tmp_path):
     descriptors = FileDescriptorSet.FromString(output.read_bytes())
     expected = {(f'{f.package}.{s.name}', m.name) for f in descriptors.file for s in f.service for m in s.method}
     assert {(r.service, r.method) for r in rpc_inventory(ROOT)} == expected
+
+
+def _git(cwd, *args):
+    return subprocess.check_output(['git', *args], cwd=cwd, text=True).strip()
+
+
+def test_staged_release_check_requires_one_bump_per_branch(tmp_path):
+    _git(tmp_path, 'init', '-b', 'master')
+    _git(tmp_path, 'config', 'user.email', 'tests@example.invalid')
+    _git(tmp_path, 'config', 'user.name', 'Release tests')
+    path = tmp_path / 'documentation/protocol/spec.md'
+    path.parent.mkdir(parents=True)
+    path.write_text('Version: 0.7.0\n')
+    (tmp_path / 'protos').mkdir()
+    (tmp_path / 'protos/router.proto').write_text('syntax = "proto3";\n')
+    _git(tmp_path, 'add', '.')
+    _git(tmp_path, 'commit', '-m', 'base')
+    _git(tmp_path, 'branch', 'release-base')
+    path.write_text('Version: 0.7.0\n')
+    (tmp_path / 'protos/router.proto').write_text('syntax = "proto3";\nmessage Changed {}\n')
+    _git(tmp_path, 'add', '.')
+    assert staged_base_version_errors(tmp_path, 'HEAD') == (
+        'Protocol/SDK changed: version 0.7.0 must exceed base 0.7.0',)
+    path.write_text('Version: 0.8.0\n')
+    _git(tmp_path, 'add', str(path.relative_to(tmp_path)))
+    assert staged_base_version_errors(tmp_path, 'HEAD') == ()
+    _git(tmp_path, 'commit', '-m', 'first release bump')
+    (tmp_path / 'protos/router.proto').write_text('syntax = "proto3";\nmessage ChangedAgain {}\n')
+    _git(tmp_path, 'add', 'protos/router.proto')
+    assert staged_base_version_errors(tmp_path, 'release-base') == ()
+    assert staged_base_version_errors(tmp_path, 'HEAD') == (
+        'Protocol/SDK changed: version 0.8.0 must exceed base 0.8.0',)
+
+
+def test_staged_check_reads_index_when_unstaged_worktree_is_fixed(tmp_path):
+    _git(tmp_path, 'init', '-b', 'master')
+    _git(tmp_path, 'config', 'user.email', 'tests@example.invalid')
+    _git(tmp_path, 'config', 'user.name', 'Release tests')
+    path = tmp_path / 'documentation/protocol/spec.md'
+    path.parent.mkdir(parents=True)
+    path.write_text('Version: 0.7.0\n')
+    (tmp_path / 'protos').mkdir()
+    proto = tmp_path / 'protos/router.proto'
+    proto.write_text('syntax = "proto3";\n')
+    _git(tmp_path, 'add', '.')
+    _git(tmp_path, 'commit', '-m', 'base')
+    proto.write_text('syntax = "proto3";\nmessage Changed {}\n')
+    _git(tmp_path, 'add', '.')
+    path.write_text('Version: 0.8.0\n')
+    assert staged_base_version_errors(tmp_path, 'HEAD') == (
+        'Protocol/SDK changed: version 0.7.0 must exceed base 0.7.0',)
+
+
+def test_base_resolution_uses_known_origin_branch_and_rejects_missing(tmp_path):
+    _git(tmp_path, 'init', '-b', 'master')
+    _git(tmp_path, 'config', 'user.email', 'tests@example.invalid')
+    _git(tmp_path, 'config', 'user.name', 'Release tests')
+    (tmp_path / 'file').write_text('base')
+    _git(tmp_path, 'add', 'file')
+    _git(tmp_path, 'commit', '-m', 'base')
+    _git(tmp_path, 'branch', 'feature')
+    _git(tmp_path, 'update-ref', 'refs/remotes/origin/master', 'HEAD')
+    assert resolve_base_ref(tmp_path) == 'origin/master'
+    _git(tmp_path, 'update-ref', '-d', 'refs/remotes/origin/master')
+    with pytest.raises(ValueError, match='Unable to resolve release base'):
+        resolve_base_ref(tmp_path)
+
+
+def test_staged_cli_ignores_worktree_and_catches_index_mismatch(release_tree, monkeypatch):
+    import release_contract
+    _git(release_tree, 'init', '-b', 'master')
+    _git(release_tree, 'config', 'user.email', 'tests@example.invalid')
+    _git(release_tree, 'config', 'user.name', 'Release tests')
+    _git(release_tree, 'add', '.')
+    _git(release_tree, 'commit', '-m', 'base')
+    monkeypatch.setattr(release_contract, 'ROOT', release_tree)
+    monkeypatch.setattr(sys, 'argv', ['release_contract', '--staged', '--base-ref', 'HEAD'])
+    carrier = CARRIERS[1]
+    path = release_tree / carrier.path
+    original = path.read_text()
+    path.write_text('invalid unstaged content')
+    assert release_contract.main() == 0
+    path.write_text(carrier.update(original, '9.9.9'))
+    _git(release_tree, 'add', carrier.path)
+    path.write_text(original)
+    assert release_contract.main() == 1
+
+
+def test_origin_head_resolves_two_default_branch_names(tmp_path):
+    _git(tmp_path, 'init', '-b', 'master')
+    _git(tmp_path, 'config', 'user.email', 'tests@example.invalid')
+    _git(tmp_path, 'config', 'user.name', 'Release tests')
+    _git(tmp_path, 'commit', '--allow-empty', '-m', 'base')
+    for name in ('master', 'main'):
+        _git(tmp_path, 'update-ref', f'refs/remotes/origin/{name}', 'HEAD')
+    with pytest.raises(ValueError, match='Both origin/master and origin/main'):
+        resolve_base_ref(tmp_path)
+    _git(tmp_path, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main')
+    assert resolve_base_ref(tmp_path) == 'origin/main'

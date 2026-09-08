@@ -185,7 +185,9 @@ defmodule Sw4rm.ConformanceVectorsTest do
              "accepted mismatch: got #{result.accepted}, expected #{expected["accepted"]}"
 
       expected_code =
-        if expected["rejection_code"] == "NONE", do: 0, else: ErrorCodes.from_string(expected["rejection_code"])
+        if expected["rejection_code"] == "NONE",
+          do: 0,
+          else: ErrorCodes.from_string(expected["rejection_code"])
 
       assert result.rejection_code == expected_code,
              "rejection_code mismatch: got #{result.rejection_code}, expected #{expected_code} (#{expected["rejection_code"]})"

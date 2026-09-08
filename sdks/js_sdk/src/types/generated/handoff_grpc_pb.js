@@ -3,7 +3,6 @@
 // Original file comments:
 // SW4RM Protocol - Handoff Proto Definition
 // Namespace Convention: sw4rm.{service} (e.g., sw4rm.handoff)
-// See: docs/IMPLEMENTATION_PLAN.md Phase 1.1 for namespace standards.
 //
 'use strict';
 var grpc = require('@grpc/grpc-js');

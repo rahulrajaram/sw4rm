@@ -144,41 +144,114 @@ def schema_document(root: Path) -> str:
 
 
 def base_version_errors(root: Path, base_ref: str) -> tuple[str, ...]:
-    previous = CARRIERS[0].read(subprocess.check_output(
-        ["git", "show", f"{base_ref}:{CARRIERS[0].path}"], cwd=root, text=True))
-    current = CARRIERS[0].read((root / CARRIERS[0].path).read_text())
-    changed = subprocess.check_output(
-        ["git", "diff", "--name-only", f"{base_ref}...HEAD"], cwd=root, text=True).splitlines()
+    return _base_version_errors(root, base_ref, lambda path: (root / path).read_text(),
+                                ["git", "diff", "--name-only", f"{base_ref}...HEAD"])
+
+
+def _git_text(root: Path, ref: str, path: str) -> str:
+    return subprocess.check_output(["git", "show", f"{ref}:{path}"], cwd=root, text=True)
+
+
+def _index_text(root: Path, path: str) -> str:
+    return subprocess.check_output(["git", "show", f":{path}"], cwd=root, text=True)
+
+
+def _base_version_errors(root: Path, base_ref: str, read: Callable[[str], str],
+                         changed_command: list[str]) -> tuple[str, ...]:
+    previous = CARRIERS[0].read(_git_text(root, base_ref, CARRIERS[0].path))
+    current = CARRIERS[0].read(read(CARRIERS[0].path))
+    changed = subprocess.check_output(changed_command, cwd=root, text=True).splitlines()
     needs_bump = any(p.startswith(("protos/", "sdks/", "documentation/protocol/")) for p in changed)
     if needs_bump and tuple(map(int, current.split("."))) <= tuple(map(int, previous.split("."))):
         return (f"Protocol/SDK changed: version {current} must exceed base {previous}",)
     return ()
 
 
+def resolve_base_ref(root: Path, explicit: str | None = None) -> str:
+    """Resolve a stable PR-base ref; never infer a feature branch upstream."""
+    configured = explicit or subprocess.run(
+        ["git", "config", "--get", "release.base-ref"], cwd=root,
+        text=True, capture_output=True, check=False,
+    ).stdout.strip()
+    if not configured:
+        import os
+        configured = os.environ.get("SW4RM_RELEASE_BASE_REF", "")
+    candidates = [configured] if configured else []
+    if not configured:
+        symbolic = subprocess.run(
+            ["git", "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"], cwd=root,
+            text=True, capture_output=True, check=False,
+        ).stdout.strip()
+        if symbolic in {"refs/remotes/origin/master", "refs/remotes/origin/main"}:
+            candidates.append(symbolic.removeprefix("refs/remotes/"))
+        known = tuple(candidate for candidate in ("origin/master", "origin/main") if subprocess.run(
+            ["git", "rev-parse", "--verify", f"{candidate}^{{commit}}"], cwd=root,
+            text=True, capture_output=True, check=False,
+        ).returncode == 0)
+        if len(known) > 1 and not candidates:
+            raise ValueError("Both origin/master and origin/main exist without origin/HEAD; "
+                             "set release.base-ref or SW4RM_RELEASE_BASE_REF explicitly.")
+        candidates.extend(known)
+    for candidate in dict.fromkeys(candidates):
+        if candidate and subprocess.run(
+            ["git", "rev-parse", "--verify", f"{candidate}^{{commit}}"], cwd=root,
+            text=True, capture_output=True, check=False,
+        ).returncode == 0:
+            return candidate
+    requested = configured or "origin/HEAD, origin/master, or origin/main"
+    raise ValueError(f"Unable to resolve release base '{requested}'. Set release.base-ref "
+                     "or SW4RM_RELEASE_BASE_REF to a fetched origin/master or origin/main ref.")
+
+
+def staged_base_version_errors(root: Path, base_ref: str | None = None) -> tuple[str, ...]:
+    """Check the staged tree against a stable PR base, including cumulative changes."""
+    resolved = resolve_base_ref(root, base_ref)
+    merge_base = subprocess.check_output(
+        ["git", "merge-base", resolved, "HEAD"], cwd=root, text=True).strip()
+    return _base_version_errors(
+        root, resolved, lambda path: _index_text(root, path),
+        ["git", "diff", "--cached", "--name-only", merge_base],
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write-docs", action="store_true", help="Regenerate source-derived reference")
     parser.add_argument("--base-ref", help="Require a version bump relative to this local git ref")
+    parser.add_argument("--staged", action="store_true", help="Check staged content against the PR base")
     args = parser.parse_args()
-    reference = ROOT / "documentation/reference/release-contract.md"
-    expected = reference_document(ROOT)
-    schema = ROOT / "documentation/reference/protobuf.md"
-    expected_schema = schema_document(ROOT)
-    if args.write_docs:
-        reference.parent.mkdir(parents=True, exist_ok=True)
-        reference.write_text(expected)
-        schema.write_text(expected_schema)
-    errors = version_errors(inventory(lambda p: (ROOT / p).read_text())) + protocol_copy_errors(ROOT)
-    if not reference.exists() or reference.read_text() != expected:
-        errors += ("Generated reference stale: python scripts/release_contract.py --write-docs",)
-    if not schema.exists() or schema.read_text() != expected_schema:
-        errors += ("Generated schema stale: python scripts/release_contract.py --write-docs",)
-    if args.base_ref:
+    if args.staged and args.write_docs:
+        parser.error("--staged cannot be combined with --write-docs")
+    if args.staged:
+        try:
+            errors = version_errors(inventory(lambda p: _index_text(ROOT, p)))
+            errors += staged_base_version_errors(ROOT, args.base_ref)
+        except (subprocess.CalledProcessError, ValueError) as error:
+            errors = (f"Staged release check unavailable: {error}",)
+    else:
+        reference = ROOT / "documentation/reference/release-contract.md"
+        expected = reference_document(ROOT)
+        schema = ROOT / "documentation/reference/protobuf.md"
+        expected_schema = schema_document(ROOT)
+        if args.write_docs:
+            reference.parent.mkdir(parents=True, exist_ok=True)
+            reference.write_text(expected)
+            schema.write_text(expected_schema)
+        errors = version_errors(inventory(lambda p: (ROOT / p).read_text())) + protocol_copy_errors(ROOT)
+    if not args.staged:
+        if not reference.exists() or reference.read_text() != expected:
+            errors += ("Generated reference stale: python scripts/release_contract.py --write-docs",)
+        if not schema.exists() or schema.read_text() != expected_schema:
+            errors += ("Generated schema stale: python scripts/release_contract.py --write-docs",)
+    if args.base_ref and not args.staged:
         errors += base_version_errors(ROOT, args.base_ref)
     for error in errors:
         print(error)
     if not errors:
-        print(f"Release contract OK: {len(CARRIERS)} version carriers; proto copies; generated reference")
+        if args.staged:
+            print(f"Staged release contract OK: {len(CARRIERS)} version carriers; PR-base bump")
+        else:
+            print(f"Release contract OK: {len(CARRIERS)} version carriers; proto copies; generated reference")
     return int(bool(errors))
 
 

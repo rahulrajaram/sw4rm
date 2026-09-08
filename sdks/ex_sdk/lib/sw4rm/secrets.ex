@@ -95,6 +95,7 @@ defmodule Sw4rm.Secrets.FileBackend do
         # Best-effort tighten an existing file: secret plaintext must never
         # be world-readable (security finding 3 / R31).
         File.chmod(path, 0o600)
+
         case Jason.decode(content) do
           {:ok, data} when is_list(data) ->
             Enum.into(data, %{}, fn entry ->
